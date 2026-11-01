@@ -45,7 +45,7 @@ class OggButton(OggEntity, ButtonEntity):
     @property
     def available(self) -> bool:
         if self.action == "pulse":
-            return self.device_online
+            return self.device_online and self.device.motor_count > 0
         if self.action == "pulse_all":
             return self.hub.enabled and self.hub.connected
         # Stop actions also clear local state offline; search can be requested

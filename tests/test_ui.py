@@ -76,8 +76,15 @@ async def test_offline_entry_loads_with_connection_controls_and_no_setup_retry(h
         assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"intensity": 60},
+        {"intensity": 60, "pattern": [], "motor_mode": {}, "native_profile": []},
+    ],
+)
 async def test_restored_enabled_entry_loads_while_endpoint_is_offline(
-    hass, hass_storage, unused_tcp_port, socket_enabled
+    hass, hass_storage, unused_tcp_port, socket_enabled, settings
 ):
     host = f"ws://127.0.0.1:{unused_tcp_port}"
     entry = MockConfigEntry(domain=DOMAIN, unique_id=DOMAIN, title="Ogg", data=config(host))
@@ -90,7 +97,7 @@ async def test_restored_enabled_entry_loads_while_endpoint_is_offline(
                 {
                     "source": f"manual:{host}/",
                     "raw": vibration_device(name="Saved device"),
-                    "settings": {"intensity": 60},
+                    "settings": settings,
                     "running": True,
                 }
             ],
@@ -110,6 +117,9 @@ async def test_restored_enabled_entry_loads_while_endpoint_is_offline(
         assert hub.devices[key].alias == "Saved device"
         assert not hub.devices[key].running
         assert hub.devices[key].settings["intensity"] == 60
+        assert hub.devices[key].settings["pattern"] == "steady"
+        assert hub.devices[key].settings["motor_mode"] == "together"
+        assert hub.devices[key].settings["native_profile"] == "disabled"
         assert hass.states.get(entity_id(hass, entry, "switch", "run", key)).state == "unavailable"
         await wait_until(lambda: hub.last_error == "No configured server is responding")
         assert entry.state is ConfigEntryState.LOADED

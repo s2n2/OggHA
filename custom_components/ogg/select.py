@@ -52,6 +52,14 @@ class OggSelect(OggEntity, SelectEntity):
             self._attr_entity_category = EntityCategory.CONFIG
 
     @property
+    def available(self) -> bool:
+        if self.setting == "motor_mode":
+            return self.device.motor_count > 1
+        if self.setting == "pattern":
+            return self.device.motor_count > 0
+        return True
+
+    @property
     def current_option(self) -> str:
         return str(self.device.settings[self.setting])
 

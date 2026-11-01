@@ -84,7 +84,7 @@ class OggRunSwitch(OggEntity, SwitchEntity):
 
     @property
     def available(self) -> bool:
-        return self.device_online
+        return self.device_online and self.device.motor_count > 0
 
     @property
     def is_on(self) -> bool:
