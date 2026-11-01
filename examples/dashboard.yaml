@@ -1,0 +1,142 @@
+# Built-in cards only. Paste into a new dashboard's Raw configuration editor.
+# Replace wevibe_chorus with your device prefix and check actual hub entity IDs.
+# Remove motor controls for single-motor devices; duplicate sections as needed.
+title: Ogg
+views:
+  - title: Ogg
+    path: ogg
+    icon: mdi:circle-double
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Ogg
+            heading_style: title
+            icon: mdi:circle-double
+          - type: tile
+            entity: switch.ogg_enabled
+            name: Connection
+            color: teal
+            features:
+              - type: toggle
+          - type: tile
+            entity: sensor.ogg_connection_status
+            name: Status
+            color: teal
+          - type: tile
+            entity: sensor.ogg_server_ip
+            name: Server
+          - type: tile
+            entity: sensor.ogg_connected_devices
+            name: Available devices
+          - type: tile
+            entity: number.ogg_pulse_duration
+            name: Pulse duration
+            icon: mdi:timer-outline
+            color: teal
+            features:
+              - type: numeric-input
+                style: slider
+          - type: tile
+            entity: button.ogg_search_now
+            name: Find devices
+            features:
+              - type: button
+                action_name: Search
+          - type: heading
+            heading: Together
+            icon: mdi:motion-play-outline
+          - type: tile
+            entity: switch.ogg_all_devices
+            name: Continuous
+            color: amber
+            features:
+              - type: toggle
+          - type: tile
+            entity: button.ogg_pulse_all
+            name: Timed burst
+            icon: mdi:timer-play-outline
+            color: amber
+            features:
+              - type: button
+                action_name: Pulse all
+          - type: tile
+            entity: button.ogg_stop_all
+            name: Stop everything
+            icon: mdi:stop-circle-outline
+            color: red
+            features:
+              - type: button
+                action_name: Stop all
+      - type: grid
+        cards:
+          - type: heading
+            heading: WeVibe Chorus
+            heading_style: title
+          - type: tile
+            entity: switch.wevibe_chorus_run
+            name: Run
+            color: purple
+            features:
+              - type: toggle
+          - type: tile
+            entity: button.wevibe_chorus_pulse
+            name: Timed burst
+            color: purple
+            features:
+              - type: button
+                action_name: Pulse
+          - type: tile
+            entity: button.wevibe_chorus_stop
+            name: Stop
+            color: red
+            features:
+              - type: button
+                action_name: Stop
+          - type: tile
+            entity: sensor.wevibe_chorus_pulse_remaining
+            name: Time remaining
+          - type: tile
+            entity: number.wevibe_chorus_intensity
+            name: Intensity
+            color: purple
+            features:
+              - type: numeric-input
+                style: slider
+          - type: tile
+            entity: select.wevibe_chorus_pattern
+            name: Pattern
+            color: purple
+            features:
+              - type: select-options
+          - type: tile
+            entity: number.wevibe_chorus_cycle_period
+            name: Cycle length
+            features:
+              - type: numeric-input
+                style: slider
+          - type: tile
+            entity: sensor.wevibe_chorus_pattern_engine
+            name: Pattern engine
+          - type: heading
+            heading: Motors
+            icon: mdi:tune-vertical
+          - type: tile
+            entity: select.wevibe_chorus_motor_mode
+            name: Motor mode
+            features:
+              - type: select-options
+          - type: tile
+            entity: number.wevibe_chorus_motor_1_level
+            name: Motor 1 level
+            features:
+              - type: numeric-input
+                style: slider
+          - type: tile
+            entity: number.wevibe_chorus_motor_2_level
+            name: Motor 2 level
+            features:
+              - type: numeric-input
+                style: slider

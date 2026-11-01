@@ -1,0 +1,48 @@
+"""Ogg: a local controller whose connection state never gates entry setup."""
+
+from __future__ import annotations
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import Event, HomeAssistant
+
+from .const import PLATFORMS
+from .coordinator import OggHub
+
+type OggConfigEntry = ConfigEntry[OggHub]
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: OggConfigEntry) -> bool:
+    """Create entities from local state, then connect in the background.
+
+    An unreachable server is an ordinary runtime state. There is deliberately
+    no connection attempt and no ConfigEntryNotReady path in entry setup.
+    """
+    hub = OggHub(hass, entry)
+    entry.runtime_data = hub
+    try:
+        await hub.async_initialize()
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+        async def async_stop(_event: Event) -> None:
+            await hub.async_shutdown()
+
+        entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, async_stop))
+        entry.async_on_unload(entry.add_update_listener(_async_update_options))
+        hub.start()
+    except BaseException:
+        # Also clean up if Home Assistant cancels setup during shutdown.
+        await hub.async_shutdown()
+        raise
+    return True
+
+
+async def _async_update_options(hass: HomeAssistant, entry: OggConfigEntry) -> None:
+    """Apply the edited connection sources through a full clean reload."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: OggConfigEntry) -> bool:
+    """Cancel output, stop devices and release background work before entities."""
+    await entry.runtime_data.async_shutdown()
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

@@ -1,0 +1,26 @@
+[project]
+name = "ogg-ha"
+version = "0.1.0"
+description = "Discreet local device control for Home Assistant"
+requires-python = ">=3.13"
+license = "GPL-3.0-only"
+
+[dependency-groups]
+test = [
+  "pytest-homeassistant-custom-component==0.13.375",
+  "ruff==0.17.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra"
+timeout = 30
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
