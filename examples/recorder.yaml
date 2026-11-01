@@ -1,0 +1,10 @@
+# Optional fragment for configuration.yaml. Merge with your existing recorder
+# section; do not add a second top-level recorder key. These patterns are examples.
+# Check the actual entity IDs for every device you want excluded from history.
+# This affects future recording, not existing history, logs or previous backups.
+recorder:
+  exclude:
+    entity_globs:
+      - "*.ogg_*"
+      - "*.wevibe_chorus_*"
+      - "*.wevibe_moxie_*"

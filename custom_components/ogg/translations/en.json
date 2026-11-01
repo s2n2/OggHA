@@ -1,0 +1,198 @@
+{
+  "title": "Ogg",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Ogg",
+        "description": "Add the local server addresses Ogg should try. Setup works while every server is offline. Turn on the Enabled switch when ready. Connecting never starts a device.",
+        "data": {
+          "manual_hosts": "Manual addresses",
+          "sensor_entities": "Address sensors",
+          "port": "Default server port",
+          "ssl": "Use a secure connection by default",
+          "scan_interval": "Search interval"
+        },
+        "data_description": {
+          "manual_hosts": "Up to five IP addresses, hostnames, or full ws:// / wss:// URLs. Leave empty when using address sensors only. These are alternative servers; one is connected at a time.",
+          "sensor_entities": "Up to five sensors whose state is an IP address, hostname, or WebSocket URL. Unavailable or invalid states are skipped until they become valid.",
+          "port": "Used when an address does not include its own port.",
+          "ssl": "Uses wss:// for addresses without an explicit scheme. Certificate verification stays enabled.",
+          "scan_interval": "Seconds between checks when disconnected and between device scans while connected."
+        }
+      }
+    },
+    "error": {
+      "invalid_config": "Check the addresses and sensors. Use no more than five of each, a valid port, and a search interval from 5 to 120 seconds."
+    },
+    "abort": {
+      "single_instance_allowed": "Ogg is already configured. Use Configure on the existing integration to change its addresses.",
+      "already_configured": "Ogg is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ogg connection settings",
+        "description": "Update the connection sources. Saving reloads Ogg and stops current activity. The integration stays loaded even when servers are offline.",
+        "data": {
+          "manual_hosts": "Manual addresses",
+          "sensor_entities": "Address sensors",
+          "port": "Default server port",
+          "ssl": "Use a secure connection by default",
+          "scan_interval": "Search interval"
+        },
+        "data_description": {
+          "manual_hosts": "Up to five IP addresses, hostnames, or full ws:// / wss:// URLs. Leave empty when using address sensors only. These are alternative servers; one is connected at a time.",
+          "sensor_entities": "Up to five sensors whose state is an IP address, hostname, or WebSocket URL. Unavailable or invalid states are skipped until they become valid.",
+          "port": "Used when an address does not include its own port.",
+          "ssl": "Uses wss:// for addresses without an explicit scheme. Certificate verification stays enabled.",
+          "scan_interval": "Seconds between checks when disconnected and between device scans while connected."
+        }
+      }
+    },
+    "error": {
+      "invalid_config": "Check the addresses and sensors. Use no more than five of each, a valid port, and a search interval from 5 to 120 seconds."
+    }
+  },
+  "entity": {
+    "switch": {
+      "enabled": {
+        "name": "Enabled"
+      },
+      "all_devices": {
+        "name": "All devices"
+      },
+      "run": {
+        "name": "Run"
+      }
+    },
+    "button": {
+      "pulse_all": {
+        "name": "Pulse all"
+      },
+      "stop_all": {
+        "name": "Stop all"
+      },
+      "search_now": {
+        "name": "Search now"
+      },
+      "pulse": {
+        "name": "Pulse"
+      },
+      "stop": {
+        "name": "Stop"
+      }
+    },
+    "number": {
+      "pulse_duration": {
+        "name": "Pulse duration"
+      },
+      "intensity": {
+        "name": "Intensity"
+      },
+      "period": {
+        "name": "Cycle period"
+      },
+      "motor_level": {
+        "name": "Motor {motor} level"
+      },
+      "rotate": {
+        "name": "Rotation {motor} speed"
+      },
+      "linear": {
+        "name": "Position {motor}"
+      }
+    },
+    "select": {
+      "pattern": {
+        "name": "Pattern",
+        "state": {
+          "steady": "Steady",
+          "pulse": "Pulse",
+          "wave": "Wave",
+          "breath": "Breath",
+          "ramp": "Ramp",
+          "heartbeat": "Heartbeat",
+          "double_pulse": "Double pulse",
+          "steps": "Steps",
+          "echo": "Echo",
+          "surge": "Surge",
+          "peak": "Peak",
+          "tide": "Tide",
+          "surf": "Surf",
+          "bounce": "Bounce",
+          "massage": "Massage",
+          "tease": "Tease",
+          "crest": "Crest",
+          "chachacha": "Cha-cha-cha",
+          "step": "Step",
+          "tempo": "Tempo"
+        }
+      },
+      "motor_mode": {
+        "name": "Motor mode",
+        "state": {
+          "together": "Together",
+          "alternating": "Alternating",
+          "motor_1": "Motor 1 only",
+          "motor_2": "Motor 2 only"
+        }
+      },
+      "native_profile": {
+        "name": "Native protocol",
+        "state": {
+          "disabled": "Software patterns",
+          "classic": "Classic 8-byte profile (confirmed)"
+        }
+      }
+    },
+    "binary_sensor": {
+      "connected": {
+        "name": "Connected"
+      }
+    },
+    "sensor": {
+      "connection_status": {
+        "name": "Connection status",
+        "state": {
+          "disabled": "Disabled",
+          "searching": "Searching",
+          "connecting": "Connecting",
+          "connected": "Connected",
+          "reconnecting": "Reconnecting",
+          "no_endpoints": "No usable addresses",
+          "error": "Connection error"
+        }
+      },
+      "server_ip": {
+        "name": "Server IP"
+      },
+      "connected_devices": {
+        "name": "Connected devices"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "disconnected": "Disconnected",
+          "idle": "Idle",
+          "continuous": "Running",
+          "pulse": "Pulsing"
+        }
+      },
+      "engine": {
+        "name": "Pattern engine",
+        "state": {
+          "software": "Software",
+          "native": "Native",
+          "fallback": "Software fallback"
+        }
+      },
+      "remaining": {
+        "name": "Pulse remaining"
+      },
+      "battery": {
+        "name": "Battery"
+      }
+    }
+  }
+}
