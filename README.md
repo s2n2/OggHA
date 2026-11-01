@@ -155,13 +155,28 @@ boundaries and the upstream references.
 - Per-device settings and discovered devices survive a Home Assistant restart.
 - A stop command is sent on normal disable/unload while the server is reachable.
 
-Buttplug v3 supplies a server-local device index, not a globally unique Bluetooth
-identifier. Ogg combines the configured server source, index and device
-description to avoid silently merging unrelated devices. A phone's changing IP
-does not change its configured sensor source. Resetting a server's device cache,
-changing which configured source represents it, or moving hardware between
-servers can create a new Home Assistant device. Existing device names can still
-be renamed in Home Assistant's device settings.
+**A device keeps the same Home Assistant identity when its server changes.** Ogg
+matches its model and, when supplied, its distinct server display name across
+all configured addresses. The server IP, address sensor, connection source,
+server-local device index and advertised feature counts do not define that
+identity. Ogg updates command routing to the current server and index while
+keeping the existing device, entity IDs and settings. Actual device names are
+preserved.
+
+The [Buttplug v3 discovery protocol](https://buttplug.io/docs/spec-v3/spec/enumeration/)
+does not expose a portable Bluetooth address or hardware serial number. If you
+own multiple devices of the same model, give each a **different display name in
+the server** and use that same name on every server. A Home Assistant-only
+rename does not provide that identifier to Ogg. Indistinguishable devices are
+kept separate when their identity is ambiguous; Ogg cannot reliably infer which
+physical unit moved between servers without a distinct name.
+
+When upgrading from Ogg 0.1.0, unambiguous copies created by different servers
+are consolidated automatically. The first saved device keeps its identity,
+settings and original Home Assistant entities. Redundant duplicate entities
+are removed. Dashboards or automations that referred to those later duplicates
+may need to be pointed back to the original entities. Ambiguous same-model
+devices are left separate instead of guessing which settings belong to them.
 
 An abrupt power or network loss prevents a final command from being delivered.
 The server's own disconnect/watchdog behaviour remains the last line of control

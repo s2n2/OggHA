@@ -106,7 +106,7 @@ class OggDeviceSensor(OggEntity, SensorEntity):
     @property
     def available(self) -> bool:
         if self.kind == "battery":
-            return self.device_online
+            return self.device_online and self.device.battery_supported
         return True
 
     @property

@@ -6,6 +6,7 @@ from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, UnitOfTime
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import OggHub
@@ -78,6 +79,10 @@ class OggSettingNumber(OggEntity, NumberEntity):
             self._attr_native_unit_of_measurement = UnitOfTime.SECONDS
 
     @property
+    def available(self) -> bool:
+        return self.device.motor_count > 0
+
+    @property
     def native_value(self) -> float:
         return float(self.device.settings[self.setting])
 
@@ -100,11 +105,19 @@ class OggMotorNumber(OggEntity, NumberEntity):
         self._attr_translation_placeholders = {"motor": str(index + 1)}
 
     @property
-    def native_value(self) -> float:
+    def available(self) -> bool:
+        return self.index < self.device.motor_count
+
+    @property
+    def native_value(self) -> float | None:
+        if not self.available:
+            return None
         return float(self.device.settings["motor_levels"][self.index])
 
     async def async_set_native_value(self, value: float) -> None:
         assert self.device_key is not None
+        if not self.available:
+            raise HomeAssistantError("This server does not expose that motor")
         levels = list(self.device.settings["motor_levels"])
         levels[self.index] = value
         await self.hub.async_set_setting(self.device_key, "motor_levels", levels)
@@ -128,10 +141,13 @@ class OggMotionNumber(OggEntity, NumberEntity):
 
     @property
     def available(self) -> bool:
-        return self.device_online
+        count = self.device.rotation_count if self.kind == "rotate" else self.device.linear_count
+        return self.device_online and self.index < count
 
     @property
-    def native_value(self) -> float:
+    def native_value(self) -> float | None:
+        if not self.available:
+            return None
         return self.device.aux_values.get(f"{self.kind}_{self.index}", 0.0)
 
     async def async_set_native_value(self, value: float) -> None:

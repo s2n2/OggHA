@@ -23,7 +23,9 @@ from homeassistant.helpers.storage import Store
 
 from .const import DEFAULT_PULSE_DURATION, DOMAIN, STORAGE_VERSION
 from .endpoints import Candidate, resolve_candidates, validate_config
-from .models import OggDevice, device_key
+from .identity import load_devices, match_device, new_device_key
+from .migration import async_migrate_device_registry
+from .models import OggDevice
 from .patterns import MOTOR_MODES, NATIVE_PATTERNS, SOFTWARE_PATTERNS, build_classic_packet, sample
 from .protocol import ButtplugConnection, CommandError, ProtocolError
 
@@ -39,6 +41,7 @@ class OggHub:
         self.entry = entry
         self.config = validate_config({**entry.data, **entry.options})
         self.devices: dict[str, OggDevice] = {}
+        self._identity_aliases: dict[str, str] = {}
         self.enabled = False
         self.status = "disabled"
         self.server_ip: str | None = None
@@ -94,20 +97,29 @@ class OggHub:
         if isinstance(value, (int, float)) and math.isfinite(value) and 0.1 <= value <= 300:
             self.pulse_duration = float(value)
         self._last_source = saved.get("last_source")
-        for record in saved.get("devices", []):
-            try:
-                raw = record["raw"]
-                if not isinstance(raw, dict) or not isinstance(raw.get("DeviceMessages"), dict):
-                    continue
-                key = device_key(record["source"], raw)
-                name = raw.get("DeviceDisplayName") or raw.get("DeviceName") or "Device"
-                device = OggDevice(
-                    key, str(name), record["source"], raw, record.get("settings", {})
-                )
-                self._sanitise_settings(device)
-                self.devices[key] = device
-            except (KeyError, TypeError, ValueError, AttributeError):
-                _LOGGER.warning("Ogg skipped an invalid cached device")
+        self.devices, new_aliases = load_devices(saved.get("devices", []))
+        for device in self.devices.values():
+            self._sanitise_settings(device)
+        saved_aliases = saved.get("identity_aliases", {})
+        aliases = {
+            key: target
+            for key, target in (saved_aliases.items() if isinstance(saved_aliases, dict) else [])
+            if isinstance(key, str) and isinstance(target, str)
+        }
+        aliases.update(new_aliases)
+        self._identity_aliases.clear()
+        for old_key, target in aliases.items():
+            seen = {old_key}
+            while target in aliases and target not in seen:
+                seen.add(target)
+                target = aliases[target]
+            if old_key not in self.devices and target in self.devices and target not in seen:
+                self._identity_aliases[old_key] = target
+        if new_aliases:
+            # Persist the canonical identities and retry map first. Registry
+            # cleanup is idempotent if HA stops part way through an upgrade.
+            await self._store.async_save(self._saved_data())
+        await async_migrate_device_registry(self.hass, self.entry, self._identity_aliases)
         self.status = "searching" if self.enabled else "disabled"
 
     @callback
@@ -151,6 +163,7 @@ class OggHub:
             "enabled": self.enabled,
             "pulse_duration": self.pulse_duration,
             "last_source": self._last_source,
+            "identity_aliases": dict(self._identity_aliases),
             "devices": [device.stored() for device in self.devices.values()],
         }
 
@@ -368,29 +381,46 @@ class OggHub:
         source = self._candidate.source
         current_keys: set[str] = set()
         changed = False
-        for raw in tuple(client.devices.values()):
-            if not isinstance(raw.get("DeviceMessages"), dict):
-                continue
-            key = device_key(source, raw)
-            current_keys.add(key)
+        current_raws = [
+            raw for raw in client.devices.values() if isinstance(raw.get("DeviceMessages"), dict)
+        ]
+        for raw in current_raws:
+            device = match_device(self.devices, source, raw, current_keys, current_raws)
             name = str(raw.get("DeviceDisplayName") or raw.get("DeviceName") or "Device")
-            if key not in self.devices:
-                self.devices[key] = OggDevice(key, name, source, raw)
+            if device is None:
+                key = new_device_key(self.devices, source, raw)
+                device = self.devices[key] = OggDevice(key, name, source, raw)
                 changed = True
-            device = self.devices[key]
-            newly_connected = not device.connected
+            key = device.key
+            current_keys.add(key)
+            route_changed = device.source != source or device.index != raw["DeviceIndex"]
+            capabilities_changed = device.messages != raw["DeviceMessages"]
+            live_rebind = device.connected and (route_changed or capabilities_changed)
+            newly_connected = not device.connected or live_rebind
             if newly_connected:
                 device.generation += 1
                 device.native_failed = device.battery_failed = False
-            if device.raw != raw or device.alias != name:
+                device.battery = None
+            if live_rebind:
+                # A route can change during one server session too. Invalidate
+                # pending starts and old runners before updating their target.
+                self._operation_epoch += 1
+                if (task := self._runs.get(key)) is not None:
+                    task.cancel()
+                device.running = False
+                device.mode = "idle"
+                device.remaining = None
+                device.aux_values.clear()
+            if route_changed or device.raw != raw or device.alias != name:
                 changed = True
-            device.raw = raw
-            device.alias = name
+            device.update_binding(source, raw)
             device.connected = True
-            if newly_connected and device.native_maybe_active and self._ready:
+            if not device.battery_supported:
+                device.battery = None
+            if newly_connected and (device.native_maybe_active or live_rebind) and self._ready:
                 # Bluetooth may rediscover this device after the new server's
-                # initial list was empty. Gate only this device while its
-                # unresolved native output is stopped on the live session.
+                # initial list was empty, or its route/capabilities may change.
+                # Gate only this device until its new binding has been stopped.
                 device.recovering = True
                 self._spawn_event(self._recover_native_outputs(client, [(key, device.generation)]))
         for key, device in tuple(self.devices.items()):
@@ -580,12 +610,13 @@ class OggHub:
         self._notify()
 
     async def _stop_locked(self, device: OggDevice, send_stop: bool = True) -> None:
+        generation = device.generation
         task = self._runs.pop(device.key, None)
         if task is not None and task is not asyncio.current_task():
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
         if send_stop and self._client is not None and self._client.connected and device.connected:
-            await self._send_stop(device, self._client)
+            await self._send_stop(device, self._client, generation=generation)
         device.running = False
         device.mode = "idle"
         device.remaining = None
@@ -707,7 +738,7 @@ class OggHub:
             _LOGGER.exception("Ogg stopped a device pattern after an error")
         finally:
             if client is self._client and device.connected and device.generation == generation:
-                await self._send_stop(device, client)
+                await self._send_stop(device, client, generation=generation)
             device.running = False
             device.mode = "idle"
             device.remaining = None
@@ -892,11 +923,17 @@ class OggHub:
     @staticmethod
     def _sanitise_settings(device: OggDevice) -> None:
         settings = device.settings
-        if settings.get("pattern") not in _PATTERNS:
+        if not isinstance(settings.get("pattern"), str) or settings["pattern"] not in _PATTERNS:
             settings["pattern"] = "steady"
-        if settings.get("motor_mode") not in MOTOR_MODES:
+        if (
+            not isinstance(settings.get("motor_mode"), str)
+            or settings["motor_mode"] not in MOTOR_MODES
+        ):
             settings["motor_mode"] = "together"
-        if settings.get("native_profile") not in {"disabled", "classic"}:
+        if (
+            not isinstance(settings.get("native_profile"), str)
+            or settings["native_profile"] not in {"disabled", "classic"}
+        ):
             settings["native_profile"] = "disabled"
 
     async def _cancel_monitor(self) -> None:

@@ -173,6 +173,37 @@ async def test_removed_device_cleanup_cannot_stop_reused_index(fake_server, hub_
     assert not any(name == "StopDeviceCmd" for name, _ in fake_server.requests[marker:])
 
 
+@pytest.mark.parametrize(("new_index", "motors"), [(7, 2), (0, 1)])
+async def test_live_route_or_capability_change_stops_old_runner_without_resuming(
+    fake_server, hub_factory, new_index, motors
+):
+    hub = await hub_factory(fake_server)
+    key = next(iter(hub.devices))
+    device = hub.devices[key]
+    fake_server.withhold.add("ScalarCmd")
+    await hub.async_start(key)
+    await fake_server.wait_for("ScalarCmd")
+    old_runner = hub._runs[key]
+    fake_server.devices = [vibration_device(new_index, motors=motors)]
+    await fake_server.push("DeviceList", {"Devices": fake_server.devices})
+    stops = await fake_server.wait_for("StopDeviceCmd", count=2)
+    await until(lambda: old_runner.done() and not device.recovering)
+    assert list(hub.devices) == [key]
+    assert device.index == new_index
+    assert device.motor_count == motors
+    assert stops[-1]["DeviceIndex"] == new_index
+    assert not device.running
+    assert not hub._runs
+    await asyncio.sleep(0.15)
+    assert sum(kind == "ScalarCmd" for kind, _ in fake_server.requests) == 1
+
+    fake_server.withhold.clear()
+    await hub.async_start(key)
+    output = (await fake_server.wait_for("ScalarCmd", count=2))[-1]
+    assert output["DeviceIndex"] == new_index
+    assert len(output["Scalars"]) == motors
+
+
 async def test_sensor_ip_change_reconnects_with_same_device_identity(
     hass, fake_server, hub_factory, aiohttp_server
 ):
@@ -216,6 +247,49 @@ async def test_native_cancel_sends_zero_packet_even_before_initial_ack(fake_serv
     assert not hub.devices[key].running
 
 
+async def test_explicit_native_stop_acknowledgement_cannot_clear_rebound_recovery(
+    fake_server, hub_factory
+):
+    fake_server.devices = [vibration_device(0, "WeVibe Nova")]
+    fake_server.devices[0]["DeviceMessages"]["RawWriteCmd"] = {"Endpoints": ["tx"]}
+    hub = await hub_factory(fake_server)
+    key = next(iter(hub.devices))
+    device = hub.devices[key]
+    # An unresolved firmware pattern can outlive its local runner. Exercise
+    # the explicit-stop path, independently of the runner's own final stop.
+    device.native_maybe_active = True
+    fake_server.withhold.add("RawWriteCmd")
+    stopping = asyncio.create_task(hub.async_stop(key))
+    try:
+        old_stop = (await fake_server.wait_for("RawWriteCmd"))[0]
+        assert old_stop["DeviceIndex"] == 0
+        moved = vibration_device(7, "WeVibe Nova")
+        moved["DeviceMessages"]["RawWriteCmd"] = {"Endpoints": ["tx"]}
+        fake_server.devices = [moved]
+        await fake_server.push("DeviceList", {"Devices": [moved]})
+        await until(lambda: device.index == 7 and device.recovering)
+        assert not stopping.done()
+
+        # Acknowledge the old index only after the binding has changed. That
+        # completion must not claim that firmware on the new route was stopped.
+        fake_server.withhold.remove("RawWriteCmd")
+        await fake_server.clients[-1].send_json([{"Ok": {"Id": old_stop["Id"]}}])
+        await asyncio.wait_for(stopping, 1)
+        stops = await fake_server.wait_for("RawWriteCmd", count=2)
+        await until(lambda: not device.recovering and not device.native_maybe_active)
+        assert [body["DeviceIndex"] for body in stops] == [0, 7]
+        assert all(body["Data"] == [15, 0, 0, 0, 0, 0, 0, 0] for body in stops)
+        assert list(hub.devices) == [key]
+        assert not device.running
+        assert not hub._runs
+        assert hub.connected
+    finally:
+        fake_server.withhold.discard("RawWriteCmd")
+        if not stopping.done():
+            stopping.cancel()
+        await asyncio.gather(stopping, return_exceptions=True)
+
+
 async def test_native_explicit_rejection_falls_back_to_standard_output(fake_server, hub_factory):
     fake_server.devices = [vibration_device(0, "WeVibe Nova")]
     fake_server.devices[0]["DeviceMessages"]["RawWriteCmd"] = {"Endpoints": ["tx"]}
@@ -225,6 +299,7 @@ async def test_native_explicit_rejection_falls_back_to_standard_output(fake_serv
     await hub.async_set_setting(key, "native_profile", "classic")
     await hub.async_start(key)
     await fake_server.wait_for("ScalarCmd")
+    await until(lambda: hub.devices[key].engine == "fallback")
     assert hub.devices[key].engine == "fallback"
     assert hub.connected
     assert hub.devices[key].running

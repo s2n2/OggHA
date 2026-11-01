@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -24,12 +25,40 @@ def features(messages: dict[str, Any], command: str) -> list[dict[str, Any]]:
     return []
 
 
-def device_key(source: str, raw: dict[str, Any]) -> str:
-    """Scope a v3 index to its configured server source and capability shape.
+def normalise_name(value: Any) -> str:
+    """Compare names without changing their display spelling."""
+    if not isinstance(value, str):
+        return ""
+    return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
 
-    Protocol v3 has no portable physical identifier. Including source, name,
-    index and feature shape prevents conflating differently named devices or
-    matching indices on unrelated servers. This is not claimed as a MAC ID.
+
+def identity_parts(raw: dict[str, Any]) -> tuple[str, str]:
+    """Return model and meaningful custom label, independent of routing.
+
+    Standard v3 has no portable physical identifier. Consistent distinct
+    display names let users distinguish multiple instances of one model.
+    A display name equal to the model is the same as an unset display name.
+    """
+    model = normalise_name(raw.get("DeviceName"))
+    label = normalise_name(raw.get("DeviceDisplayName"))
+    return model, label if label != model else ""
+
+
+def device_key(source: str, raw: dict[str, Any]) -> str:
+    """Fingerprint a device independently of server, index and capabilities.
+
+    ``source`` remains in this compatibility signature, but is deliberately not
+    part of the fingerprint. Existing devices retain their stored opaque key;
+    this helper is only the initial key candidate for a newly seen identity.
+    """
+    return hashlib.sha256(json.dumps(identity_parts(raw)).encode()).hexdigest()[:24]
+
+
+def legacy_device_key(source: str, raw: dict[str, Any]) -> str:
+    """Reconstruct a 0.1.0 key only when an old record did not store one.
+
+    The previous release derived IDs from routing and feature metadata. Keep
+    its calculation solely to recover existing HA IDs from a partial cache.
     """
     messages = raw.get("DeviceMessages", {})
     shape = {
@@ -75,22 +104,66 @@ class OggDevice:
     battery_failed: bool = False
     revision: int = 0
     generation: int = 0
+    bindings: dict[str, int] = field(default_factory=dict)
+    identity_display_name: str = ""
+    motor_level_memory: list[float] = field(default_factory=list)
 
     def __post_init__(self) -> None:
+        supplied_levels = self.settings.get("motor_levels")
         initial = default_settings(self.motor_count)
         initial.update(self.settings)
         self.settings = initial
-        levels = self.settings.get("motor_levels", [])
-        self.settings["motor_levels"] = (
-            [
-                _bounded(levels[index], 0, 100, 100) if index < len(levels) else 100.0
-                for index in range(self.motor_count)
-            ]
-            if isinstance(levels, list)
-            else [100.0] * self.motor_count
+        self.motor_level_memory = (
+            [_bounded(level, 0, 100, 100) for level in self.motor_level_memory]
+            if isinstance(self.motor_level_memory, list)
+            else []
         )
+        if isinstance(supplied_levels, list):
+            self._remember_levels(supplied_levels)
+        self._restore_active_levels()
         self.settings["intensity"] = _bounded(self.settings.get("intensity"), 0, 100, 25)
         self.settings["period"] = _bounded(self.settings.get("period"), 0.4, 30, 2)
+        self.bindings = (
+            {
+                source: index
+                for source, index in self.bindings.items()
+                if isinstance(source, str)
+                and isinstance(index, int)
+                and not isinstance(index, bool)
+                and index >= 0
+            }
+            if isinstance(self.bindings, dict)
+            else {}
+        )
+        self.bindings[self.source] = self.index
+        self.identity_display_name = (
+            normalise_name(self.identity_display_name) or identity_parts(self.raw)[1]
+        )
+
+    def _remember_levels(self, levels: list[Any]) -> None:
+        """Keep settings for motors a different server temporarily omits."""
+        for index, level in enumerate(levels):
+            number = _bounded(level, 0, 100, 100)
+            if index < len(self.motor_level_memory):
+                self.motor_level_memory[index] = number
+            else:
+                self.motor_level_memory.append(number)
+
+    def _restore_active_levels(self) -> None:
+        count = self.motor_count
+        self.motor_level_memory.extend([100.0] * max(0, count - len(self.motor_level_memory)))
+        self.settings["motor_levels"] = self.motor_level_memory[:count]
+
+    def update_binding(self, source: str, raw: dict[str, Any]) -> None:
+        """Change the current route while retaining logical identity/settings."""
+        self._remember_levels(self.settings["motor_levels"])
+        self.source = source
+        self.raw = raw
+        self.alias = str(raw.get("DeviceDisplayName") or raw.get("DeviceName") or "Device")
+        self.bindings[source] = self.index
+        if not self.identity_display_name:
+            self.identity_display_name = identity_parts(raw)[1]
+        self._restore_active_levels()
 
     @property
     def index(self) -> int:
@@ -151,12 +224,16 @@ class OggDevice:
 
     def stored(self) -> dict[str, Any]:
         """Only local configuration/capabilities, never an active command."""
+        self._remember_levels(self.settings["motor_levels"])
         return {
             "key": self.key,
             "alias": self.alias,
             "source": self.source,
             "raw": self.raw,
             "settings": self.settings,
+            "bindings": dict(self.bindings),
+            "identity_display_name": self.identity_display_name,
+            "motor_level_memory": list(self.motor_level_memory),
         }
 
 
