@@ -24,7 +24,7 @@ async def async_setup_entry(
 
 def _device_numbers(hub: OggHub, key: str) -> list[OggEntity]:
     device = hub.devices[key]
-    entities: list[OggEntity] = []
+    entities: list[OggEntity] = [OggDevicePulseDuration(hub, key)]
     if device.motor_count:
         entities.extend(
             [OggSettingNumber(hub, key, "intensity"), OggSettingNumber(hub, key, "period")]
@@ -57,6 +57,13 @@ class OggPulseDuration(OggEntity, NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         await self.hub.async_set_pulse_duration(value)
+
+
+class OggDevicePulseDuration(OggPulseDuration):
+    """Device-page control for the same global timer; not a device override."""
+
+    def __init__(self, hub: OggHub, device_key: str) -> None:
+        OggEntity.__init__(self, hub, "pulse_duration_shared", "pulse_duration_shared", device_key)
 
 
 class OggSettingNumber(OggEntity, NumberEntity):

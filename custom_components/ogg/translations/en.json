@@ -64,6 +64,9 @@
       },
       "run": {
         "name": "Run"
+      },
+      "connect_this_device": {
+        "name": "Connect this device"
       }
     },
     "button": {
@@ -101,6 +104,9 @@
       },
       "linear": {
         "name": "Position {motor}"
+      },
+      "pulse_duration_shared": {
+        "name": "Pulse duration (all devices)"
       }
     },
     "select": {

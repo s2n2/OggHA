@@ -140,3 +140,5 @@ views:
             features:
               - type: numeric-input
                 style: slider
+# On each device details page, Connect this device controls command permission.
+# The per-device Pulse duration (all devices) entities all control one global value.

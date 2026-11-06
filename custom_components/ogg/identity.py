@@ -134,6 +134,7 @@ def load_devices(records: Any) -> tuple[dict[str, OggDevice], dict[str, str]]:
             source=source,
             raw=raw,
             settings=settings if isinstance(settings, dict) else {},
+            commands_enabled=record.get("commands_enabled", True) is not False,
             bindings=record.get("bindings", {}),
             identity_display_name=record.get("identity_display_name", ""),
             motor_level_memory=record.get("motor_level_memory", []),

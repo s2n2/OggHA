@@ -563,6 +563,26 @@ class OggHub:
             raise HomeAssistantError("This device is no longer known to Ogg")
         return self.devices[key]
 
+    async def async_set_device_commands_enabled(self, key: str, enabled: bool) -> None:
+        """Block output for one device; always permit a safety stop.
+
+        Disabling is serialised against starts and manual commands, so a queued
+        command cannot begin after the switch has been turned off.
+        """
+        device = self._require_device(key)
+        async with self._lock(key):
+            if device.commands_enabled == bool(enabled):
+                return
+            device.commands_enabled = bool(enabled)
+            if not enabled:
+                await self._stop_locked(device)
+            self._save_later()
+            self._notify()
+
+    def _require_output_enabled(self, device: OggDevice) -> None:
+        if not device.commands_enabled:
+            raise HomeAssistantError("Commands are disabled for this device")
+
     def _require_online(self, device: OggDevice) -> ButtplugConnection:
         if (
             self._shutting_down
@@ -572,6 +592,7 @@ class OggHub:
             or device.recovering
         ):
             raise HomeAssistantError("This device is not connected to Ogg")
+        self._require_output_enabled(device)
         assert self._client is not None
         return self._client
 
@@ -671,7 +692,7 @@ class OggHub:
         keys = [
             key
             for key, device in self.devices.items()
-            if device.connected and not device.recovering and device.motor_count
+            if device.commands_enabled and device.connected and not device.recovering and device.motor_count
         ]
         if not keys or not self.enabled or not self.connected:
             raise HomeAssistantError("No compatible devices are connected to Ogg")
@@ -716,6 +737,7 @@ class OggHub:
                     and client is self._client
                     and client.connected
                     and device.connected
+                    and device.commands_enabled
                     and device.generation == generation
                 ):
                     now = time.monotonic()
