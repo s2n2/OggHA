@@ -24,7 +24,7 @@ async def async_setup_entry(
     async_register_device_entities(
         entry,
         async_add_entities,
-        lambda hub, key: [OggRunSwitch(hub, key)] if hub.devices[key].motor_count else [],
+        lambda hub, key: [OggCommandsSwitch(hub, key)] + ([OggRunSwitch(hub, key)] if hub.devices[key].motor_count else []),
     )
 
 
@@ -74,6 +74,27 @@ class OggAllSwitch(OggEntity, SwitchEntity):
         await self.hub.async_all_stop()
 
 
+class OggCommandsSwitch(OggEntity, SwitchEntity):
+    """Allow or block commands to this device, without disconnecting it."""
+
+    _attr_icon = "mdi:connection"
+
+    def __init__(self, hub: OggHub, device_key: str) -> None:
+        super().__init__(hub, "connect_this_device", "connect_this_device", device_key)
+
+    @property
+    def is_on(self) -> bool:
+        return self.device.commands_enabled
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        assert self.device_key is not None
+        await self.hub.async_set_device_commands_enabled(self.device_key, True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        assert self.device_key is not None
+        await self.hub.async_set_device_commands_enabled(self.device_key, False)
+
+
 class OggRunSwitch(OggEntity, SwitchEntity):
     """Run one device using its selected pattern and settings."""
 
@@ -84,7 +105,7 @@ class OggRunSwitch(OggEntity, SwitchEntity):
 
     @property
     def available(self) -> bool:
-        return self.device_online and self.device.motor_count > 0
+        return self.device_online and self.device.commands_enabled and self.device.motor_count > 0
 
     @property
     def is_on(self) -> bool:

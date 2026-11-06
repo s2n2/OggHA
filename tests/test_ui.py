@@ -311,3 +311,39 @@ async def test_later_capabilities_create_entities_once_and_errors_are_visible(ha
         assert hass.states.get(entity_id(hass, entry, "sensor", "engine", key)).state == "fallback"
     finally:
         assert await hass.config_entries.async_unload(entry.entry_id)
+
+async def test_device_command_gate_and_shared_pulse_duration(hass, hass_storage):
+    """A cached device exposes a persistent command gate and shared global timer."""
+    host = "192.0.2.10"
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=DOMAIN, title="Ogg", data=config(host))
+    entry.add_to_hass(hass)
+    hass_storage[f"ogg.{entry.entry_id}"] = {
+        "version": 1,
+        "data": {
+            "enabled": False,
+            "devices": [{
+                "source": f"manual:{host}/",
+                "raw": vibration_device(name="Saved device"),
+            }],
+        },
+    }
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    try:
+        hub = entry.runtime_data
+        key = next(iter(hub.devices))
+        gate = entity_id(hass, entry, "switch", "connect_this_device", key)
+        shared = entity_id(hass, entry, "number", "pulse_duration_shared", key)
+        original = entity_id(hass, entry, "number", "pulse_duration")
+        assert hass.states.get(gate).state == "on"
+        await service(hass, "switch", "turn_off", gate)
+        assert not hub.devices[key].commands_enabled
+        assert hass.states.get(gate).state == "off"
+        await service(hass, "number", "set_value", shared, value=5.4)
+        assert hub.pulse_duration == 5.4
+        assert float(hass.states.get(original).state) == 5.4
+        await service(hass, "number", "set_value", original, value=7.0)
+        assert float(hass.states.get(shared).state) == 7.0
+        assert hub._saved_data()["devices"][0]["commands_enabled"] is False
+    finally:
+        assert await hass.config_entries.async_unload(entry.entry_id)

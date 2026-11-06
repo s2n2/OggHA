@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2
+
+- Add a persistent **Connect this device** switch to each known device. When off, regular output commands are blocked and any active output is stopped. Discovery and connection monitoring continue.
+- Exclude disabled devices from global Run and Pulse all actions. Explicit Stop controls remain available for safety; a server-wide emergency stop may reach disabled devices.
+- Add **Pulse duration (all devices)** to every device's entity page. All copies share the existing global pulse timer and update together. The original timer remains on the Ogg controller.
+- Preserve existing device identity, aliases, and settings; default existing devices to allowed.
+
+
 ## 0.1.1
 
 - Keep each device's Home Assistant identity when it moves to another server,

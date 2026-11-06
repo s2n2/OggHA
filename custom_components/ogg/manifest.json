@@ -1,12 +1,14 @@
 {
   "domain": "ogg",
   "name": "Ogg",
-  "codeowners": ["@s2n2"],
+  "codeowners": [
+    "@s2n2"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/s2n2/OggHA",
   "integration_type": "hub",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/s2n2/OggHA/issues",
   "requirements": [],
-  "version": "0.1.1"
+  "version": "0.1.2"
 }

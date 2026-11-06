@@ -91,6 +91,7 @@ class OggDevice:
     raw: dict[str, Any]
     settings: dict[str, Any] = field(default_factory=dict)
     connected: bool = False
+    commands_enabled: bool = True
     recovering: bool = False
     running: bool = False
     mode: str = "idle"
@@ -231,6 +232,7 @@ class OggDevice:
             "source": self.source,
             "raw": self.raw,
             "settings": self.settings,
+            "commands_enabled": self.commands_enabled,
             "bindings": dict(self.bindings),
             "identity_display_name": self.identity_display_name,
             "motor_level_memory": list(self.motor_level_memory),

@@ -223,3 +223,9 @@ uses real Home Assistant APIs and synthetic local WebSocket servers. Automated
 tests do not replace a first hardware check for a particular model and firmware.
 
 Licensed under GPL-3.0. The existing repository licence is retained.
+
+### Per-device command permission and shared pulse duration (0.1.2)
+
+Each known device has **Connect this device**, enabled by default. It is a command permission switch, **not** a Bluetooth connect/disconnect request: switching it off prevents run/pulse/manual output commands to that device, stops its current output, and excludes it from global starts. Device discovery remains active. Explicit stop operations are always permitted as a safety exception, including the server-wide Stop all command.
+
+Each device also shows **Pulse duration (all devices)**. This is another Home Assistant control for the **same global timer**, not a separate timer per device. Changing it on any device updates every copy and the main Ogg controller.
