@@ -1,0 +1,3 @@
+# OggHA v0.1.3+, dashboard Manual card (installed automatically with Ogg via HACS)
+type: custom:ogg-control-deck-card
+title: Control deck

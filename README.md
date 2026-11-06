@@ -49,6 +49,54 @@ Assistant's existing networking dependencies; it does not install the old
 This repository supports installation as a HACS custom repository. It is not a
 claim of inclusion in the HACS default catalogue.
 
+### Ogg Control Deck: bundled dashboard card (v0.1.3+)
+
+**Ogg Control Deck is included in the Ogg HACS integration.** It uses Ogg's
+existing entities and the IntiHA server switch; no separate HACS Dashboard
+plugin, Node build or copying a JavaScript file into `/config/www` is required.
+
+1. Update **Ogg** in HACS to v0.1.3 or newer and **restart Home Assistant** so
+   the newly bundled Python code and dashboard HTTP route are loaded.
+2. In **Settings → Dashboards → Resources**, confirm that the JavaScript module
+   `/ogg/control-deck/ogg-control-deck-card.js?v=0.1.3` is listed. Ogg adds
+   or updates that resource automatically in the normal (storage) mode.
+3. Edit any dashboard → **Add card** → **Manual** (or select *Ogg Control Deck*
+   from the card picker if shown), and enter:
+
+   ```yaml
+   type: custom:ogg-control-deck-card
+   title: Control deck
+   ```
+
+4. Save the dashboard, then refresh the browser or companion app.
+
+The card shows **HA Server**, **Ogg**, a shared pulse timer, **Pulse all**,
+**Stop all** and controls for *currently connected* Ogg devices only. Each
+connected device has Run, Pulse, Stop, Connect this device (command permission),
+Pattern and Cycle time (1, 2, 3, 5, 10, 15 or 30 seconds). It automatically
+respects renamed devices and never starts a device by itself.
+
+[See the mobile preview](docs/assets/ogg-control-deck-mobile.png).
+
+**If you installed the previous standalone card:** remove its old
+`/local/ogg-control-deck-card.js` entry from Dashboard Resources, otherwise
+Home Assistant might load the older script first. The new resource replaces it;
+there is no need to remove your existing dashboard card YAML.
+
+**If you manage Lovelace resources in YAML mode**, Ogg cannot modify that
+configuration. Add this resource manually to your Lovelace resources:
+
+```yaml
+resources:
+  - url: /ogg/control-deck/ogg-control-deck-card.js?v=0.1.3
+    type: module
+```
+
+This only registers the card, it does not automatically place it on every
+dashboard. If the resource isn't visible after the HACS update, check that
+Home Assistant has restarted, then hard-refresh your browser.
+
+
 For manual installation, copy `custom_components/ogg` into your Home Assistant
 configuration's `custom_components` folder, restart, then add Ogg as above.
 
@@ -222,7 +270,9 @@ See [Testing](docs/testing.md) and [Publishing](docs/publishing.md). The test su
 uses real Home Assistant APIs and synthetic local WebSocket servers. Automated
 tests do not replace a first hardware check for a particular model and firmware.
 
-Licensed under GPL-3.0. The existing repository licence is retained.
+The Ogg Python integration is licensed under GPL-3.0. The bundled Control Deck
+JavaScript is Apache-2.0, as indicated in its header; see
+[Frontend licence](custom_components/ogg/frontend/LICENSE).
 
 ### Per-device command permission and shared pulse duration (0.1.2)
 

@@ -2,14 +2,30 @@
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import Event, HomeAssistant
+from homeassistant.helpers.typing import ConfigType
 
 from .const import PLATFORMS
 from .coordinator import OggHub
+from .dashboard_resource import async_register_control_deck
 
 type OggConfigEntry = ConfigEntry[OggHub]
+
+_LOGGER = logging.getLogger(__name__)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the bundled Control Deck once, without gating the Ogg engine."""
+    try:
+        await async_register_control_deck(hass)
+    except Exception:  # noqa: BLE001 - optional frontend must not break BLE control
+        _LOGGER.exception("Could not register Ogg Control Deck; Ogg will remain available")
+    return True
+
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: OggConfigEntry) -> bool:
