@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.3
+
+- Bundle the mobile-first **Ogg Control Deck** dashboard card directly in the
+  HACS Ogg integration. No separate dashboard plugin or `/config/www` copy.
+- Serve the card from `/ogg/control-deck/ogg-control-deck-card.js` and
+  automatically register a versioned Lovelace module in storage-mode dashboards.
+- Register the card once per Ogg integration, not once per configured server,
+  and update its resource URL on future releases without duplicating it.
+- Load existing Lovelace resources before modifying them so unrelated
+  dashboard cards are preserved.
+- In YAML resource mode, expose the URL but leave resource configuration to
+  the administrator. Frontend errors cannot prevent Ogg's engine loading.
+
 ## 0.1.2
 
 - Add a persistent **Connect this device** switch to each known device. When off, regular output commands are blocked and any active output is stopped. Discovery and connection monitoring continue.
