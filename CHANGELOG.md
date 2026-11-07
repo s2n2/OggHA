@@ -1,3 +1,7 @@
+## 0.1.14 - Connection feedback and IntiHA identity
+- New **Connection feedback** setting (Silent / Short pulse). With Short pulse, a device that connects or reconnects gives one 0.2 s buzz at 30%, followed by the usual stop and resume. Default is Silent.
+- Ogg reads Bluetooth addresses from IntiHA (`/intiha/devices`) so the same toy is one device across reconnects and servers.
+- Pulse all and Run all start devices one after another with a short gap instead of in one burst.
 ## 0.1.13 - Compact server controls
 - HA Server and Ogg return to one horizontal pair of compact tiles at mobile dashboard widths.
 - Each tile keeps its own settings gear, On/Off state and toggle on two tidy internal lines, avoiding overlapping switches and the 2x vertical height of v0.1.12.

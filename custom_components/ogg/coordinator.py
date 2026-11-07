@@ -15,7 +15,9 @@ from dataclasses import dataclass
 from collections.abc import Callable, Coroutine
 from contextlib import suppress
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
+import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
@@ -39,6 +41,13 @@ RECONNECT_GRACE_SECONDS = 30.0
 # Offsets are measured from the first STOP acknowledgement. Two close STOPs
 # at each checkpoint help stop both software and native firmware patterns.
 PULSE_STOP_BACKUP_DELAYS = (0.20, 2.0, 2.20, 10.0, 10.20)
+# What a device does when it (re)connects, before normal stop/resume.
+CONNECT_FEEDBACK_OPTIONS = ("silent", "short_pulse")
+CONNECT_FEEDBACK_LEVEL = 0.3
+CONNECT_FEEDBACK_SECONDS = 0.2
+# Spread "all devices" commands so one Bluetooth proxy is not hit by a burst.
+ALL_DEVICES_STAGGER_SECONDS = 0.05
+IDENTITY_TIMEOUT_SECONDS = 3.0
 
 
 @dataclass
@@ -98,6 +107,11 @@ class OggHub:
         self._shutting_down = False
         self._operation_epoch = 0
         self._last_battery_poll = 0.0
+        # DeviceIndex -> Bluetooth address, from IntiHA's /intiha/devices side
+        # channel. Empty for servers without it (e.g. Intiface Central).
+        self._addresses: dict[int, str] = {}
+        self._address_client: ButtplugConnection | None = None
+        self.connect_feedback = "silent"
         self._unsubscribe_ips: Callable[[], None] | None = None
         self._shutdown_task: asyncio.Task | None = None
 
@@ -129,6 +143,8 @@ class OggHub:
         value = saved.get("pulse_duration", DEFAULT_PULSE_DURATION)
         if isinstance(value, (int, float)) and math.isfinite(value) and 0.1 <= value <= 300:
             self.pulse_duration = float(value)
+        if saved.get("connect_feedback") in CONNECT_FEEDBACK_OPTIONS:
+            self.connect_feedback = saved["connect_feedback"]
         self._last_source = saved.get("last_source")
         self.devices, new_aliases = load_devices(saved.get("devices", []))
         for device in self.devices.values():
@@ -195,6 +211,7 @@ class OggHub:
         return {
             "enabled": self.enabled,
             "pulse_duration": self.pulse_duration,
+            "connect_feedback": self.connect_feedback,
             "last_source": self._last_source,
             "identity_aliases": dict(self._identity_aliases),
             "devices": [device.stored() for device in self.devices.values()],
@@ -283,7 +300,10 @@ class OggHub:
                     self.last_error = None
                     self._scan_active = False
                     self._last_battery_poll = 0
+                    self._addresses = {}
+                    self._address_client = None
                     self._reconcile_devices(client)
+                    await self._refresh_addresses(client)
                     try:
                         # Raw firmware patterns can outlive a lost socket and
                         # bypass the server's normal actuator-state cache.
@@ -346,6 +366,43 @@ class OggHub:
                 # the manager's own cancellation path.
                 self._spawn_event(self._restart_after_error())
 
+    async def _refresh_addresses(self, client: ButtplugConnection) -> None:
+        """Learn DeviceIndex -> Bluetooth address from IntiHA, if offered.
+
+        Buttplug v3 carries no physical identifier, so the same toy seen via
+        IntiHA and via another server (or after a reconnect) could only be
+        matched by name. IntiHA publishes the mapping on its client port. Any
+        other server simply has no such page; that is not an error.
+        """
+        candidate = self._candidate
+        if candidate is None or client is not self._client:
+            return
+        parts = urlsplit(candidate.url)
+        scheme = "https" if parts.scheme == "wss" else "http"
+        url = urlunsplit((scheme, parts.netloc, "/intiha/devices", "", ""))
+        mapping: dict[int, str] = {}
+        try:
+            async with asyncio.timeout(IDENTITY_TIMEOUT_SECONDS):
+                response = await async_get_clientsession(self.hass).get(url)
+                if response.status == 200:
+                    body = await response.json(content_type=None)
+                    for item in body.get("devices", []) if isinstance(body, dict) else []:
+                        index = item.get("DeviceIndex") if isinstance(item, dict) else None
+                        address = physical_address({"BluetoothAddress": item.get("address")}) if isinstance(item, dict) else ""
+                        if isinstance(index, int) and not isinstance(index, bool) and address:
+                            mapping[index] = address
+                response.release()
+        except (TimeoutError, aiohttp.ClientError, ValueError):
+            mapping = {}
+        if client is not self._client:
+            return
+        changed = mapping != self._addresses or self._address_client is not client
+        self._addresses = mapping
+        self._address_client = client
+        if changed:
+            self._reconcile_devices(client)
+            self._notify()
+
     async def _restart_after_error(self) -> None:
         # HA may eagerly start a background task. Always let the failing
         # manager finish before checking whether another manager can start.
@@ -389,6 +446,7 @@ class OggHub:
                     self.last_error = "Server did not start a new discovery scan"
             await client.request("RequestDeviceList")
             self._reconcile_devices(client)
+            await self._refresh_addresses(client)
             # A server may list a known device before its BLE session is ready.
             # An unsuccessful stop must block only that device, not Ogg's
             # WebSocket. Retry readiness on future device-list refreshes.
@@ -426,6 +484,8 @@ class OggHub:
             return
         if kind in {"DeviceAdded", "DeviceRemoved", "DeviceList"}:
             self._reconcile_devices(client)
+            if kind == "DeviceAdded":
+                self._spawn_event(self._refresh_addresses(client))
         elif kind == "ScanningFinished":
             self._scan_active = False
         self._notify()
@@ -436,8 +496,13 @@ class OggHub:
         source = self._candidate.source
         current_keys: set[str] = set()
         changed = False
+        addresses = self._addresses if self._address_client is client else {}
         current_raws = [
-            raw for raw in client.devices.values() if isinstance(raw.get("DeviceMessages"), dict)
+            {**raw, "BluetoothAddress": addresses[raw["DeviceIndex"]]}
+            if raw.get("DeviceIndex") in addresses and not physical_address(raw)
+            else raw
+            for raw in client.devices.values()
+            if isinstance(raw.get("DeviceMessages"), dict)
         ]
         seen_macs: set[str] = set()
         for raw in current_raws:
@@ -707,6 +772,8 @@ class OggHub:
                         self.last_error = "A previous native stop could not be confirmed"
                         verified = False
                     if verified:
+                        verified = await self._connection_feedback(device, client, generation)
+                    if verified:
                         device.recovering = False
                         if device.last_error in {
                             "Stop could not be confirmed; check the device",
@@ -741,6 +808,45 @@ class OggHub:
                             seen.add(target)
                             targets.append(target)
                 self._notify()
+
+    async def _connection_feedback(
+        self, device: OggDevice, client: ButtplugConnection, generation: int
+    ) -> bool:
+        """Optional short buzz when a device (re)connects, ending in a stop.
+
+        Runs once per connection generation, after the recovery stop and
+        before any remembered Run/Pulse resumes. Returns whether the device
+        is verifiably stopped afterwards (True when no feedback was sent).
+        """
+        if (
+            self.connect_feedback != "short_pulse"
+            or not device.commands_enabled
+            or not device.motor_count
+            or device.feedback_generation == generation
+        ):
+            return True
+        device.feedback_generation = generation
+        scalars = []
+        for index, feature in device.vibration_features:
+            steps = feature.get("StepCount", 100)
+            steps = steps if isinstance(steps, int) and steps > 0 else 100
+            level = max(1, round(CONNECT_FEEDBACK_LEVEL * steps)) / steps
+            scalars.append({"Index": index, "Scalar": level, "ActuatorType": "Vibrate"})
+        try:
+            await client.scalar(device.index, scalars)
+            await asyncio.sleep(CONNECT_FEEDBACK_SECONDS)
+        except (CommandError, ProtocolError):
+            pass  # The stop below is what matters.
+        return await self._send_stop(
+            device, client, generation=generation, close_on_failure=False
+        )
+
+    async def async_set_connect_feedback(self, value: str) -> None:
+        if value not in CONNECT_FEEDBACK_OPTIONS:
+            raise HomeAssistantError("Unknown connection feedback option")
+        self.connect_feedback = value
+        self._save_later()
+        self._notify()
 
     def _lock(self, key: str) -> asyncio.Lock:
         return self._locks.setdefault(key, asyncio.Lock())
@@ -1010,9 +1116,18 @@ class OggHub:
         ]
         if not keys or not self.enabled or not self.connected:
             raise HomeAssistantError("No compatible devices are connected to Ogg")
-        results = await asyncio.gather(
-            *(self.async_start(key, pulse) for key in keys), return_exceptions=True
-        )
+        # Start devices one after another with a small gap. A simultaneous
+        # burst of stop+start commands to every device funnels through the
+        # same Bluetooth proxy and made Pulse all unreliable.
+        results: list[BaseException | None] = []
+        for position, key in enumerate(keys):
+            if position:
+                await asyncio.sleep(ALL_DEVICES_STAGGER_SECONDS)
+            try:
+                await self.async_start(key, pulse)
+                results.append(None)
+            except Exception as err:  # Keep starting the remaining devices.
+                results.append(err)
         if any(isinstance(result, Exception) for result in results):
             self.last_error = "Some devices could not be started"
             self._notify()
