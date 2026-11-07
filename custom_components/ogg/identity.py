@@ -116,6 +116,48 @@ def _merge_group(
     output[primary.key] = primary
 
 
+def _absorb_name_only_records(groups: dict[str, list[OggDevice]]) -> list[str]:
+    """Fold name-only records into the one address-identified record of that model.
+
+    Before IntiHA published Bluetooth addresses, a device could only be keyed by
+    its model/display name, and a mis-identified connection could leave a second
+    record behind. Once exactly one address-identified record exists for a model,
+    the name-only record(s) of that model are the same toy. Server indices are not
+    used as evidence here: they change across sessions. Returns the merged group
+    keys; each merged group keeps its earliest record (and its entity IDs).
+    """
+    mac_models: dict[str, list[str]] = defaultdict(list)
+    for key, group in groups.items():
+        if not key.startswith("mac:"):
+            continue
+        models = {_parts(device)[0] for device in group}
+        if len(models) == 1:
+            mac_models[next(iter(models))].append(key)
+    merged: list[str] = []
+    for model, mac_keys in mac_models.items():
+        named = groups.get(f"model:{model}")
+        if len(mac_keys) != 1 or not named:
+            continue
+        mac_group = groups[mac_keys[0]]
+        labels = {
+            device.identity_display_name
+            for device in [*named, *mac_group]
+            if device.identity_display_name
+        }
+        if len(labels) > 1:
+            continue  # Different explicit names are different toys.
+        anchor = mac_group[0]
+        for device in named:
+            # The surviving record must carry the address and current route.
+            device.raw = anchor.raw
+            device.source = anchor.source
+            device.bindings.update(anchor.bindings)
+        groups[mac_keys[0]] = [*named, *mac_group]
+        del groups[f"model:{model}"]
+        merged.append(mac_keys[0])
+    return merged
+
+
 def load_devices(records: Any) -> tuple[dict[str, OggDevice], dict[str, str]]:
     """Load saved devices and report old duplicate keys to consolidate in HA.
 
@@ -167,6 +209,12 @@ def load_devices(records: Any) -> tuple[dict[str, OggDevice], dict[str, str]]:
         groups[f"mac:{mac}" if mac else f"model:{_parts(device)[0]}"].append(device)
     output: dict[str, OggDevice] = {}
     aliases: dict[str, str] = {}
+    order = {device.key: position for position, device in enumerate(
+        device for group in groups.values() for device in group
+    )}
+    for group_key in _absorb_name_only_records(groups):
+        group = sorted(groups.pop(group_key), key=lambda device: order[device.key])
+        _merge_group(group, output, aliases, same_mac=True)
     for group in groups.values():
         addresses = {physical_address(device.raw) for device in group if physical_address(device.raw)}
         if len(addresses) == 1 and all(physical_address(d.raw) for d in group):
