@@ -538,3 +538,108 @@ async def test_unready_device_stop_does_not_disconnect_server(fake_server, hub_f
     await until(lambda: hub.connected and not hub.devices[key].recovering, timeout=3)
     assert len([name for name, _ in fake_server.requests if name == "RequestServerInfo"]) == 1
     assert len([name for name, _ in fake_server.requests if name == "StopDeviceCmd"]) >= 2
+
+
+async def test_pulse_redundant_stops_at_three_checkpoints(fake_server, hub_factory, monkeypatch):
+    """A successful server ACK does not suppress pulse STOP redundancy."""
+    from custom_components.ogg import coordinator
+
+    # Short timings exercise the same sequence without a ten-second CI wait.
+    monkeypatch.setattr(coordinator, "PULSE_STOP_BACKUP_DELAYS", (.02, .04, .06, .08, .10))
+    hub = await hub_factory(fake_server)
+    key = next(iter(hub.devices))
+    await hub.async_set_pulse_duration(.08)
+    stop_baseline = sum(name == "StopDeviceCmd" for name, _ in fake_server.requests)
+    await hub.async_start(key, pulse=True)
+    await fake_server.wait_for("ScalarCmd")
+    await until(lambda: not hub.devices[key].running)
+    # STOP before starting, STOP on expiry, and five follow-ups.
+    await until(
+        lambda: sum(name == "StopDeviceCmd" for name, _ in fake_server.requests)
+        >= stop_baseline + 7
+    )
+    await until(lambda: not hub._stop_backups)
+    stops = [body for name, body in fake_server.requests if name == "StopDeviceCmd"]
+    assert len(stops) == stop_baseline + 7
+    assert not hub.devices[key].running
+
+
+async def test_late_pulse_stops_cannot_interrupt_new_run(fake_server, hub_factory, monkeypatch):
+    """A new command supersedes the pulse STOP watchdog, not vice versa."""
+    from custom_components.ogg import coordinator
+
+    monkeypatch.setattr(coordinator, "PULSE_STOP_BACKUP_DELAYS", (.04, .08, .12, .16, .20))
+    hub = await hub_factory(fake_server)
+    key = next(iter(hub.devices))
+    await hub.async_set_pulse_duration(.08)
+    await hub.async_start(key, pulse=True)
+    await fake_server.wait_for("ScalarCmd")
+    await until(lambda: not hub.devices[key].running)
+    # Wait for the first of five backups before beginning the new run.
+    await until(lambda: len([x for x in fake_server.requests if x[0] == "StopDeviceCmd"]) >= 3)
+    previous_scalars = sum(name == "ScalarCmd" for name, _ in fake_server.requests)
+    await hub.async_start(key)
+    await fake_server.wait_for("ScalarCmd", count=previous_scalars + 1)
+    since_restart = len(fake_server.requests)
+    await asyncio.sleep(.25)
+    assert hub.devices[key].running
+    assert not any(name == "StopDeviceCmd" for name, _ in fake_server.requests[since_restart:])
+    await hub.async_stop(key)
+
+
+async def test_native_pulse_backups_repeat_zero_packet(fake_server, hub_factory, monkeypatch):
+    """Native firmware patterns need repeated native zero AND standard stop."""
+    from custom_components.ogg import coordinator
+
+    monkeypatch.setattr(coordinator, "PULSE_STOP_BACKUP_DELAYS", (.02, .04, .06, .08, .10))
+    fake_server.devices = [vibration_device(0, "WeVibe Nova")]
+    fake_server.devices[0]["DeviceMessages"]["RawWriteCmd"] = {"Endpoints": ["tx"]}
+    hub = await hub_factory(fake_server)
+    key = next(iter(hub.devices))
+    await hub.async_set_setting(key, "native_profile", "classic")
+    await hub.async_set_setting(key, "pattern", "pulse")
+    await hub.async_set_pulse_duration(.08)
+    await hub.async_start(key, pulse=True)
+    await until(lambda: not hub.devices[key].running)
+    await until(lambda: sum(
+        name == "RawWriteCmd" and body["Data"] == [15, 0, 0, 0, 0, 0, 0, 0]
+        for name, body in fake_server.requests
+    ) >= 6)
+    await until(lambda: not hub._stop_backups)
+    zeros = [
+        body for name, body in fake_server.requests
+        if name == "RawWriteCmd" and body["Data"] == [15, 0, 0, 0, 0, 0, 0, 0]
+    ]
+    assert len(zeros) >= 6
+    assert not hub.devices[key].running
+
+
+async def test_pulse_all_has_independent_stop_backup_per_device(
+    fake_server, hub_factory, monkeypatch
+):
+    """Global Pulse all must protect every device without stopping other runs."""
+    from custom_components.ogg import coordinator
+
+    monkeypatch.setattr(coordinator, "PULSE_STOP_BACKUP_DELAYS", (.02, .04, .06, .08, .10))
+    fake_server.devices = [vibration_device(0, "Left"), vibration_device(1, "Right")]
+    hub = await hub_factory(fake_server)
+    await until(lambda: hub.connected_count == 2 and all(
+        not device.recovering for device in hub.devices.values()
+    ))
+    await hub.async_set_pulse_duration(.08)
+    baseline = {
+        index: sum(
+            name == "StopDeviceCmd" and body["DeviceIndex"] == index
+            for name, body in fake_server.requests
+        ) for index in (0, 1)
+    }
+    await hub.async_all_start(pulse=True)
+    await until(lambda: all(not device.running for device in hub.devices.values()))
+    await until(lambda: all(
+        sum(
+            name == "StopDeviceCmd" and body["DeviceIndex"] == index
+            for name, body in fake_server.requests
+        ) >= baseline[index] + 7 for index in (0, 1)
+    ))
+    await until(lambda: not hub._stop_backups)
+    assert all(not device.running for device in hub.devices.values())

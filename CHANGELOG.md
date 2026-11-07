@@ -1,3 +1,10 @@
+## 0.1.8 - Redundant pulse STOP watchdog
+- Add a STOP safety net for every completed individual or all-device pulse: initial STOP, then five repeated STOP attempts at approximately +0.2, +2, +2.2, +10 and +10.2 seconds (measured from the first STOP completion).
+- Repeat the native We-Vibe zero-output packet as well as the standard StopDeviceCmd for each backup if a native firmware pattern was active. A server acknowledgement alone does not cancel the backups.
+- Every backup is bound to the original device generation, server session and command serial. New Run, Pulse, Stop, manual output or disabling Ogg cancels its older backups, so they cannot interrupt new activity. Disconnection discards the old-session watchdog; existing reconnect verification requires STOP before output resumes.
+- Backup attempts run in background and use a per-device lock; dashboard controls remain responsive. An unreachable device cannot be stopped over a disconnected Bluetooth link, so this remains a best-effort safety net, not a hardware guarantee.
+- No IntiHA change needed. Existing device names, server failover and HACS Control Deck remain unchanged.
+
 ## 0.1.7 - IntiHA connection recovery hotfix
 - Keep the server WebSocket connected if one known Bluetooth device refuses a STOP while its connection is not yet ready. Only that device stays quarantined (`recovering`) until an acknowledged STOP succeeds.
 - Retry failed device recovery on subsequent device-list refreshes, without losing the server, other connected devices, device settings, or the 30-second Ogg-owned Run/Pulse intention.
