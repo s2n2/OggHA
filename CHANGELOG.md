@@ -1,3 +1,9 @@
+## 0.1.10 - Target versus device-reported waveform
+- Show two independent tracks in the Ogg Control Deck: a dim dashed **target** pattern and a brighter solid **device-reported** level from IntiHA b19, when the sensor is available.
+- Discover feedback sensors by a unique match to the Home Assistant device name, or map manually via `reported_intensity_entities` when aliases differ. Never assume two devices are the same just because both say We-Vibe.
+- Missing, stale, or disconnected feedback stays blank (never faked as measured zero); the target preview still works on other servers and unsupported devices.
+- Keep the card frontend-only, preserve the pulse STOP safety-net and all server/device controls. The external Buttplug protocol is unchanged.
+
 ## 0.1.9 - Animated per-device pattern sparklines
 - Add a small, scrolling intensity waveform beside each connected device name in the bundled Ogg Control Deck, optimised for narrow mobile screens.
 - Preview the selected software pattern at the configured cycle period and intensity, including a baseline and stop decay; native firmware output remains an approximation, not motor telemetry.
