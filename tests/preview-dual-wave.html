@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Ogg Control Deck preview</title>
+<style>
+  html,body{padding:0;margin:0;background:#e5e8ef;color:#182038;font-family:Inter,system-ui,sans-serif;}
+  .preview-title{text-align:center;color:#738095;font-size:11px;font-weight:750;letter-spacing:.17em;padding:20px 0 14px;}
+  .page{width:100%;max-width:425px;box-sizing:border-box;margin:auto;padding:0 12px 30px;}
+  ogg-control-deck-card{display:block}
+</style>
+<script src="../custom_components/ogg/frontend/ogg-control-deck-card.js"></script>
+</head>
+<body><div class="preview-title">HOME ASSISTANT · DASHBOARD PREVIEW</div><div class="page"><ogg-control-deck-card id="card"></ogg-control-deck-card></div>
+<script>
+ const registry = [];
+ const states = {};
+ const devs = [{id:'h1',name:'Ogg'},{id:'s1',name:'IntiHA'},
+ {id:'d1',name:'Bond'},{id:'d2',name:'Ditto'},{id:'d3',name:'Jive'},{id:'d4',name:'Kiiroo Spot 2'},{id:'d5',name:'Sync 2'},{id:'i-bond',name:'Bond'},{id:'i-ditto',name:'Ditto'},{id:'i-jive',name:'Jive'}];
+ const add = (id, value, attr={}) => {states[id] = {entity_id:id,state:String(value),attributes:attr};};
+ const hub = (platform,unique_id,entity_id,device_id) => registry.push({platform,unique_id,entity_id,device_id});
+ hub('intiha','serverid_server_enabled','switch.intiha_server_enabled','s1');add('switch.intiha_server_enabled','on');
+ const global = [['enabled','switch.ogg_enabled','on'],['pulse_duration','number.ogg_pulse_duration','5'],
+ ['pulse_all','button.ogg_pulse_all','2026-11-07'],['stop_all','button.ogg_stop_all','2026-11-07']];
+ for (const [suffix, id, value] of global){hub('ogg',`abc:${suffix}`,id,'h1');add(id,value)}
+ const data = [{key:'bond',name:'Bond',online:true,running:true,mode:'continuous',pattern:'heartbeat',cycle:'3',battery:'78',enabled:true},
+ {key:'ditto',name:'Ditto',online:true,running:true,mode:'continuous',pattern:'wave',cycle:'5',battery:'92',enabled:true},
+ {key:'jive',name:'Jive',online:true,running:false,mode:'pulse',pattern:'steps',cycle:'2',remaining:'2.8',battery:'65',enabled:true},
+ {key:'spot',name:'Kiiroo Spot 2',online:true,running:false,mode:'idle',pattern:'breath',cycle:'10',battery:'53',enabled:true},
+ {key:'sync2',name:'Sync 2',online:false,running:false,mode:'disconnected',pattern:'pulse',cycle:'1',battery:'50',enabled:false}];
+ const opts = ['steady','pulse','wave','breath','ramp','heartbeat','double_pulse','steps','echo','surge','peak','tide','surf','bounce','massage','tease'];
+ for(let i=0;i<data.length;i++){
+   const d = data[i], did='d'+(i+1);
+   const reg=(suffix,domain,raw,attrs={}) => {const id=`${domain}.${d.key}_${suffix}`;hub('ogg',`abc:${d.key}:${suffix}`,id,did);add(id,raw,attrs)};
+   reg('connected','binary_sensor',d.online?'on':'off');reg('run','switch',d.running?'on':'off');
+   reg('pulse','button','2026-11-07');reg('stop','button','2026-11-07');
+   reg('connect_this_device','switch',d.enabled?'on':'off');
+   reg('pattern','select',d.pattern,{options:opts});reg('period','number',d.cycle);reg('intensity','number',d.key==='bond'?'80':d.key==='ditto'?'65':'50');
+   reg('status','sensor',d.mode);reg('remaining','sensor',d.remaining||'0');reg('battery','sensor',d.battery);
+ }
+ // A few genuinely device-reported readings from an IntiHA-like state feed.
+ for (const [deviceId, alias, level] of [['i-bond','Bond','45'],['i-ditto','Ditto','65'],['i-jive','Jive','20']]) {
+   const id = `sensor.intiha_${alias.toLowerCase()}_reported_intensity`;
+   hub('intiha', `abc_${alias}_reported_intensity`, id, deviceId);
+   add(id,level,{last_read:new Date().toISOString(),sensor_source:'wevibe_info_characteristic'});
+ }
+ const calls=[];
+ const hass = {states,connection:{subscribeEvents:async()=>()=>{}},
+  callWS:async ({type})=>type==='config/entity_registry/list'?registry:devs,
+  callService:async (domain,service,data)=>{calls.push({domain,service,data});window.__lastCall=calls[calls.length-1];
+    if(domain==='switch'&&data.entity_id in states)states[data.entity_id].state=service==='turn_on'?'on':'off';
+    if(domain==='select'&&data.entity_id in states)states[data.entity_id].state=data.option;
+    if(domain==='number'&&data.entity_id in states)states[data.entity_id].state=String(data.value);
+    document.getElementById('card').hass = hass;
+  }
+ };
+ window.__preview={registry,states,devs,calls,hass};
+ const card=document.getElementById('card');card.setConfig({title:'Control deck'});card.hass=hass;
+</script></body></html>

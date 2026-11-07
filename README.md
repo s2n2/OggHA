@@ -318,3 +318,18 @@ A server acknowledging STOP does not prove that a Bluetooth command reached the 
 A known IntiHA device may be listed on the server before its Bluetooth session can accept a stop command. Ogg now keeps its server WebSocket open, marks only that device as recovering, and retries a verified stop when the device becomes ready. A device must not receive motor commands until its recovery STOP has been acknowledged.
 
 If Ogg still displays **searching** rather than **connected**, check the configured IntiHA IP/host and port (default **12345**) in Ogg's integration options and the **Last error** sensor. Ogg will log a local Buttplug v3 handshake failure separately from a device recovery failure.
+
+### Target versus device-reported intensity (v0.1.10)
+
+The dashboard mini-chart shows a **dim dashed target** waveform (software approximation from the selected pattern) and a **bright device-reported** line when an IntiHA b19 We-Vibe info sensor is available. Device feedback is read by IntiHA from firmware, not a physical vibration accelerometer. Native patterns may report a set level rather than their fast internal oscillations. Unsupported hardware and other servers correctly show only the dim target line.
+
+For devices whose names differ between Ogg and IntiHA, configure the card with a manual mapping (the Ogg device name on the left, the exact IntiHA sensor entity ID on the right):
+
+```yaml
+type: custom:ogg-control-deck-card
+reported_intensity_entities:
+  Bond: sensor.bond_device_reported_intensity
+  Ditto: sensor.ditto_device_reported_intensity
+```
+
+The card otherwise auto-matches only when a name uniquely identifies an IntiHA device. A generic name or ambiguous match is not trusted. It never adds an extension to public Buttplug messages and does not change the pulse safety logic.
