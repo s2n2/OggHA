@@ -1,3 +1,10 @@
+## 0.1.9 - Animated per-device pattern sparklines
+- Add a small, scrolling intensity waveform beside each connected device name in the bundled Ogg Control Deck, optimised for narrow mobile screens.
+- Preview the selected software pattern at the configured cycle period and intensity, including a baseline and stop decay; native firmware output remains an approximation, not motor telemetry.
+- Keep the graphs frontend-only: no new Home Assistant entities, high-frequency state history, WebSocket protocol extensions, or changes to the tested pulse/STOP watchdog.
+- Share one lightweight ticker across visible devices, pause when hidden or disconnected, and stop redrawing when every history trace is flat.
+- Refresh the bundled Lovelace resource to v0.1.9. All existing controls and device settings are preserved.
+
 ## 0.1.8 - Redundant pulse STOP watchdog
 - Add a STOP safety net for every completed individual or all-device pulse: initial STOP, then five repeated STOP attempts at approximately +0.2, +2, +2.2, +10 and +10.2 seconds (measured from the first STOP completion).
 - Repeat the native We-Vibe zero-output packet as well as the standard StopDeviceCmd for each backup if a native firmware pattern was active. A server acknowledgement alone does not cancel the backups.
