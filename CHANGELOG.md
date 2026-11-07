@@ -1,3 +1,10 @@
+## 0.1.7 - IntiHA connection recovery hotfix
+- Keep the server WebSocket connected if one known Bluetooth device refuses a STOP while its connection is not yet ready. Only that device stays quarantined (`recovering`) until an acknowledged STOP succeeds.
+- Retry failed device recovery on subsequent device-list refreshes, without losing the server, other connected devices, device settings, or the 30-second Ogg-owned Run/Pulse intention.
+- Preserve strict STOP-before-resume. A device without an acknowledged STOP remains unavailable for output. Normal output-stop failures still close a potentially unsafe session.
+- Report handshake errors separately from per-device recovery failures, and clear stale recovery warnings once all connected devices are verified.
+- Refresh the bundled HACS dashboard-card resource version. No IntiHA engine update is necessary for this Ogg hotfix.
+
 ## 0.1.6 - server-agnostic recovery, identity and intensity
 - Retain non-persistent desired Run/Pulse state during short (30-second maximum) disconnects, across different Intiface servers. Confirm STOP on the new session before resuming.
 - Never extend pulse deadlines: only the remaining time is eligible for resumption. Explicit Stop, permission disable, Ogg Off, or expiry cancels the intent.

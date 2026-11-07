@@ -256,7 +256,14 @@ class OggHub:
                     client = self._new_client()
                     try:
                         await client.connect(candidate.url)
-                    except ProtocolError:
+                    except ProtocolError as err:
+                        # A failed WebSocket/Buttplug handshake is not a device
+                        # failure. Keep the integration loaded and identify the
+                        # failing phase rather than masking every failure as
+                        # 'no server responding'. Never log server-supplied
+                        # device names or addresses from command Error bodies.
+                        self.last_error = str(err)
+                        _LOGGER.warning("Ogg could not open a Buttplug v3 session: %s", type(err).__name__)
                         await client.close()
                         continue
                     self._client = client
@@ -374,6 +381,16 @@ class OggHub:
                     self.last_error = "Server did not start a new discovery scan"
             await client.request("RequestDeviceList")
             self._reconcile_devices(client)
+            # A server may list a known device before its BLE session is ready.
+            # An unsuccessful stop must block only that device, not Ogg's
+            # WebSocket. Retry readiness on future device-list refreshes.
+            retry_stops = [
+                (device.key, device.generation)
+                for device in self.devices.values()
+                if device.connected and device.recovering
+            ]
+            if retry_stops:
+                await self._recover_native_outputs(client, retry_stops)
             if time.monotonic() - self._last_battery_poll >= 60:
                 await self._read_batteries(client)
                 self._last_battery_poll = time.monotonic()
@@ -661,22 +678,45 @@ class OggHub:
                     ):
                         continue
                     device.recovering = True
-                    await self._send_stop(device, client, generation=generation)
+                    # IntiHA can advertise devices that are known but whose
+                    # Bluetooth session is not yet ready. That server may
+                    # correctly reject StopDeviceCmd for *this* device. Keep
+                    # the healthy Ogg/IntiHA WebSocket alive, and leave only
+                    # this device locked until a later stop is acknowledged.
+                    verified = await self._send_stop(
+                        device, client, generation=generation, close_on_failure=False
+                    )
                     if client is not self._client or device.generation != generation:
                         continue
                     if not client.connected:
                         raise ProtocolError("The recovery stop connection was lost")
-                    if device.native_maybe_active:
-                        # StopDeviceCmd alone does not prove a vendor-native
-                        # firmware pattern has stopped. Never resume when raw
-                        # access is missing or the zero packet was unconfirmed.
+                    if verified and device.native_maybe_active:
+                        # The ordinary stop did not prove a native firmware
+                        # pattern is off; never release this device's guard.
                         device.last_error = "Native stop is unavailable; check the device"
                         self.last_error = "A previous native stop could not be confirmed"
-                        await client.close(reason="native_stop_unconfirmed")
+                        verified = False
+                    if verified:
+                        device.recovering = False
+                        if device.last_error in {
+                            "Stop could not be confirmed; check the device",
+                            "Native stop is unavailable; check the device",
+                        }:
+                            device.last_error = None
+                        if (
+                            self.last_error in {
+                                "A stop command could not be confirmed",
+                                "A previous native stop could not be confirmed",
+                            }
+                            and not any(
+                                item.connected and item.recovering
+                                for item in self.devices.values()
+                            )
+                        ):
+                            self.last_error = None
             finally:
                 if client is self._client and device.generation == generation:
-                    device.recovering = False
-                    if self._ready and client.connected and not device.native_maybe_active:
+                    if self._ready and client.connected and not device.recovering:
                         self._schedule_pending_resumes(client, [(key, generation)])
                 if include_new_arrivals and client is self._client:
                     # A second device may arrive while an initial recovery
@@ -799,14 +839,15 @@ class OggHub:
         client: ButtplugConnection,
         *,
         generation: int | None = None,
-    ) -> None:
+        close_on_failure: bool = True,
+    ) -> bool:
         def current_generation() -> bool:
             return generation is None or (
                 client is self._client and device.generation == generation
             )
 
         if not client.connected or not device.connected or not current_generation():
-            return
+            return False
         try:
             native_stop_failed = False
             if device.native_maybe_active and device.native_available:
@@ -815,26 +856,33 @@ class OggHub:
                         device.index, build_classic_packet("steady", [0.0] * device.motor_count)
                     )
                     if not current_generation() or not device.connected:
-                        return
+                        return False
                     device.native_maybe_active = False
                 except CommandError:
                     native_stop_failed = True
             if not current_generation() or not device.connected:
-                return
+                return False
             await client.stop_device(device.index)
             if not current_generation():
-                return
+                return False
             if native_stop_failed:
                 device.last_error = "Native stop could not be confirmed; check the device"
                 self.last_error = "A native stop command could not be confirmed"
-                await client.close(reason="native_stop_unconfirmed")
+                if close_on_failure:
+                    await client.close(reason="native_stop_unconfirmed")
+                return False
+            return True
         except ProtocolError:
             if not current_generation():
-                return
+                return False
             device.last_error = "Stop could not be confirmed; check the device"
             self.last_error = "A stop command could not be confirmed"
-            # Do not continue a session with uncertain actuator state.
-            await client.close(reason="stop_unconfirmed")
+            if close_on_failure:
+                # Normal output cleanup remains fail-closed, because command
+                # delivery is uncertain. During reconnect verification only,
+                # keep the healthy *server* session and quarantine the device.
+                await client.close(reason="stop_unconfirmed")
+            return False
 
     async def async_all_start(self, pulse: bool = False) -> None:
         keys = [
