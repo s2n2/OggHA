@@ -841,6 +841,39 @@ class OggHub:
             device, client, generation=generation, close_on_failure=False
         )
 
+    async def async_remove_device(self, identifiers: set[tuple[str, str]]) -> bool:
+        """Forget one offline device record; refuse the hub and live devices."""
+        prefix = f"{self.entry.entry_id}:"
+        keys = [
+            value[len(prefix):]
+            for domain, value in identifiers
+            if domain == DOMAIN and value.startswith(prefix)
+        ]
+        if len(keys) != 1 or keys[0] not in self.devices:
+            # Unknown to Ogg (already forgotten): allow HA to drop the leftover.
+            return not any(
+                domain == DOMAIN and value == self.entry.entry_id
+                for domain, value in identifiers
+            )
+        key = keys[0]
+        device = self.devices[key]
+        if device.connected:
+            return False
+        async with self._lock(key):
+            if device.connected:
+                return False
+            await self._stop_locked(device, send_stop=False)
+            self.devices.pop(key, None)
+            self._desired_outputs.pop(key, None)
+            self._command_serials.pop(key, None)
+            for old_key, target in tuple(self._identity_aliases.items()):
+                if target == key or old_key == key:
+                    self._identity_aliases.pop(old_key, None)
+        self._locks.pop(key, None)
+        self._save_later()
+        self._notify()
+        return True
+
     async def async_set_connect_feedback(self, value: str) -> None:
         if value not in CONNECT_FEEDBACK_OPTIONS:
             raise HomeAssistantError("Unknown connection feedback option")

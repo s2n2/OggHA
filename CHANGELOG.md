@@ -1,3 +1,7 @@
+## 0.1.15 - Duplicate cleanup
+- On load, a device identified by Bluetooth address absorbs older name-only records of the same model; the oldest record keeps its entity IDs and settings and takes the current route. Different explicit display names are never merged.
+- Offline Ogg devices can now be deleted from their Home Assistant device page (live devices and the Ogg hub cannot).
+
 ## 0.1.14 - Connection feedback and IntiHA identity
 - New **Connection feedback** setting (Silent / Short pulse). With Short pulse, a device that connects or reconnects gives one 0.2 s buzz at 30%, followed by the usual stop and resume. Default is Silent.
 - Ogg reads Bluetooth addresses from IntiHA (`/intiha/devices`) so the same toy is one device across reconnects and servers.

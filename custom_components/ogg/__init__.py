@@ -7,6 +7,7 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import Event, HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import ConfigType
 
 from .const import PLATFORMS
@@ -63,6 +64,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: OggConfigEntry) -> bool:
 async def _async_update_options(hass: HomeAssistant, entry: OggConfigEntry) -> None:
     """Apply the edited connection sources through a full clean reload."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: OggConfigEntry, device_entry: dr.DeviceEntry
+) -> bool:
+    """Let users delete a stale Ogg device (e.g. a leftover duplicate).
+
+    Only an offline device can be removed; a live one would be recreated by
+    the next device list anyway. The hub device itself is never removable.
+    """
+    hub = entry.runtime_data
+    return await hub.async_remove_device(device_entry.identifiers)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: OggConfigEntry) -> bool:
