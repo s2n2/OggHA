@@ -1,7 +1,8 @@
 """Ogg's independent connection lifecycle and serialised device runners.
 
 An absent server is a state, not a configuration-entry setup error. Only
-configured locations are tried. Output is never resumed after a reconnect.
+configured locations are tried. Ogg retains a short-lived, non-persistent run
+intention while disconnected and resumes only after an acknowledged stop.
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ import asyncio
 import logging
 import math
 import time
+from dataclasses import dataclass
 from collections.abc import Callable, Coroutine
 from contextlib import suppress
 from typing import Any
@@ -25,12 +27,34 @@ from .const import DEFAULT_PULSE_DURATION, DOMAIN, STORAGE_VERSION
 from .endpoints import Candidate, resolve_candidates, validate_config
 from .identity import load_devices, match_device, new_device_key
 from .migration import async_migrate_device_registry
-from .models import OggDevice
+from .models import OggDevice, physical_address, useful_label
 from .patterns import MOTOR_MODES, NATIVE_PATTERNS, SOFTWARE_PATTERNS, build_classic_packet, sample
 from .protocol import ButtplugConnection, CommandError, ProtocolError
 
 _LOGGER = logging.getLogger(__name__)
 _PATTERNS = set(SOFTWARE_PATTERNS) | set(NATIVE_PATTERNS)
+RECONNECT_GRACE_SECONDS = 30.0
+
+
+@dataclass
+class DesiredOutput:
+    """Transient requested state, independent of physical route and session.
+
+    This is deliberately not written to storage: an Ogg/HA restart must never
+    replay an old Run or Pulse. Pulse deadlines use monotonic elapsed time and
+    therefore *include* time spent disconnected.
+    """
+
+    mode: str
+    deadline: float | None
+    lost_at: float | None = None
+
+    def may_resume(self, now: float) -> bool:
+        return (
+            self.lost_at is not None
+            and 0 <= now - self.lost_at <= RECONNECT_GRACE_SECONDS
+            and (self.deadline is None or now < self.deadline)
+        )
 
 
 class OggHub:
@@ -55,6 +79,7 @@ class OggHub:
         self._last_source: str | None = None
         self._monitor: asyncio.Task | None = None
         self._runs: dict[str, asyncio.Task] = {}
+        self._desired_outputs: dict[str, DesiredOutput] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._listeners: set[Callable[[], None]] = set()
         self._event_tasks: set[asyncio.Task] = set()
@@ -252,11 +277,16 @@ class OggHub:
                         await self._recover_native_outputs(client)
                         if not self.enabled or self._shutting_down:
                             break
+                        if not client.connected:
+                            raise ProtocolError("Recovery stop was not acknowledged")
                         self._ready = True
                         self.status = "connected"
                         self._save_later()
                         self._notify()
                         established = had_connection = True
+                        # All first-session devices have received a stop before
+                        # any remembered intention is eligible for resumption.
+                        self._schedule_pending_resumes(client)
                         await self._connected_loop(client)
                     except ProtocolError:
                         if self._ready or self.last_error is None:
@@ -384,7 +414,14 @@ class OggHub:
         current_raws = [
             raw for raw in client.devices.values() if isinstance(raw.get("DeviceMessages"), dict)
         ]
+        seen_macs: set[str] = set()
         for raw in current_raws:
+            mac = physical_address(raw)
+            if mac and mac in seen_macs:
+                _LOGGER.warning("Server advertised duplicate Bluetooth address %s; ignoring second route", mac)
+                continue
+            if mac:
+                seen_macs.add(mac)
             device = match_device(self.devices, source, raw, current_keys, current_raws)
             name = str(raw.get("DeviceDisplayName") or raw.get("DeviceName") or "Device")
             if device is None:
@@ -401,9 +438,10 @@ class OggHub:
                 device.generation += 1
                 device.native_failed = device.battery_failed = False
                 device.battery = None
-            if live_rebind:
-                # A route can change during one server session too. Invalidate
-                # pending starts and old runners before updating their target.
+            if newly_connected:
+                # Record a loss once. A route/index change is not a new command
+                # and must not restart a disconnected pulse's deadline.
+                self._mark_intention_lost(key)
                 self._operation_epoch += 1
                 if (task := self._runs.get(key)) is not None:
                     task.cancel()
@@ -411,20 +449,20 @@ class OggHub:
                 device.mode = "idle"
                 device.remaining = None
                 device.aux_values.clear()
-            if route_changed or device.raw != raw or device.alias != name:
+                device.recovering = True
+            if route_changed or device.raw != raw or (useful_label(name) and device.alias != name):
                 changed = True
             device.update_binding(source, raw)
             device.connected = True
             if not device.battery_supported:
                 device.battery = None
-            if newly_connected and (device.native_maybe_active or live_rebind) and self._ready:
-                # Bluetooth may rediscover this device after the new server's
-                # initial list was empty, or its route/capabilities may change.
-                # Gate only this device until its new binding has been stopped.
-                device.recovering = True
+            if newly_connected and self._ready:
+                # Every reconnected device (not just native patterns) must be
+                # stopped before its switch or pulse button becomes available.
                 self._spawn_event(self._recover_native_outputs(client, [(key, device.generation)]))
         for key, device in tuple(self.devices.items()):
             if key not in current_keys and device.connected:
+                self._mark_intention_lost(key)
                 device.connected = False
                 device.recovering = False
                 device.generation += 1
@@ -442,8 +480,85 @@ class OggHub:
         async with self._lock(key):
             device = self.devices[key]
             if device.generation == generation and not device.connected:
-                await self._stop_locked(device, send_stop=False)
+                await self._stop_locked(device, send_stop=False, preserve_desired=True)
         self._notify()
+
+    def _mark_intention_lost(self, key: str) -> None:
+        """Start a single 30-second grace window at the *first* loss."""
+        intent = self._desired_outputs.get(key)
+        if intent is not None and intent.lost_at is None:
+            intent.lost_at = time.monotonic()
+
+    def _schedule_pending_resumes(
+        self, client: ButtplugConnection, targets: list[tuple[str, int]] | None = None
+    ) -> None:
+        """Queue Ogg-owned recovery regardless of which server is in use."""
+        if not self.enabled or not self.connected or self._shutting_down:
+            return
+        if targets is None:
+            targets = [
+                (device.key, device.generation)
+                for device in self.devices.values()
+                if device.connected
+            ]
+        for key, generation in targets:
+            intent = self._desired_outputs.get(key)
+            if intent is not None and intent.lost_at is not None:
+                self._spawn_event(self._resume_after_verified_stop(client, key, generation))
+
+    async def _resume_after_verified_stop(
+        self, client: ButtplugConnection, key: str, generation: int
+    ) -> None:
+        """Resume only a live intention, after this session's STOP succeeded."""
+        async with self._lock(key):
+            device = self.devices.get(key)
+            intent = self._desired_outputs.get(key)
+            if device is None or intent is None or intent.lost_at is None:
+                return
+            if (
+                not self.enabled
+                or self._shutting_down
+                or not device.commands_enabled
+                or not device.motor_count
+            ):
+                self._desired_outputs.pop(key, None)
+                self._notify()
+                return
+            # Another connection, recovery or stop request may supersede the
+            # one that scheduled this callback. No output may bypass STOP.
+            if (
+                client is not self._client
+                or not self.connected
+                or not device.connected
+                or device.recovering
+                or device.generation != generation
+            ):
+                return
+            if not intent.may_resume(time.monotonic()):
+                self._desired_outputs.pop(key, None)
+                device.running = False
+                device.mode = "idle"
+                device.remaining = None
+                self._notify()
+                return
+            if (old := self._runs.pop(key, None)) is not None:
+                if old is not asyncio.current_task():
+                    old.cancel()
+                    await asyncio.gather(old, return_exceptions=True)
+            # Recovery STOP has already been acknowledged by _recover_native_outputs.
+            # Never reset the pulse deadline, even if the server has changed.
+            intent.lost_at = None
+            device.last_error = None
+            device.running = True
+            device.mode = intent.mode
+            device.remaining = (
+                max(0.0, intent.deadline - time.monotonic())
+                if intent.deadline is not None else None
+            )
+            self._runs[key] = self.entry.async_create_background_task(
+                self.hass, self._run_device(device, client, intent), "ogg_device_pattern"
+            )
+            self._notify()
 
     async def _read_batteries(self, client: ButtplugConnection) -> None:
         for device in tuple(self.devices.values()):
@@ -482,10 +597,13 @@ class OggHub:
         if client is self._client:
             self._ready = False
         self._operation_epoch += 1
-        # When still connected (e.g. a phone IP changed), attempt a real stop
-        # before closing. An already lost link cannot confirm a physical stop.
+        # A temporary server loss, phone IP change, or alternate Intiface
+        # server does not negate the requested Run/Pulse. Stop any reachable
+        # physical output, but keep the intention for up to 30 seconds.
+        # Explicit Stop/Ogg Off/permissions changes clear intentions instead.
         await asyncio.gather(
-            *(self.async_stop(key) for key in tuple(self.devices)), return_exceptions=True
+            *(self._suspend_for_disconnect(key) for key in tuple(self.devices)),
+            return_exceptions=True,
         )
         await client.close()
         if client is self._client:
@@ -499,18 +617,35 @@ class OggHub:
                 device.battery = None
             self._notify()
 
+    async def _suspend_for_disconnect(self, key: str) -> None:
+        async with self._lock(key):
+            device = self.devices.get(key)
+            if device is None:
+                return
+            if self.enabled and not self._shutting_down:
+                self._mark_intention_lost(key)
+            await self._stop_locked(
+                device, preserve_desired=self.enabled and not self._shutting_down
+            )
+        self._notify()
+
     async def _recover_native_outputs(
         self,
         client: ButtplugConnection,
         targets: list[tuple[str, int]] | None = None,
     ) -> None:
-        """Attempt unresolved native stops before accepting new user output."""
+        """Stop all new physical sessions before accepting any output.
+
+        A BLE disconnect can prevent a scheduled StopDeviceCmd from reaching
+        hardware. An acknowledged stop on the new route is a hard prerequisite;
+        only then may Ogg restore a still-valid, short-lived intention.
+        """
         include_new_arrivals = targets is None
         if targets is None:
             targets = [
                 (device.key, device.generation)
                 for device in self.devices.values()
-                if device.connected and device.native_maybe_active
+                if device.connected
             ]
         seen = set(targets)
         for key, generation in targets:
@@ -532,14 +667,17 @@ class OggHub:
                     if not client.connected:
                         raise ProtocolError("The recovery stop connection was lost")
                     if device.native_maybe_active:
-                        # Raw access may have disappeared after a server update.
-                        # Keep the ordinary stop and clear error; other controls
-                        # remain usable without unadvertised raw commands.
+                        # StopDeviceCmd alone does not prove a vendor-native
+                        # firmware pattern has stopped. Never resume when raw
+                        # access is missing or the zero packet was unconfirmed.
                         device.last_error = "Native stop is unavailable; check the device"
                         self.last_error = "A previous native stop could not be confirmed"
+                        await client.close(reason="native_stop_unconfirmed")
             finally:
                 if client is self._client and device.generation == generation:
                     device.recovering = False
+                    if self._ready and client.connected and not device.native_maybe_active:
+                        self._schedule_pending_resumes(client, [(key, generation)])
                 if include_new_arrivals and client is self._client:
                     # A second device may arrive while an initial recovery
                     # write is awaiting acknowledgement and hub ready is false.
@@ -548,7 +686,6 @@ class OggHub:
                         target = (candidate.key, candidate.generation)
                         if (
                             candidate.connected
-                            and candidate.native_maybe_active
                             and target not in seen
                         ):
                             seen.add(target)
@@ -613,12 +750,17 @@ class OggHub:
             if epoch != self._operation_epoch:
                 return
             device.last_error = None
+            # The deadline starts with the original button press, not when
+            # a later server or BLE session becomes available.
+            deadline = time.monotonic() + self.pulse_duration if pulse else None
+            intent = DesiredOutput("pulse" if pulse else "continuous", deadline)
+            self._desired_outputs[key] = intent
             device.running = True
-            device.mode = "pulse" if pulse else "continuous"
+            device.mode = intent.mode
             device.remaining = self.pulse_duration if pulse else None
             task = self.entry.async_create_background_task(
                 self.hass,
-                self._run_device(device, client, self.pulse_duration if pulse else None),
+                self._run_device(device, client, intent),
                 "ogg_device_pattern",
             )
             self._runs[key] = task
@@ -630,7 +772,13 @@ class OggHub:
             await self._stop_locked(device)
         self._notify()
 
-    async def _stop_locked(self, device: OggDevice, send_stop: bool = True) -> None:
+    async def _stop_locked(
+        self, device: OggDevice, send_stop: bool = True, preserve_desired: bool = False
+    ) -> None:
+        # Revoke desired output before waiting on a task so stale completion
+        # cannot re-arm it. Disconnect recovery is the sole exception.
+        if not preserve_desired:
+            self._desired_outputs.pop(device.key, None)
         generation = device.generation
         task = self._runs.pop(device.key, None)
         if task is not None and task is not asyncio.current_task():
@@ -720,11 +868,11 @@ class OggHub:
         self._notify()
 
     async def _run_device(
-        self, device: OggDevice, client: ButtplugConnection, duration: float | None
+        self, device: OggDevice, client: ButtplugConnection, intent: DesiredOutput
     ) -> None:
         started = time.monotonic()
         generation = device.generation
-        deadline = started + duration if duration is not None else None
+        deadline = intent.deadline
         last_frame: tuple[Any, ...] | None = None
         last_notified = 0.0
         try:
@@ -759,11 +907,28 @@ class OggHub:
             device.last_error = "Output stopped after an unexpected error"
             _LOGGER.exception("Ogg stopped a device pattern after an error")
         finally:
+            if self._desired_outputs.get(device.key) is intent:
+                if not self.enabled or self._shutting_down or not device.commands_enabled:
+                    self._desired_outputs.pop(device.key, None)
+                elif (
+                    client is not self._client
+                    or not client.connected
+                    or not device.connected
+                    or device.generation != generation
+                ):
+                    # A connection loss may be noticed by the runner before
+                    # DeviceRemoved/connection-manager cleanup sees it.
+                    self._mark_intention_lost(device.key)
+                elif intent.lost_at is None:
+                    # Pulse expired normally or an actual output failed: do
+                    # not automatically retry an errored command.
+                    self._desired_outputs.pop(device.key, None)
             if client is self._client and device.connected and device.generation == generation:
                 await self._send_stop(device, client, generation=generation)
-            device.running = False
-            device.mode = "idle"
-            device.remaining = None
+            if device.generation == generation and self._runs.get(device.key) is asyncio.current_task():
+                device.running = False
+                device.mode = "idle"
+                device.remaining = None
             if self._runs.get(device.key) is asyncio.current_task():
                 self._runs.pop(device.key, None)
             self._notify()

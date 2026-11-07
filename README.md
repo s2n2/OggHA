@@ -27,9 +27,12 @@ An offline server is a connection state, rather than a failed integration setup.
 | **Native protocol** | Enables the guarded classic We-Vibe path when the server and exact model qualify. |
 | **Rotation / Position** | Retains manual controls for advertised rotary or linear features. These are separate from vibration patterns. |
 
-Ogg sends no motor-start commands during discovery. Interrupted Ogg runs are
-never automatically restarted after a disconnect, reload or restart. Your
-settings are retained; running state is not.
+Ogg sends no motor-start commands during discovery. A brief disconnect can
+preserve a **transient desired Run/Pulse intention for up to 30 seconds**.
+On reconnection Ogg first requests an acknowledged STOP on the new server,
+then resumes continuous Run or only the remaining pulse duration. A Stop,
+command-permission disable, Ogg Off, long outage, pulse expiry or restart
+cancels the intention. No intention is saved to persistent storage.
 
 ## Install with HACS
 
@@ -49,16 +52,19 @@ Assistant's existing networking dependencies; it does not install the old
 This repository supports installation as a HACS custom repository. It is not a
 claim of inclusion in the HACS default catalogue.
 
-### Ogg Control Deck: bundled dashboard card (v0.1.3+)
+### Ogg Control Deck: bundled dashboard card (v0.1.6+)
+
+The gear beside **HA Server** opens IntiHA in Devices & services, and the gear beside **Ogg** opens Ogg in Devices & services. These links are separate from the on/off switches.
+
 
 **Ogg Control Deck is included in the Ogg HACS integration.** It uses Ogg's
 existing entities and the IntiHA server switch; no separate HACS Dashboard
 plugin, Node build or copying a JavaScript file into `/config/www` is required.
 
-1. Update **Ogg** in HACS to v0.1.3 or newer and **restart Home Assistant** so
+1. Update **Ogg** in HACS to v0.1.6 or newer and **restart Home Assistant** so
    the newly bundled Python code and dashboard HTTP route are loaded.
 2. In **Settings → Dashboards → Resources**, confirm that the JavaScript module
-   `/ogg/control-deck/ogg-control-deck-card.js?v=0.1.3` is listed. Ogg adds
+   `/ogg/control-deck/ogg-control-deck-card.js?v=0.1.6` is listed. Ogg adds
    or updates that resource automatically in the normal (storage) mode.
 3. Edit any dashboard → **Add card** → **Manual** (or select *Ogg Control Deck*
    from the card picker if shown), and enter:
@@ -73,8 +79,11 @@ plugin, Node build or copying a JavaScript file into `/config/www` is required.
 The card shows **HA Server**, **Ogg**, a shared pulse timer, **Pulse all**,
 **Stop all** and controls for *currently connected* Ogg devices only. Each
 connected device has Run, Pulse, Stop, Connect this device (command permission),
-Pattern and Cycle time (1, 2, 3, 5, 10, 15 or 30 seconds). It automatically
-respects renamed devices and never starts a device by itself.
+Pattern, Cycle time (1, 2, 3, 5, 10, 15 or 30 seconds), and Intensity
+(0% to 100% in 10% increments). It also displays a non-step current
+intensity, such as 25%, until changed. It automatically respects renamed
+devices. Reconnection can restore a still-valid Ogg-owned Run/Pulse intention
+after an acknowledged STOP; the card itself never starts a device by itself.
 
 [See the mobile preview](docs/assets/ogg-control-deck-mobile.png).
 
@@ -88,7 +97,7 @@ configuration. Add this resource manually to your Lovelace resources:
 
 ```yaml
 resources:
-  - url: /ogg/control-deck/ogg-control-deck-card.js?v=0.1.3
+  - url: /ogg/control-deck/ogg-control-deck-card.js?v=0.1.6
     type: module
 ```
 
@@ -194,6 +203,14 @@ Read [Native patterns and compatibility](docs/native-patterns.md) for exact
 boundaries and the upstream references.
 
 ## Reliability and identity
+
+Ogg considers an explicitly supplied `BluetoothAddress` (standard MAC address format)
+the strongest device identity, independently of server IP, device index and display
+name. The updated IntiHA engine includes this extension in Buttplug v3
+`DeviceAdded` and `DeviceList`. Other Intiface servers may not expose MAC
+addresses; for those Ogg retains its previous conservative name/route matching.
+Ogg cannot infer a physical MAC from a generic device name.
+
 
 - Integration setup does not require a reachable server.
 - Requests, connection attempts and shutdown waits are bounded.

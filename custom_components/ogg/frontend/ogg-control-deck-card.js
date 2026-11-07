@@ -1,5 +1,5 @@
 /*
- * Ogg Control Deck Card v1.0.0
+ * Ogg Control Deck Card v1.0.3
  * A mobile-first Home Assistant card for IntiHA v0.3.0b14 and Ogg v0.1.2.
  * No dependencies, no hard-coded device IDs, no external network requests.
  * Apache-2.0 license.
@@ -9,6 +9,8 @@
   if (customElements.get(TAG)) return;
 
   const CYCLE_OPTIONS = [1, 2, 3, 5, 10, 15, 30];
+  const INTENSITY_OPTIONS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+  const fmtPercent = (v) => `${Number(v)}%`;
   const PULSE_OPTIONS = [0.5, 1, 2, 3, 5, 10, 15, 30, 60];
   const VALID = (s) => !!s && s.state !== 'unknown' && s.state !== 'unavailable';
   const pretty = (v) => String(v || '').replace(/_/g, ' ').replace(/\b\w/g, (x) => x.toUpperCase());
@@ -25,6 +27,7 @@
       bolt: '<path d="m13 2-9 12h7l-1 8 10-12h-7z"/>',
       play: '<path d="m8 5 12 7-12 7z"/>',
       shield: '<path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/>',
+      settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06-1.91 1.91-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.5V20h-2.7v-.1a1.65 1.65 0 0 0-1-1.5 1.65 1.65 0 0 0-1.82.33l-.06.06-1.91-1.91.06-.06A1.65 1.65 0 0 0 7.9 15a1.65 1.65 0 0 0-1.5-1H6v-2.7h.4a1.65 1.65 0 0 0 1.5-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06 1.91-1.91.06.06a1.65 1.65 0 0 0 1.82.33 1.65 1.65 0 0 0 1-1.5V5h2.7v.4a1.65 1.65 0 0 0 1 1.5 1.65 1.65 0 0 0 1.82-.33l.06-.06 1.91 1.91-.06.06a1.65 1.65 0 0 0-.33 1.82 1.65 1.65 0 0 0 1.5 1h.1V14h-.1a1.65 1.65 0 0 0-1.5 1Z"/>',
       lock: '<rect x="4" y="10" width="16" height="12" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
     };
     return `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.pulse}</svg>`;
@@ -59,6 +62,11 @@
     .master-name{font-size:12.5px;line-height:1.15;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
     .master-status{font-size:11px;color:var(--muted);padding-left:22px;white-space:nowrap}
     .master-status.on{color:#83e1cd}
+    .master-actions{display:flex;align-items:center;gap:7px;flex:none}
+    .settings-link{display:grid;place-items:center;flex:none;width:32px;height:32px;color:#a8b8da;border:1px solid rgba(174,194,246,.18);border-radius:11px;background:rgba(255,255,255,.035);text-decoration:none;transition:color .15s ease,background .15s ease}
+    .settings-link svg{width:17px;height:17px}
+    .settings-link:hover{background:rgba(152,168,249,.14);color:#edf2ff}
+    .settings-link:focus-visible{outline:3px solid #8ee3ee;outline-offset:2px}
     .toggle{position:relative;flex:none;width:46px;height:28px;border:1px solid #505e76;background:#2a3550;border-radius:99px;padding:0;transition:.18s ease;box-shadow:none}
     .toggle:after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#d4daed;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .18s ease,background .18s ease}
     .toggle[aria-checked="true"]{background:linear-gradient(110deg,#31c6b8,#54d4bc);border-color:transparent}
@@ -105,7 +113,7 @@
     .device-action.pulse svg{width:17px;height:17px}
     .device-action.stop{color:#e9adb7;background:rgba(246,104,121,.08);border-color:rgba(246,104,121,.2)}
     .device-action.stop svg{width:17px;height:17px}
-    .config-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.9fr);gap:10px}
+    .config-grid{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(0,.9fr) minmax(0,.77fr);gap:9px}
     .control-group{display:flex;flex-direction:column;gap:5px;min-width:0}
     .control-group label{color:#99a9c5;font-weight:620;font-size:10.5px;line-height:1.1;letter-spacing:.01em;margin-left:3px}
     .control-group .select-shell select{font-size:13px;min-height:40px;font-weight:650;background:#17233c;border-color:#364563}
@@ -117,7 +125,7 @@
     .foot{display:flex;align-items:center;justify-content:center;gap:6px;padding-top:15px;color:#8290ad;font-size:10px;text-align:center;line-height:1.4}
     .foot svg{height:12px;width:12px}
     .toast{display:none;position:relative;background:#51273a;color:#ffe1e7;border:1px solid #a95974;border-radius:12px;padding:10px 12px;font-size:12px;margin-bottom:12px;line-height:1.35}
-    @media(max-width:420px){.deck{padding:15px}.hero{margin-bottom:17px}.brand{width:42px;height:42px;border-radius:13px}h2{font-size:22px}.master{min-height:75px;padding:11px 9px}.master-name{font-size:12px}.master-top{gap:5px}.master-top svg{width:13px;height:13px}.master-status{padding-left:18px}.toggle{width:42px;height:26px}.toggle:after{height:18px;width:18px}.toggle[aria-checked="true"]:after{transform:translateX(16px)}.pulse-zone{padding:12px}.device{padding:12px}.device-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 43px;gap:7px}.run-wrap{padding:5px 7px 5px 9px}.run-wrap span{font-size:11px}.live-badge{padding:7px 8px;font-size:10px}.permission{font-size:9px;padding:5px 7px}.pulse-actions{grid-template-columns:minmax(0,1fr) 95px}}
+    @media(max-width:420px){.config-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.control-group.pattern-setting{grid-column:1/-1}.deck{padding:15px}.hero{margin-bottom:17px}.brand{width:42px;height:42px;border-radius:13px}h2{font-size:22px}.master{min-height:75px;padding:11px 9px}.master-actions{gap:5px}.settings-link{width:28px;height:28px;border-radius:9px}.settings-link svg{width:16px;height:16px}.master-name{font-size:12px}.master-top{gap:5px}.master-top svg{width:13px;height:13px}.master-status{padding-left:18px}.toggle{width:42px;height:26px}.toggle:after{height:18px;width:18px}.toggle[aria-checked="true"]:after{transform:translateX(16px)}.pulse-zone{padding:12px}.device{padding:12px}.device-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 43px;gap:7px}.run-wrap{padding:5px 7px 5px 9px}.run-wrap span{font-size:11px}.live-badge{padding:7px 8px;font-size:10px}.permission{font-size:9px;padding:5px 7px}.pulse-actions{grid-template-columns:minmax(0,1fr) 95px}}
     @media(max-width:330px){.hero{flex-wrap:wrap}.live-badge{margin-left:54px}.masters{grid-template-columns:1fr}.master{min-height:63px}.device-main{grid-template-columns:minmax(0,1fr) 80px 42px}.config-grid{grid-template-columns:1fr 1fr}}
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;animation:none!important}}
   `;
@@ -198,8 +206,8 @@
             <div class="live-badge zero" id="live"><span class="dot"></span><strong id="count">0</strong> connected</div>
           </header>
           <section class="masters" aria-label="Server controls">
-            <div class="master"><div class="master-body"><div class="master-top">${icon('server')}<span class="master-name">HA Server</span></div><span class="master-status" id="server-status">Loading</span></div><button id="server" class="toggle" type="button" role="switch" aria-label="HA Server" aria-checked="false"></button></div>
-            <div class="master"><div class="master-body"><div class="master-top">${icon('nodes')}<span class="master-name">Ogg</span></div><span class="master-status" id="ogg-status">Loading</span></div><button id="ogg" class="toggle" type="button" role="switch" aria-label="Ogg controller" aria-checked="false"></button></div>
+            <div class="master"><div class="master-body"><div class="master-top">${icon('server')}<span class="master-name">HA Server</span></div><span class="master-status" id="server-status">Loading</span></div><div class="master-actions"><a id="server-settings" class="settings-link" href="/config/integrations/integration/intiha" aria-label="Open IntiHA settings" title="IntiHA settings">${icon('settings')}</a><button id="server" class="toggle" type="button" role="switch" aria-label="HA Server" aria-checked="false"></button></div></div>
+            <div class="master"><div class="master-body"><div class="master-top">${icon('nodes')}<span class="master-name">Ogg</span></div><span class="master-status" id="ogg-status">Loading</span></div><div class="master-actions"><a id="ogg-settings" class="settings-link" href="/config/integrations/integration/ogg" aria-label="Open Ogg settings" title="Ogg settings">${icon('settings')}</a><button id="ogg" class="toggle" type="button" role="switch" aria-label="Ogg controller" aria-checked="false"></button></div></div>
           </section>
           <div class="toast" id="toast" role="status" aria-live="polite"></div>
           <section class="pulse-zone" aria-label="Global pulse controls">
@@ -219,12 +227,15 @@
       this.shadowRoot.appendChild(root);
       this._shell = root;
       this._refs = {};
-      for (const id of ['title', 'live', 'count', 'server', 'ogg', 'server-status', 'ogg-status', 'duration', 'pulse-all', 'stop-all', 'devices', 'empty', 'empty-title', 'empty-detail', 'list-subtitle', 'toast']) {
+      for (const id of ['title', 'live', 'count', 'server', 'ogg', 'server-settings', 'ogg-settings', 'server-status', 'ogg-status', 'duration', 'pulse-all', 'stop-all', 'devices', 'empty', 'empty-title', 'empty-detail', 'list-subtitle', 'toast']) {
         this._refs[id] = root.querySelector(`#${id}`);
       }
       this._refs.title.textContent = this._config.title;
       this._refs.server.addEventListener('click', () => this._masterToggle('server'));
       this._refs.ogg.addEventListener('click', () => this._masterToggle('ogg'));
+      for (const id of ['server-settings', 'ogg-settings']) {
+        this._refs[id].addEventListener('click', (event) => this._openSettings(event));
+      }
       this._refs.duration.addEventListener('change', (e) => this._setNumber(this._hub.pulse_duration, e.target.value));
       this._refs['pulse-all'].addEventListener('click', () => this._press(this._hub.pulse_all));
       this._refs['stop-all'].addEventListener('click', () => this._press(this._hub.stop_all));
@@ -293,7 +304,7 @@
       const entityList = this._registryEntities || [];
       const knownKeys = {
         connected: ':connected', run: ':run', pulse: ':pulse', stop: ':stop',
-        pattern: ':pattern', period: ':period', commands: ':connect_this_device',
+        pattern: ':pattern', period: ':period', intensity: ':intensity', commands: ':connect_this_device',
         status: ':status', battery: ':battery', remaining: ':remaining',
       };
       const hubKeys = {
@@ -344,7 +355,13 @@
     }
 
     _state(entityId) { return entityId ? this._hass?.states?.[entityId] : undefined; }
-    _available(entityId) { return VALID(this._state(entityId)); }
+    _available(entityId) {
+      const state = this._state(entityId);
+      if (!state || state.state === 'unavailable') return false;
+      // Home Assistant buttons are often 'unknown' until their first press.
+      // Unknown is normal for a stateless button, unlike a switch or select.
+      return entityId.startsWith('button.') || state.state !== 'unknown';
+    }
     _friendlyName(device) {
       if (device.name) return device.name;
       const sensor = this._state(device.connected) || this._state(device.run);
@@ -465,11 +482,12 @@
           <button data-role="stop" class="device-action stop" type="button" title="Stop device" aria-label="Stop device">${icon('stop')}</button>
         </div>
         <div class="config-grid">
-          <div class="control-group"><label>Pattern</label><div class="select-shell"><select data-role="pattern" aria-label="Device pattern"></select>${icon('chevron')}</div></div>
+          <div class="control-group pattern-setting"><label>Pattern</label><div class="select-shell"><select data-role="pattern" aria-label="Device pattern"></select>${icon('chevron')}</div></div>
           <div class="control-group"><label>Cycle time</label><div class="select-shell"><select data-role="cycle" aria-label="Pattern cycle time"></select>${icon('chevron')}</div></div>
+          <div class="control-group"><label>Intensity</label><div class="select-shell"><select data-role="intensity" aria-label="Device intensity"></select>${icon('chevron')}</div></div>
         </div>`;
       const refs = {};
-      for (const part of ['name','caption','permission','permission-text','run','pulse','stop','pattern','cycle']) refs[part] = el.querySelector(`[data-role="${part}"]`);
+      for (const part of ['name','caption','permission','permission-text','run','pulse','stop','pattern','cycle','intensity']) refs[part] = el.querySelector(`[data-role="${part}"]`);
       const view = { root: el, refs, device };
       refs.permission.addEventListener('click', () => this._togglePermission(view.device));
       refs.run.addEventListener('click', () => this._toggleRun(view.device));
@@ -477,6 +495,7 @@
       refs.stop.addEventListener('click', () => this._press(view.device.stop));
       refs.pattern.addEventListener('change', (event) => this._select(view.device.pattern, event.target.value));
       refs.cycle.addEventListener('change', (event) => this._setNumber(view.device.period, event.target.value));
+      refs.intensity.addEventListener('change', (event) => this._setNumber(view.device.intensity, event.target.value));
       return view;
     }
 
@@ -530,6 +549,22 @@
       this._fillOptions(r.cycle, CYCLE_OPTIONS, Number(period?.state), fmtSecs, `${name} cycle time`);
       r.cycle.disabled = !VALID(period);
       r.cycle.setAttribute('aria-label', `${name} pattern cycle time`);
+      const intensity = this._state(device.intensity);
+      this._fillOptions(r.intensity, INTENSITY_OPTIONS, Number(intensity?.state), fmtPercent, `${name} intensity`);
+      r.intensity.disabled = !VALID(intensity) || !permitted;
+      r.intensity.setAttribute('aria-label', `${name} intensity`);
+    }
+
+    _openSettings(event) {
+      // Preserve native Ctrl/Command-click, middle-click, and new-tab actions.
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.currentTarget;
+      if (!link?.getAttribute('href')) return;
+      event.preventDefault();
+      const path = link.getAttribute('href');
+      // Standard Home Assistant frontend client-side navigation, including the mobile app.
+      history.pushState(null, '', path);
+      window.dispatchEvent(new Event('location-changed'));
     }
 
     async _masterToggle(kind) {

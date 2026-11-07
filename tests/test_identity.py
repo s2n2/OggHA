@@ -231,3 +231,44 @@ def test_invalid_cached_records_are_skipped_without_losing_valid_devices():
     assert list(devices) == ["original"]
     assert not aliases
     assert load_devices(None) == ({}, {})
+
+
+def test_exact_mac_merges_records_even_with_different_names_and_indices():
+    """The physical BLE address, not server, index or model label, is identity."""
+    from custom_components.ogg.identity import load_devices, match_device
+    from custom_components.ogg.models import OggDevice, physical_address
+
+    first = vibration_device(1, "We-Vibe")
+    first["BluetoothAddress"] = "d0:2e:ab:3a:d5:b4"
+    first["DeviceDisplayName"] = "Bond"
+    second = vibration_device(8, "We-Vibe 8-bit")
+    second["BluetoothAddress"] = "D0:2E:AB:3A:D5:B4"
+    second["DeviceDisplayName"] = "We-Vibe"
+    assert physical_address(first) == physical_address(second) == "D0:2E:AB:3A:D5:B4"
+
+    devices, aliases = load_devices([
+        OggDevice("old-key", "Bond", "sourceA", first).stored(),
+        OggDevice("new-key", "We-Vibe", "sourceA", second).stored(),
+    ])
+    assert list(devices) == ["old-key"]
+    assert aliases == {"new-key": "old-key"}
+    matched = match_device(devices, "sourceB", second, set(), [second])
+    assert matched is devices["old-key"]
+    assert matched.key == "old-key"
+
+
+def test_mac_identifies_distinct_devices_regardless_of_identical_model_names():
+    from custom_components.ogg.identity import load_devices, match_device
+    from custom_components.ogg.models import OggDevice
+
+    one = vibration_device(1, "We-Vibe")
+    two = vibration_device(2, "We-Vibe")
+    one["BluetoothAddress"] = "AA:BB:CC:DD:EE:01"
+    two["BluetoothAddress"] = "AA:BB:CC:DD:EE:02"
+    devices, aliases = load_devices([
+        OggDevice("key-one", "We-Vibe", "sourceA", one).stored(),
+        OggDevice("key-two", "We-Vibe", "sourceB", two).stored(),
+    ])
+    assert len(devices) == 2
+    assert aliases == {}
+    assert match_device(devices, "other", two, set(), [two]).key == "key-two"

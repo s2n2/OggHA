@@ -119,9 +119,7 @@ async def test_all_off_during_start_cannot_launch_a_late_runner(
     assert any(name == "StopAllDevices" for name, _ in fake_server.requests)
 
 
-async def test_disconnect_reconnect_preserves_settings_without_resuming_output(
-    fake_server, hub_factory
-):
+async def test_disconnect_reconnect_resumes_run_only_after_new_stop(fake_server, hub_factory):
     hub = await hub_factory(fake_server)
     key = next(iter(hub.devices))
     await hub.async_set_setting(key, "intensity", 42)
@@ -129,14 +127,93 @@ async def test_disconnect_reconnect_preserves_settings_without_resuming_output(
     await fake_server.wait_for("ScalarCmd")
     await fake_server.disconnect()
     await fake_server.wait_for("RequestServerInfo", count=2)
-    await until(
-        lambda: hub.connected and hub.devices[key].connected and not hub.devices[key].running
-    )
-    count_after_reconnect = sum(name == "ScalarCmd" for name, _ in fake_server.requests)
-    await asyncio.sleep(0.15)
-    assert sum(name == "ScalarCmd" for name, _ in fake_server.requests) == count_after_reconnect
+    await until(lambda: hub.connected and hub.devices[key].connected and hub.devices[key].running)
+    marker = [i for i, (name, _) in enumerate(fake_server.requests) if name == "RequestServerInfo"][1]
+    await until(lambda: any(name == "ScalarCmd" for name, _ in fake_server.requests[marker:]))
+    names = [name for name, _ in fake_server.requests[marker:]]
+    assert names.index("StopDeviceCmd") < names.index("ScalarCmd")
     assert hub.devices[key].settings["intensity"] == 42
-    assert not hub._runs
+    await hub.async_stop(key)
+
+
+async def test_device_reappearance_resumes_only_remaining_pulse(fake_server, hub_factory):
+    hub = await hub_factory(fake_server)
+    key = next(iter(hub.devices))
+    await hub.async_set_pulse_duration(0.75)
+    await hub.async_start(key, pulse=True)
+    await fake_server.wait_for("ScalarCmd")
+    first_deadline = hub._desired_outputs[key].deadline
+    previously_sent = sum(name == "ScalarCmd" for name, _ in fake_server.requests)
+    saved_device = fake_server.devices[0]
+    fake_server.devices = []
+    await fake_server.push("DeviceRemoved", {"DeviceIndex": 0})
+    await until(lambda: not hub.devices[key].connected)
+    await asyncio.sleep(0.12)
+    fake_server.devices = [saved_device]
+    await fake_server.push("DeviceAdded", saved_device)
+    await until(lambda: hub.devices[key].running)
+    assert hub._desired_outputs[key].deadline == first_deadline
+    await fake_server.wait_for("ScalarCmd", count=previously_sent + 1)
+    await until(lambda: not hub.devices[key].running, timeout=2)
+    assert key not in hub._desired_outputs
+
+
+async def test_expired_pulse_never_resumes_after_reappearance(fake_server, hub_factory):
+    hub = await hub_factory(fake_server)
+    key = next(iter(hub.devices))
+    await hub.async_set_pulse_duration(0.15)
+    await hub.async_start(key, pulse=True)
+    await fake_server.wait_for("ScalarCmd")
+    saved_device = fake_server.devices[0]
+    fake_server.devices = []
+    await fake_server.push("DeviceRemoved", {"DeviceIndex": 0})
+    await until(lambda: not hub.devices[key].connected)
+    await asyncio.sleep(0.25)
+    count = sum(name == "ScalarCmd" for name, _ in fake_server.requests)
+    fake_server.devices = [saved_device]
+    await fake_server.push("DeviceAdded", saved_device)
+    await until(lambda: hub.devices[key].connected and not hub.devices[key].recovering)
+    await asyncio.sleep(0.1)
+    assert sum(name == "ScalarCmd" for name, _ in fake_server.requests) == count
+    assert key not in hub._desired_outputs
+
+
+async def test_stop_while_disconnected_cancels_pending_resume(fake_server, hub_factory):
+    hub = await hub_factory(fake_server)
+    key = next(iter(hub.devices))
+    await hub.async_start(key)
+    await fake_server.wait_for("ScalarCmd")
+    saved_device = fake_server.devices[0]
+    fake_server.devices = []
+    await fake_server.push("DeviceRemoved", {"DeviceIndex": 0})
+    await until(lambda: not hub.devices[key].connected)
+    await hub.async_stop(key)
+    assert key not in hub._desired_outputs
+    marker = len(fake_server.requests)
+    fake_server.devices = [saved_device]
+    await fake_server.push("DeviceAdded", saved_device)
+    await until(lambda: hub.devices[key].connected and not hub.devices[key].recovering)
+    await asyncio.sleep(0.1)
+    assert not any(name == "ScalarCmd" for name, _ in fake_server.requests[marker:])
+
+
+async def test_long_disconnection_never_resumes_run(fake_server, hub_factory):
+    hub = await hub_factory(fake_server)
+    key = next(iter(hub.devices))
+    await hub.async_start(key)
+    await fake_server.wait_for("ScalarCmd")
+    saved_device = fake_server.devices[0]
+    fake_server.devices = []
+    await fake_server.push("DeviceRemoved", {"DeviceIndex": 0})
+    await until(lambda: not hub.devices[key].connected)
+    hub._desired_outputs[key].lost_at -= 31  # emulate 31 seconds elapsed
+    marker = len(fake_server.requests)
+    fake_server.devices = [saved_device]
+    await fake_server.push("DeviceAdded", saved_device)
+    await until(lambda: hub.devices[key].connected and not hub.devices[key].recovering)
+    await asyncio.sleep(0.1)
+    assert key not in hub._desired_outputs
+    assert not any(name == "ScalarCmd" for name, _ in fake_server.requests[marker:])
 
 
 async def test_unreachable_first_candidate_fails_over_to_next(
@@ -174,7 +251,7 @@ async def test_removed_device_cleanup_cannot_stop_reused_index(fake_server, hub_
 
 
 @pytest.mark.parametrize(("new_index", "motors"), [(7, 2), (0, 1)])
-async def test_live_route_or_capability_change_stops_old_runner_without_resuming(
+async def test_live_route_or_capability_change_verifies_stop_then_resumes(
     fake_server, hub_factory, new_index, motors
 ):
     hub = await hub_factory(fake_server)
@@ -184,24 +261,24 @@ async def test_live_route_or_capability_change_stops_old_runner_without_resuming
     await hub.async_start(key)
     await fake_server.wait_for("ScalarCmd")
     old_runner = hub._runs[key]
+    fake_server.withhold.clear()
+    marker = len(fake_server.requests)
     fake_server.devices = [vibration_device(new_index, motors=motors)]
     await fake_server.push("DeviceList", {"Devices": fake_server.devices})
-    stops = await fake_server.wait_for("StopDeviceCmd", count=2)
     await until(lambda: old_runner.done() and not device.recovering)
+    await until(
+        lambda: any(name == "ScalarCmd" for name, _ in fake_server.requests[marker:])
+    )
     assert list(hub.devices) == [key]
     assert device.index == new_index
     assert device.motor_count == motors
-    assert stops[-1]["DeviceIndex"] == new_index
-    assert not device.running
-    assert not hub._runs
-    await asyncio.sleep(0.15)
-    assert sum(kind == "ScalarCmd" for kind, _ in fake_server.requests) == 1
-
-    fake_server.withhold.clear()
-    await hub.async_start(key)
-    output = (await fake_server.wait_for("ScalarCmd", count=2))[-1]
+    names = [name for name, _ in fake_server.requests[marker:]]
+    assert names.index("StopDeviceCmd") < names.index("ScalarCmd")
+    output = next(body for name, body in fake_server.requests[marker:] if name == "ScalarCmd")
     assert output["DeviceIndex"] == new_index
     assert len(output["Scalars"]) == motors
+    assert device.running
+    await hub.async_stop(key)
 
 
 async def test_sensor_ip_change_reconnects_with_same_device_identity(
@@ -354,24 +431,28 @@ async def test_native_reconnect_sends_explicit_off_before_new_user_output(
             for name, body in fake_server.requests[new_session:]
         )
     )
-    await until(lambda: hub.connected and device.connected and not device.native_maybe_active)
-    assert not device.running
-    assert all(
-        body["Data"] == off_packet
-        for name, body in fake_server.requests[new_session:]
-        if name == "RawWriteCmd"
-    )
-
-    # Recovery does not replay the old run, and an explicit later start still
-    # works after the stop is acknowledged.
-    marker = len(fake_server.requests)
-    await hub.async_start(key)
+    # Native recovery must first send the vendor zero packet, followed by
+    # standard StopDeviceCmd. Only after both are acknowledged may Ogg resume.
     await until(
         lambda: any(
             name == "RawWriteCmd" and body["Data"][1] == 5 and body["Data"][5] > 0
-            for name, body in fake_server.requests[marker:]
+            for name, body in fake_server.requests[new_session:]
         )
     )
+    new_commands = fake_server.requests[new_session:]
+    off_at = next(
+        i for i, (name, body) in enumerate(new_commands)
+        if name == "RawWriteCmd" and body["Data"] == off_packet
+    )
+    stop_at = next(
+        i for i, (name, _) in enumerate(new_commands)
+        if i > off_at and name == "StopDeviceCmd"
+    )
+    run_at = next(
+        i for i, (name, body) in enumerate(new_commands)
+        if name == "RawWriteCmd" and body["Data"][1] == 5 and body["Data"][5] > 0
+    )
+    assert off_at < stop_at < run_at
     assert device.running
     await hub.async_stop(key)
 

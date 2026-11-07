@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from .models import OggDevice, device_key, identity_parts, legacy_device_key
+from .models import OggDevice, device_key, identity_parts, legacy_device_key, physical_address
 
 
 def _parts(device: OggDevice) -> tuple[str, str]:
@@ -37,11 +37,28 @@ def match_device(
     current_raws: list[dict[str, Any]],
 ) -> OggDevice | None:
     """Find one unambiguous existing identity, without mutating any record."""
+    mac = physical_address(raw)
+    available_all = [device for device in devices.values() if device.key not in claimed]
+    if mac:
+        exact_mac = [device for device in available_all if physical_address(device.raw) == mac]
+        if len(exact_mac) == 1:
+            return exact_mac[0]
+        if len(exact_mac) > 1:
+            # Ambiguous duplicate records: never guess which one to control.
+            return None
+        # Upgrade an earlier name-only identity in place when its own route
+        # is still known. This preserves its HA entity IDs and user settings.
+        old_route = [device for device in available_all
+                     if not physical_address(device.raw)
+                     and device.bindings.get(source) == raw.get("DeviceIndex")]
+        if len(old_route) == 1:
+            return old_route[0]
     model, label = identity_parts(raw)
     if not model:
         return None
-    same_model = [device for device in devices.values() if _parts(device)[0] == model]
-    available = [device for device in same_model if device.key not in claimed]
+    same_model = [device for device in available_all if _parts(device)[0] == model
+                  and (not mac or not physical_address(device.raw))]
+    available = same_model
     exact = [device for device in available if device.identity_display_name == label]
     # A remembered route is only a tiebreaker among matching identities. It
     # never turns a different model or explicit display name into this device.
@@ -75,9 +92,15 @@ def _merge_group(
     group: list[OggDevice],
     output: dict[str, OggDevice],
     aliases: dict[str, str],
+    *,
+    same_mac: bool = False,
 ) -> None:
-    """Keep the original key/settings and merge only unambiguous duplicates."""
-    if not _can_coalesce(group):
+    """Keep the original key/settings and merge only unambiguous duplicates.
+
+    One explicit physical MAC outweighs stale historical DeviceIndex values.
+    An index can change between sessions, even for the same server source.
+    """
+    if not same_mac and not _can_coalesce(group):
         output.update((device.key, device) for device in group)
         return
     primary = group[0]
@@ -140,10 +163,15 @@ def load_devices(records: Any) -> tuple[dict[str, OggDevice], dict[str, str]]:
             motor_level_memory=record.get("motor_level_memory", []),
         )
         seen.add(key)
-        groups[_parts(device)[0]].append(device)
+        mac = physical_address(device.raw)
+        groups[f"mac:{mac}" if mac else f"model:{_parts(device)[0]}"].append(device)
     output: dict[str, OggDevice] = {}
     aliases: dict[str, str] = {}
     for group in groups.values():
+        addresses = {physical_address(device.raw) for device in group if physical_address(device.raw)}
+        if len(addresses) == 1 and all(physical_address(d.raw) for d in group):
+            _merge_group(group, output, aliases, same_mac=True)
+            continue
         labels = {device.identity_display_name for device in group if device.identity_display_name}
         if len(labels) <= 1 and _can_coalesce(group):
             _merge_group(group, output, aliases)
