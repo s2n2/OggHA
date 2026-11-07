@@ -52,7 +52,7 @@ Assistant's existing networking dependencies; it does not install the old
 This repository supports installation as a HACS custom repository. It is not a
 claim of inclusion in the HACS default catalogue.
 
-### Ogg Control Deck: bundled dashboard card (v0.1.6+)
+### Ogg Control Deck: bundled dashboard card (v0.1.7+)
 
 The gear beside **HA Server** opens IntiHA in Devices & services, and the gear beside **Ogg** opens Ogg in Devices & services. These links are separate from the on/off switches.
 
@@ -61,10 +61,10 @@ The gear beside **HA Server** opens IntiHA in Devices & services, and the gear b
 existing entities and the IntiHA server switch; no separate HACS Dashboard
 plugin, Node build or copying a JavaScript file into `/config/www` is required.
 
-1. Update **Ogg** in HACS to v0.1.6 or newer and **restart Home Assistant** so
+1. Update **Ogg** in HACS to v0.1.7 or newer and **restart Home Assistant** so
    the newly bundled Python code and dashboard HTTP route are loaded.
 2. In **Settings → Dashboards → Resources**, confirm that the JavaScript module
-   `/ogg/control-deck/ogg-control-deck-card.js?v=0.1.6` is listed. Ogg adds
+   `/ogg/control-deck/ogg-control-deck-card.js?v=0.1.7` is listed. Ogg adds
    or updates that resource automatically in the normal (storage) mode.
 3. Edit any dashboard → **Add card** → **Manual** (or select *Ogg Control Deck*
    from the card picker if shown), and enter:
@@ -97,7 +97,7 @@ configuration. Add this resource manually to your Lovelace resources:
 
 ```yaml
 resources:
-  - url: /ogg/control-deck/ogg-control-deck-card.js?v=0.1.6
+  - url: /ogg/control-deck/ogg-control-deck-card.js?v=0.1.7
     type: module
 ```
 
@@ -296,3 +296,9 @@ JavaScript is Apache-2.0, as indicated in its header; see
 Each known device has **Connect this device**, enabled by default. It is a command permission switch, **not** a Bluetooth connect/disconnect request: switching it off prevents run/pulse/manual output commands to that device, stops its current output, and excludes it from global starts. Device discovery remains active. Explicit stop operations are always permitted as a safety exception, including the server-wide Stop all command.
 
 Each device also shows **Pulse duration (all devices)**. This is another Home Assistant control for the **same global timer**, not a separate timer per device. Changing it on any device updates every copy and the main Ogg controller.
+
+### v0.1.7: IntiHA connectivity troubleshooting
+
+A known IntiHA device may be listed on the server before its Bluetooth session can accept a stop command. Ogg now keeps its server WebSocket open, marks only that device as recovering, and retries a verified stop when the device becomes ready. A device must not receive motor commands until its recovery STOP has been acknowledged.
+
+If Ogg still displays **searching** rather than **connected**, check the configured IntiHA IP/host and port (default **12345**) in Ogg's integration options and the **Last error** sensor. Ogg will log a local Buttplug v3 handshake failure separately from a device recovery failure.

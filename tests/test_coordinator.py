@@ -518,3 +518,23 @@ async def test_diagnostics_exclude_names_addresses_and_sensor_identifiers(
     assert "private_phone_ip" not in text
     assert fake_server.url not in text
     assert "127.0.0.1" not in text
+
+
+async def test_unready_device_stop_does_not_disconnect_server(fake_server, hub_factory):
+    """IntiHA may expose a known BLE device before its stop path is ready.
+
+    Server connection must remain usable, but device controls remain blocked
+    until StopDeviceCmd succeeds on a subsequent scan.
+    """
+    fake_server.reject.add("StopDeviceCmd")
+    hub = await hub_factory(fake_server)
+    key = next(iter(hub.devices))
+    assert hub.connected
+    assert hub.devices[key].recovering
+    assert hub.devices[key].last_error is not None
+
+    fake_server.reject.discard("StopDeviceCmd")
+    hub._wake.set()
+    await until(lambda: hub.connected and not hub.devices[key].recovering, timeout=3)
+    assert len([name for name, _ in fake_server.requests if name == "RequestServerInfo"]) == 1
+    assert len([name for name, _ in fake_server.requests if name == "StopDeviceCmd"]) >= 2
