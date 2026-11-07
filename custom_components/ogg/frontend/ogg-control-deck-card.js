@@ -1,5 +1,5 @@
 /*
- * Ogg Control Deck Card v1.0.5
+ * Ogg Control Deck Card v1.0.6
  * A mobile-first Home Assistant card for IntiHA v0.3.0b14 and Ogg v0.1.2.
  * No dependencies, no hard-coded device IDs, no external network requests.
  * Apache-2.0 license.
@@ -83,25 +83,28 @@
     .live-badge.zero{border-color:rgba(174,194,246,.14);color:var(--muted);background:rgba(169,184,217,.08)}
     .live-badge.zero .dot{background:#72809f;box-shadow:none}
     .live-badge strong{font-variant-numeric:tabular-nums;font-weight:800;color:#e7fff9}
-    /* Narrow dashboard cards get full-width, independent server rows. This is
-       the default, not dependent on a browser or container media query. */
-    .masters{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;margin-bottom:12px}
-    .master{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;min-width:0;min-height:76px;padding:12px 13px;border-radius:18px;border:1px solid var(--border);background:rgba(255,255,255,.045)}
-    .master-body{flex:1 1 115px;min-width:0}
-    .master-top{display:flex;align-items:center;gap:7px;margin-bottom:7px;min-width:0}
-    .master-top svg{width:15px;height:15px;color:#a9a0ff;flex:none}
-    .master-name{font-size:12.5px;line-height:1.15;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
-    .master-status{font-size:11px;color:var(--muted);padding-left:22px;white-space:nowrap}
+    /* Two compact tiles always share one row, even inside a narrow dashboard
+       section. Split each tile into a title/gear row and a status/switch row:
+       this avoids horizontal collisions without doubling the card height. */
+    .masters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
+    .master{display:grid;grid-template-rows:auto auto;align-content:space-between;min-width:0;min-height:67px;gap:6px;padding:9px 11px;border-radius:16px;border:1px solid var(--border);background:rgba(255,255,255,.045)}
+    .master-top,.master-bottom{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0}
+    .master-label{display:flex;align-items:center;gap:5px;min-width:0}
+    .master-label svg{width:14px;height:14px;color:#a9a0ff;flex:none}
+    .master-name{font-size:12px;line-height:1.1;font-weight:720;letter-spacing:-.01em;white-space:nowrap;min-width:0}
+    .master-status{font-size:10px;line-height:1.15;color:var(--muted);white-space:nowrap;min-width:0}
     .master-status.on{color:#83e1cd}
-    .master-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex:0 0 auto;min-width:0}
-    .settings-link{display:grid;place-items:center;flex:none;width:32px;height:32px;color:#a8b8da;border:1px solid rgba(174,194,246,.18);border-radius:11px;background:rgba(255,255,255,.035);text-decoration:none;transition:color .15s ease,background .15s ease}
-    .settings-link svg{width:17px;height:17px}
+    .settings-link{display:grid;place-items:center;flex:none;width:27px;height:27px;color:#a8b8da;border:1px solid rgba(174,194,246,.18);border-radius:9px;background:rgba(255,255,255,.035);text-decoration:none;transition:color .15s ease,background .15s ease}
+    .settings-link svg{width:16px;height:16px}
     .settings-link:hover{background:rgba(152,168,249,.14);color:#edf2ff}
     .settings-link:focus-visible{outline:3px solid #8ee3ee;outline-offset:2px}
     .toggle{position:relative;flex:none;width:46px;height:28px;border:1px solid #505e76;background:#2a3550;border-radius:99px;padding:0;transition:.18s ease;box-shadow:none}
     .toggle:after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#d4daed;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .18s ease,background .18s ease}
     .toggle[aria-checked="true"]{background:linear-gradient(110deg,#31c6b8,#54d4bc);border-color:transparent}
     .toggle[aria-checked="true"]:after{transform:translateX(18px);background:#072a2d}
+    .master .toggle{width:40px;height:24px}
+    .master .toggle:after{width:16px;height:16px;top:3px;left:3px}
+    .master .toggle[aria-checked="true"]:after{transform:translateX(16px)}
     .toggle.small{width:43px;height:27px}.toggle.small:after{width:19px;height:19px}.toggle.small[aria-checked="true"]:after{transform:translateX(16px)}
     .pulse-zone{border:1px solid rgba(142,123,250,.24);border-radius:21px;padding:16px;background:linear-gradient(125deg,rgba(112,95,217,.16),rgba(42,136,157,.065));margin-bottom:20px}
     .pulse-top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
@@ -167,13 +170,10 @@
     .foot{display:flex;align-items:center;justify-content:center;gap:6px;padding-top:15px;color:#8290ad;font-size:10px;text-align:center;line-height:1.4}
     .foot svg{height:12px;width:12px}
     .toast{display:none;position:relative;background:#51273a;color:#ffe1e7;border:1px solid #a95974;border-radius:12px;padding:10px 12px;font-size:12px;margin-bottom:12px;line-height:1.35}
-    /* Container breakpoints follow the card width, not the full HA browser window. */
-    /* Two server columns are used ONLY when each is wide enough for its
-       labels and controls. The single-column base is inherently collision-free. */
-    @container (min-width:740px){.masters{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @container (max-width:520px){.deck{padding:15px}.hero{margin-bottom:17px}.brand{width:42px;height:42px;border-radius:13px}h2{font-size:22px}.master{padding:11px 12px}.pulse-zone{padding:12px}.device{padding:12px}.device-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 43px;gap:7px}.run-wrap{padding:5px 7px 5px 9px}.run-wrap span{font-size:11px}.live-badge{padding:7px 8px;font-size:10px}.permission{font-size:9px;padding:5px 7px}.pulse-actions{grid-template-columns:minmax(0,1fr) 95px}.config-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.control-group.pattern-setting{grid-column:1/-1}}
-    @container (max-width:355px){.hero{flex-wrap:wrap}.live-badge{margin-left:54px}.global-select{width:100px}.pulse-top{gap:8px}.small-label{font-size:12px;gap:5px}.device-main{grid-template-columns:minmax(0,1fr) 80px 42px}.device-name-row{grid-template-columns:minmax(0,1fr) 72px;gap:6px}}
-    @container (max-width:290px){.masters{grid-template-columns:1fr}.master{min-height:76px}.master-actions{gap:10px}}
+    /* All size rules follow the actual card container, not browser width. */
+    @container (max-width:520px){.deck{padding:15px}.hero{margin-bottom:16px}.brand{width:42px;height:42px;border-radius:13px}h2{font-size:22px}.master{padding:9px 10px;min-height:65px}.master-name{font-size:11.5px}.pulse-zone{padding:12px}.device{padding:12px}.device-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 43px;gap:7px}.run-wrap{padding:5px 7px 5px 9px}.run-wrap span{font-size:11px}.live-badge{padding:7px 8px;font-size:10px}.permission{font-size:9px;padding:5px 7px}.pulse-actions{grid-template-columns:minmax(0,1fr) 95px}.config-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.control-group.pattern-setting{grid-column:1/-1}}
+    @container (max-width:355px){.hero{flex-wrap:wrap}.live-badge{margin-left:54px}.global-select{width:100px}.pulse-top{gap:8px}.small-label{font-size:12px;gap:5px}.master{padding:8px 8px}.master-label svg{width:12px;height:12px}.master-name{font-size:11px}.settings-link{width:24px;height:24px}.settings-link svg{width:14px;height:14px}.device-main{grid-template-columns:minmax(0,1fr) 80px 42px}.device-name-row{grid-template-columns:minmax(0,1fr) 72px;gap:6px}}
+    @container (max-width:285px){.master-label svg{display:none}.master-name{font-size:10.5px}.master{padding:8px 7px}.masters{gap:6px}.master-status{font-size:9px}}
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;animation:none!important}}
   `;
 
@@ -256,8 +256,8 @@
             <div class="live-badge zero" id="live"><span class="dot"></span><strong id="count">0</strong> connected</div>
           </header>
           <section class="masters" aria-label="Server controls">
-            <div class="master"><div class="master-body"><div class="master-top">${icon('server')}<span class="master-name">HA Server</span></div><span class="master-status" id="server-status">Loading</span></div><div class="master-actions"><a id="server-settings" class="settings-link" href="/config/integrations/integration/intiha" aria-label="Open IntiHA settings" title="IntiHA settings">${icon('settings')}</a><button id="server" class="toggle" type="button" role="switch" aria-label="HA Server" aria-checked="false"></button></div></div>
-            <div class="master"><div class="master-body"><div class="master-top">${icon('nodes')}<span class="master-name">Ogg</span></div><span class="master-status" id="ogg-status">Loading</span></div><div class="master-actions"><a id="ogg-settings" class="settings-link" href="/config/integrations/integration/ogg" aria-label="Open Ogg settings" title="Ogg settings">${icon('settings')}</a><button id="ogg" class="toggle" type="button" role="switch" aria-label="Ogg controller" aria-checked="false"></button></div></div>
+            <div class="master"><div class="master-top"><div class="master-label">${icon('server')}<span class="master-name">HA Server</span></div><a id="server-settings" class="settings-link" href="/config/integrations/integration/intiha" aria-label="Open IntiHA settings" title="IntiHA settings">${icon('settings')}</a></div><div class="master-bottom"><span class="master-status" id="server-status">Loading</span><button id="server" class="toggle" type="button" role="switch" aria-label="HA Server" aria-checked="false"></button></div></div>
+            <div class="master"><div class="master-top"><div class="master-label">${icon('nodes')}<span class="master-name">Ogg</span></div><a id="ogg-settings" class="settings-link" href="/config/integrations/integration/ogg" aria-label="Open Ogg settings" title="Ogg settings">${icon('settings')}</a></div><div class="master-bottom"><span class="master-status" id="ogg-status">Loading</span><button id="ogg" class="toggle" type="button" role="switch" aria-label="Ogg controller" aria-checked="false"></button></div></div>
           </section>
           <div class="toast" id="toast" role="status" aria-live="polite"></div>
           <section class="pulse-zone" aria-label="Global pulse controls">
@@ -272,7 +272,7 @@
           <div class="section-head"><h3>Connected devices</h3><span id="list-subtitle">Live from Ogg</span></div>
           <div id="devices" class="device-list"></div>
           <div id="empty" class="empty">${icon('nodes')}<strong id="empty-title">No connected devices</strong><p id="empty-detail">Devices appear here when Ogg connects to them.</p></div>
-          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v0.1.12</span></div>
+          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v0.1.13</span></div>
         </div>`;
       this.shadowRoot.appendChild(root);
       this._shell = root;
