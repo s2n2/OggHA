@@ -1,5 +1,5 @@
 /*
- * Ogg Control Deck Card v1.0.3
+ * Ogg Control Deck Card v1.0.4
  * A mobile-first Home Assistant card for IntiHA v0.3.0b14 and Ogg v0.1.2.
  * No dependencies, no hard-coded device IDs, no external network requests.
  * Apache-2.0 license.
@@ -9,6 +9,34 @@
   if (customElements.get(TAG)) return;
 
   const CYCLE_OPTIONS = [1, 2, 3, 5, 10, 15, 30];
+  const SPARK_INTERVAL_MS = 140;
+  const SPARK_POINTS = 56; // About eight seconds of recent requested intensity.
+  // Mirror Ogg's software envelopes for a lightweight frontend-only preview.
+  // Native device firmware may produce a different physical waveform.
+  const sampleEnvelope = (name, phase) => {
+    const position = ((Number(phase) % 1) + 1) % 1;
+    const wave = (1 - Math.cos(2 * Math.PI * position)) / 2;
+    switch (name) {
+      case 'steady': return 1;
+      case 'pulse': return position < 0.5 ? 1 : 0;
+      case 'wave': case 'tide': return wave;
+      case 'breath': return wave ** 1.5;
+      case 'ramp': return position;
+      case 'peak': return 1 - Math.abs(2 * position - 1);
+      case 'heartbeat': return position < 0.13 ? 1 : position >= 0.25 && position < 0.4 ? 0.7 : 0;
+      case 'double_pulse': return position < 0.2 || (position >= 0.35 && position < 0.55) ? 1 : 0;
+      case 'steps': case 'step': return (Math.min(Math.floor(position * 4), 3) + 1) / 4;
+      case 'echo': return [1, 0, 0.65, 0, 0.35, 0][Math.min(Math.floor(position * 6), 5)];
+      case 'surge': case 'crest': return wave ** 0.5;
+      case 'surf': return wave * (0.65 + 0.35 * Math.sin(6 * Math.PI * position) ** 2);
+      case 'bounce': return Math.abs(Math.sin(2 * Math.PI * position)) * (1 - 0.4 * position);
+      case 'massage': return 0.3 + 0.7 * wave;
+      case 'tease': return position < 0.8 ? position * 1.25 : 0;
+      case 'chachacha': return position < 0.14 || (position >= 0.25 && position < 0.39) || (position >= 0.5 && position < 0.64) ? 1 : 0;
+      case 'tempo': return (position * 3) % 1 < 0.5 ? 1 : 0;
+      default: return 1; // Unknown pattern: show its intensity setpoint, not invented movement.
+    }
+  };
   const INTENSITY_OPTIONS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
   const fmtPercent = (v) => `${Number(v)}%`;
   const PULSE_OPTIONS = [0.5, 1, 2, 3, 5, 10, 15, 30, 60];
@@ -100,7 +128,14 @@
     .device.running .device-avatar{background:rgba(67,190,169,.16);border-color:rgba(67,190,169,.25)}
     .device.running .device-avatar svg{color:#80ebd6}
     .device-heading{min-width:0;flex:1}
-    .device-heading strong{display:block;color:#f5f7ff;font-size:15px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.013em}
+    .device-name-row{display:flex;align-items:center;gap:8px;min-width:0}
+    .sparkline{height:33px;width:102px;min-width:72px;flex:none;display:flex;align-items:center;justify-content:center;padding:3px 5px;border:1px solid rgba(103,213,194,.16);border-radius:10px;background:linear-gradient(110deg,rgba(65,211,184,.07),rgba(109,128,238,.065));color:#79e4d3;overflow:hidden}
+    .sparkline svg{width:100%;height:100%;display:block;overflow:visible}
+    .sparkline .spark-fill{fill:rgba(79,219,189,.11)}
+    .sparkline .spark-line{stroke:#80ebdb;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;fill:none;vector-effect:non-scaling-stroke}
+    .sparkline .spark-dot{fill:#c3fff1;stroke:#59d3b8;stroke-width:1.1}
+    .sparkline.idle{opacity:.48}
+    .device-heading strong{display:block;flex:1;min-width:0;color:#f5f7ff;font-size:15px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.013em}
     .device-caption{display:block;color:var(--muted);font-size:11px;margin-top:3px;font-variant-numeric:tabular-nums}
     .permission{border:1px solid rgba(143,163,200,.2);border-radius:20px;background:rgba(255,255,255,.045);color:#92a2be;font-size:10px;font-weight:800;letter-spacing:.01em;min-height:31px;padding:5px 10px;white-space:nowrap;display:flex;align-items:center;gap:5px;max-width:120px}
     .permission svg{width:12px;height:12px}
@@ -125,7 +160,7 @@
     .foot{display:flex;align-items:center;justify-content:center;gap:6px;padding-top:15px;color:#8290ad;font-size:10px;text-align:center;line-height:1.4}
     .foot svg{height:12px;width:12px}
     .toast{display:none;position:relative;background:#51273a;color:#ffe1e7;border:1px solid #a95974;border-radius:12px;padding:10px 12px;font-size:12px;margin-bottom:12px;line-height:1.35}
-    @media(max-width:420px){.config-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.control-group.pattern-setting{grid-column:1/-1}.deck{padding:15px}.hero{margin-bottom:17px}.brand{width:42px;height:42px;border-radius:13px}h2{font-size:22px}.master{min-height:75px;padding:11px 9px}.master-actions{gap:5px}.settings-link{width:28px;height:28px;border-radius:9px}.settings-link svg{width:16px;height:16px}.master-name{font-size:12px}.master-top{gap:5px}.master-top svg{width:13px;height:13px}.master-status{padding-left:18px}.toggle{width:42px;height:26px}.toggle:after{height:18px;width:18px}.toggle[aria-checked="true"]:after{transform:translateX(16px)}.pulse-zone{padding:12px}.device{padding:12px}.device-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 43px;gap:7px}.run-wrap{padding:5px 7px 5px 9px}.run-wrap span{font-size:11px}.live-badge{padding:7px 8px;font-size:10px}.permission{font-size:9px;padding:5px 7px}.pulse-actions{grid-template-columns:minmax(0,1fr) 95px}}
+    @media(max-width:420px){.sparkline{width:82px;height:30px;padding:3px 4px}.config-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.control-group.pattern-setting{grid-column:1/-1}.deck{padding:15px}.hero{margin-bottom:17px}.brand{width:42px;height:42px;border-radius:13px}h2{font-size:22px}.master{min-height:75px;padding:11px 9px}.master-actions{gap:5px}.settings-link{width:28px;height:28px;border-radius:9px}.settings-link svg{width:16px;height:16px}.master-name{font-size:12px}.master-top{gap:5px}.master-top svg{width:13px;height:13px}.master-status{padding-left:18px}.toggle{width:42px;height:26px}.toggle:after{height:18px;width:18px}.toggle[aria-checked="true"]:after{transform:translateX(16px)}.pulse-zone{padding:12px}.device{padding:12px}.device-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 43px;gap:7px}.run-wrap{padding:5px 7px 5px 9px}.run-wrap span{font-size:11px}.live-badge{padding:7px 8px;font-size:10px}.permission{font-size:9px;padding:5px 7px}.pulse-actions{grid-template-columns:minmax(0,1fr) 95px}}
     @media(max-width:330px){.hero{flex-wrap:wrap}.live-badge{margin-left:54px}.masters{grid-template-columns:1fr}.master{min-height:63px}.device-main{grid-template-columns:minmax(0,1fr) 80px 42px}.config-grid{grid-template-columns:1fr 1fr}}
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;animation:none!important}}
   `;
@@ -145,6 +180,7 @@
       this._unsubRegistry = [];
       this._subscribedConnection = null;
       this._busy = new Set();
+      this._sparkTimer = null;
     }
 
     setConfig(config) {
@@ -173,12 +209,14 @@
     }
 
     connectedCallback() {
+      this._startSparkTimer();
       this._loadRegistry();
       this._subscribeRegistry();
       this._schedule();
     }
 
     disconnectedCallback() {
+      this._stopSparkTimer();
       this._detachRegistry();
       if (this._refreshRequest !== null) cancelAnimationFrame(this._refreshRequest);
       this._refreshRequest = null;
@@ -395,6 +433,7 @@
       r['pulse-all'].disabled = !this._available(hub.pulse_all) || visible.length === 0 || ogg?.state !== 'on';
       r['stop-all'].disabled = !this._available(hub.stop_all);
       this._reconcileDevices(visible);
+      this._startSparkTimer();
 
       const empty = r.empty;
       empty.style.display = visible.length ? 'none' : 'block';
@@ -473,7 +512,7 @@
       el.innerHTML = `
         <div class="device-top">
           <div class="device-avatar">${icon('bolt')}</div>
-          <div class="device-heading"><strong data-role="name"></strong><span data-role="caption" class="device-caption">Connected · Ready</span></div>
+          <div class="device-heading"><div class="device-name-row"><strong data-role="name"></strong><div data-role="sparkline" class="sparkline idle" title="Estimated pattern intensity, not measured motor output" aria-hidden="true"><svg viewBox="0 0 96 30" preserveAspectRatio="none"><path data-role="spark-fill" class="spark-fill"></path><path data-role="spark-line" class="spark-line"></path><circle data-role="spark-dot" class="spark-dot" r="2.2" cx="95" cy="27"></circle></svg></div></div><span data-role="caption" class="device-caption">Connected · Ready</span></div>
           <button data-role="permission" class="permission allowed" type="button" aria-label="Toggle command permission">${icon('shield')}<span data-role="permission-text">Allowed</span></button>
         </div>
         <div class="device-main">
@@ -487,8 +526,9 @@
           <div class="control-group"><label>Intensity</label><div class="select-shell"><select data-role="intensity" aria-label="Device intensity"></select>${icon('chevron')}</div></div>
         </div>`;
       const refs = {};
-      for (const part of ['name','caption','permission','permission-text','run','pulse','stop','pattern','cycle','intensity']) refs[part] = el.querySelector(`[data-role="${part}"]`);
-      const view = { root: el, refs, device };
+      for (const part of ['name','caption','sparkline','spark-fill','spark-line','spark-dot','permission','permission-text','run','pulse','stop','pattern','cycle','intensity']) refs[part] = el.querySelector(`[data-role="${part}"]`);
+      const view = { root: el, refs, device, spark: { points: [], active: false, startedAt: 0, pattern: 'steady', period: 2, intensity: 0 } };
+      this._paintSpark(view);
       refs.permission.addEventListener('click', () => this._togglePermission(view.device));
       refs.run.addEventListener('click', () => this._toggleRun(view.device));
       refs.pulse.addEventListener('click', () => this._press(view.device.pulse));
@@ -508,6 +548,17 @@
       const running = this._state(device.run)?.state === 'on';
       const pulsing = status === 'pulse';
       view.root.classList.toggle('running', running || pulsing);
+      const graph = view.spark;
+      const active = running || pulsing || status === 'continuous';
+      if (active && !graph.active) graph.startedAt = performance.now();
+      graph.active = active;
+      graph.pattern = String(this._state(device.pattern)?.state || 'steady');
+      const cycleSeconds = Number(this._state(device.period)?.state);
+      graph.period = Number.isFinite(cycleSeconds) && cycleSeconds > 0 ? cycleSeconds : 2;
+      const power = Number(this._state(device.intensity)?.state);
+      graph.intensity = Number.isFinite(power) ? Math.min(100, Math.max(0, power)) : 0;
+      r.sparkline.classList.toggle('idle', !active);
+      this._paintSpark(view);
       const remaining = Number(this._state(device.remaining)?.state);
       const battery = Number(this._state(device.battery)?.state);
       const details = [pulsing ? 'Pulsing' : running ? 'Running' : 'Connected · Ready'];
@@ -553,6 +604,51 @@
       this._fillOptions(r.intensity, INTENSITY_OPTIONS, Number(intensity?.state), fmtPercent, `${name} intensity`);
       r.intensity.disabled = !VALID(intensity) || !permitted;
       r.intensity.setAttribute('aria-label', `${name} intensity`);
+    }
+
+    _startSparkTimer() {
+      if (!this.isConnected || this._sparkTimer !== null || !this._elementMap.size) return;
+      // One shared timer for the whole card, never one timer per device.
+      this._sparkTimer = setInterval(() => this._tickSparks(), SPARK_INTERVAL_MS);
+    }
+
+    _stopSparkTimer() {
+      if (this._sparkTimer !== null) clearInterval(this._sparkTimer);
+      this._sparkTimer = null;
+    }
+
+    _tickSparks() {
+      if (!this.isConnected || !this._elementMap.size) { this._stopSparkTimer(); return; }
+      if (document.visibilityState === 'hidden') return;
+      const now = performance.now();
+      let anyActivity = false;
+      for (const view of this._elementMap.values()) {
+        const graph = view.spark;
+        const envelope = graph.active ? sampleEnvelope(graph.pattern, (now - graph.startedAt) / (graph.period * 1000)) : 0;
+        const level = Math.max(0, Math.min(100, envelope * graph.intensity));
+        graph.points.push(level);
+        if (graph.points.length > SPARK_POINTS) graph.points.shift();
+        this._paintSpark(view);
+        if (graph.active || graph.points.some((v) => v > 0)) anyActivity = true;
+      }
+      // Idle cards do not consume mobile battery redrawing an empty baseline.
+      if (!anyActivity) this._stopSparkTimer();
+    }
+
+    _paintSpark(view) {
+      const values = view.spark.points;
+      // Right-align incoming samples: the line rolls left as fresh data arrives.
+      const y = (value) => (27 - Math.max(0, Math.min(100, value)) * 0.24).toFixed(2);
+      const coords = values.map((v, i) => {
+        const x = 95 - (values.length - 1 - i) * (95 / (SPARK_POINTS - 1));
+        return `${x.toFixed(2)},${y(v)}`;
+      });
+      const baseline = 'M0,27 L95,27';
+      const line = coords.length ? `M${coords.join(' L')}` : baseline;
+      view.refs['spark-line'].setAttribute('d', line);
+      view.refs['spark-fill'].setAttribute('d', coords.length ? `${line} L95,27 Z` : `${baseline} Z`);
+      view.refs['spark-dot'].setAttribute('cy', y(values.length ? values[values.length - 1] : 0));
+      view.refs['spark-dot'].style.opacity = view.spark.active ? '1' : '0';
     }
 
     _openSettings(event) {

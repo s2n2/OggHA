@@ -52,7 +52,7 @@ Assistant's existing networking dependencies; it does not install the old
 This repository supports installation as a HACS custom repository. It is not a
 claim of inclusion in the HACS default catalogue.
 
-### Ogg Control Deck: bundled dashboard card (v0.1.8+)
+### Ogg Control Deck: bundled dashboard card (v0.1.9+)
 
 The gear beside **HA Server** opens IntiHA in Devices & services, and the gear beside **Ogg** opens Ogg in Devices & services. These links are separate from the on/off switches.
 
@@ -61,10 +61,10 @@ The gear beside **HA Server** opens IntiHA in Devices & services, and the gear b
 existing entities and the IntiHA server switch; no separate HACS Dashboard
 plugin, Node build or copying a JavaScript file into `/config/www` is required.
 
-1. Update **Ogg** in HACS to v0.1.8 or newer and **restart Home Assistant** so
+1. Update **Ogg** in HACS to v0.1.9 or newer and **restart Home Assistant** so
    the newly bundled Python code and dashboard HTTP route are loaded.
 2. In **Settings → Dashboards → Resources**, confirm that the JavaScript module
-   `/ogg/control-deck/ogg-control-deck-card.js?v=0.1.8` is listed. Ogg adds
+   `/ogg/control-deck/ogg-control-deck-card.js?v=0.1.9` is listed. Ogg adds
    or updates that resource automatically in the normal (storage) mode.
 3. Edit any dashboard → **Add card** → **Manual** (or select *Ogg Control Deck*
    from the card picker if shown), and enter:
@@ -85,7 +85,15 @@ intensity, such as 25%, until changed. It automatically respects renamed
 devices. Reconnection can restore a still-valid Ogg-owned Run/Pulse intention
 after an acknowledged STOP; the card itself never starts a device by itself.
 
-[See the mobile preview](docs/assets/ogg-control-deck-mobile.png).
+Each connected device also shows a **tiny animated intensity graph beside its name**.
+It tracks the selected software pattern, cycle time, intensity and Run/Pulse state,
+with a rolling ~8-second history. The graph is a **visualisation of the requested
+pattern**, not a live reading from the hardware. Classic/native firmware patterns
+are approximate because those patterns run inside the device. When output stops,
+the graph returns to zero. The lightweight animation pauses when the card is not
+visible and avoids generating Home Assistant history entries.
+
+[See the updated mobile preview](docs/assets/ogg-control-deck-mobile-sparkline.png).
 
 **If you installed the previous standalone card:** remove its old
 `/local/ogg-control-deck-card.js` entry from Dashboard Resources, otherwise
@@ -97,7 +105,7 @@ configuration. Add this resource manually to your Lovelace resources:
 
 ```yaml
 resources:
-  - url: /ogg/control-deck/ogg-control-deck-card.js?v=0.1.8
+  - url: /ogg/control-deck/ogg-control-deck-card.js?v=0.1.9
     type: module
 ```
 
