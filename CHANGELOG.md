@@ -1,4 +1,21 @@
+## 0.1.6 - server-agnostic recovery, identity and intensity
+- Retain non-persistent desired Run/Pulse state during short (30-second maximum) disconnects, across different Intiface servers. Confirm STOP on the new session before resuming.
+- Never extend pulse deadlines: only the remaining time is eligible for resumption. Explicit Stop, permission disable, Ogg Off, or expiry cancels the intent.
+- Match Bluetooth devices by explicit MAC when the server supplies one, preserving entity identities/settings across changed server names and indices. Keep distinct MAC addresses separate.
+- Add a device **Intensity** dropdown to the HACS-bundled Control Deck, displaying the current percentage and 10% increments (0% through 100%). Retain the current percentage if not on a 10% step.
+- Fix first-use device Pulse actions; update the frontend resource version so browsers fetch the new card.
+
+- Fix first-use per-device Pulse buttons in Control Deck when Home Assistant reports an unpressed button as `unknown`.
+- On every new Ogg device session, cancel old runners, reset pulse/run state, issue a stop, and only permit new commands once recovery completes.
+- Retain the HACS dashboard resource and settings shortcuts.
+
 # Changelog
+
+## 0.1.4
+
+- Add settings gear links next to HA Server and Ogg in the Control Deck, opening the corresponding Home Assistant integration pages.
+- Keep on/off controls independent; use in-app navigation on ordinary clicks with native browser fallback for modified clicks.
+- Refresh the versioned Lovelace resource so HACS updates the bundled card.
 
 ## 0.1.3
 

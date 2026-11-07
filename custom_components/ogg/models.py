@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
@@ -32,6 +33,24 @@ def normalise_name(value: Any) -> str:
     return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
 
 
+_MAC = re.compile(r"(?:[0-9A-F]{2}:){5}[0-9A-F]{2}\Z")
+
+
+def physical_address(raw: dict[str, Any]) -> str:
+    """Return explicit MAC extension, never guess it from names or indices."""
+    value = raw.get("BluetoothAddress")
+    if not isinstance(value, str):
+        return ""
+    value = value.strip().upper().replace("-", ":")
+    return value if _MAC.fullmatch(value) else ""
+
+
+def useful_label(value: Any) -> bool:
+    """Prefer a model label over generic vendor descriptors."""
+    name = normalise_name(value).replace("-", "").replace(" ", "")
+    return bool(name and name not in {"device", "wevibe", "wevibe8bit", "bluetoothdevice"})
+
+
 def identity_parts(raw: dict[str, Any]) -> tuple[str, str]:
     """Return model and meaningful custom label, independent of routing.
 
@@ -51,7 +70,8 @@ def device_key(source: str, raw: dict[str, Any]) -> str:
     part of the fingerprint. Existing devices retain their stored opaque key;
     this helper is only the initial key candidate for a newly seen identity.
     """
-    return hashlib.sha256(json.dumps(identity_parts(raw)).encode()).hexdigest()[:24]
+    identity = ("bluetooth", physical_address(raw)) if physical_address(raw) else identity_parts(raw)
+    return hashlib.sha256(json.dumps(identity).encode()).hexdigest()[:24]
 
 
 def legacy_device_key(source: str, raw: dict[str, Any]) -> str:
@@ -160,7 +180,9 @@ class OggDevice:
         self._remember_levels(self.settings["motor_levels"])
         self.source = source
         self.raw = raw
-        self.alias = str(raw.get("DeviceDisplayName") or raw.get("DeviceName") or "Device")
+        incoming = str(raw.get("DeviceDisplayName") or raw.get("DeviceName") or "Device")
+        if useful_label(incoming) or not useful_label(self.alias):
+            self.alias = incoming
         self.bindings[source] = self.index
         if not self.identity_display_name:
             self.identity_display_name = identity_parts(raw)[1]

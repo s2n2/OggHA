@@ -10,6 +10,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import DeviceInfo, Entity
 
 from .const import DOMAIN
+from .models import useful_label
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -94,7 +95,23 @@ class OggEntity(Entity):
 
     @callback
     def _handle_update(self) -> None:
-        """Push an update without polling or doing IO in properties."""
+        """Refresh HA device metadata when a server supplies a better model name.
+
+        DeviceInfo is captured when an entity is registered. A later IntiHA
+        device-name resolution must also update the Device Registry, otherwise
+        the device page retains a generic initial We-Vibe label indefinitely.
+        Updating the registry's provider name does not change name_by_user.
+        """
+        if self.device_key is not None and self.device_key in self.hub.devices:
+            alias = self.hub.devices[self.device_key].alias
+            if useful_label(alias):
+                registry = dr.async_get(self.hass)
+                entry_id = self.hub.entry.entry_id
+                registered = registry.async_get_device_by_identifier(
+                    (DOMAIN, f"{entry_id}:{self.device_key}"), entry_id
+                )
+                if registered is not None and registered.name != alias:
+                    registry.async_update_device(registered.id, name=alias)
         self.async_write_ha_state()
 
 

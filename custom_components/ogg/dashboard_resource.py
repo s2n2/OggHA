@@ -18,7 +18,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # Stable URL for HA dashboards; the query string is bumped on each Ogg release.
 CARD_PATH = "/ogg/control-deck/ogg-control-deck-card.js"
-CARD_VERSION = "0.1.3"
+CARD_VERSION = "0.1.6"
 CARD_URL = f"{CARD_PATH}?v={CARD_VERSION}"
 CARD_FILE = Path(__file__).parent / "frontend" / "ogg-control-deck-card.js"
 
