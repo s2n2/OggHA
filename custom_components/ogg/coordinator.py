@@ -34,6 +34,11 @@ from .protocol import ButtplugConnection, CommandError, ProtocolError
 _LOGGER = logging.getLogger(__name__)
 _PATTERNS = set(SOFTWARE_PATTERNS) | set(NATIVE_PATTERNS)
 RECONNECT_GRACE_SECONDS = 30.0
+# After a completed pulse, repeat STOP even when the server acknowledged it:
+# a queued intensity update or a device-specific BLE write may arrive late.
+# Offsets are measured from the first STOP acknowledgement. Two close STOPs
+# at each checkpoint help stop both software and native firmware patterns.
+PULSE_STOP_BACKUP_DELAYS = (0.20, 2.0, 2.20, 10.0, 10.20)
 
 
 @dataclass
@@ -48,6 +53,7 @@ class DesiredOutput:
     mode: str
     deadline: float | None
     lost_at: float | None = None
+    command_serial: int = 0
 
     def may_resume(self, now: float) -> bool:
         return (
@@ -79,6 +85,8 @@ class OggHub:
         self._last_source: str | None = None
         self._monitor: asyncio.Task | None = None
         self._runs: dict[str, asyncio.Task] = {}
+        self._stop_backups: dict[str, asyncio.Task] = {}
+        self._command_serials: dict[str, int] = {}
         self._desired_outputs: dict[str, DesiredOutput] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._listeners: set[Callable[[], None]] = set()
@@ -456,6 +464,7 @@ class OggHub:
                 device.native_failed = device.battery_failed = False
                 device.battery = None
             if newly_connected:
+                self._cancel_stop_backups(key)
                 # Record a loss once. A route/index change is not a new command
                 # and must not restart a disconnected pulse's deadline.
                 self._mark_intention_lost(key)
@@ -479,6 +488,7 @@ class OggHub:
                 self._spawn_event(self._recover_native_outputs(client, [(key, device.generation)]))
         for key, device in tuple(self.devices.items()):
             if key not in current_keys and device.connected:
+                self._cancel_stop_backups(key)
                 self._mark_intention_lost(key)
                 device.connected = False
                 device.recovering = False
@@ -735,6 +745,105 @@ class OggHub:
     def _lock(self, key: str) -> asyncio.Lock:
         return self._locks.setdefault(key, asyncio.Lock())
 
+    def _cancel_stop_backups(self, key: str) -> None:
+        """Cancel queued pulse STOPs when a new output command takes ownership.
+
+        Call while holding the device command lock. A backup also acquires that
+        lock, so it can never race a subsequent Run/Pulse/auxiliary command.
+        """
+        task = self._stop_backups.pop(key, None)
+        if task is not None:
+            task.cancel()
+
+    def _invalidate_stop_backups(self, key: str) -> None:
+        self._command_serials[key] = self._command_serials.get(key, 0) + 1
+        self._cancel_stop_backups(key)
+
+    def _schedule_pulse_stop_backups(
+        self,
+        device: OggDevice,
+        client: ButtplugConnection,
+        generation: int,
+        intent: DesiredOutput,
+        native_zero: bool,
+    ) -> None:
+        """Keep STOP redundancy outside the completed pulse runner.
+
+        A future output invalidates the serial and cancels this task. An
+        unavailable connection is instead handled by STOP-before-resume on
+        the next device session; never send stale indices to a new server.
+        """
+        key = device.key
+        if (
+            self._shutting_down
+            or not self.enabled
+            or self._client is not client
+            or not client.connected
+            or not device.connected
+            or device.generation != generation
+            or self._command_serials.get(key, 0) != intent.command_serial
+        ):
+            return
+        self._cancel_stop_backups(key)
+        task = self.entry.async_create_background_task(
+            self.hass,
+            self._pulse_stop_backups(key, client, generation, intent.command_serial, native_zero),
+            "ogg_pulse_stop_watchdog",
+        )
+        self._stop_backups[key] = task
+        self._event_tasks.add(task)
+        task.add_done_callback(self._event_done)
+
+    async def _pulse_stop_backups(
+        self,
+        key: str,
+        client: ButtplugConnection,
+        generation: int,
+        serial: int,
+        native_zero: bool,
+    ) -> None:
+        """Repeat per-device STOP at +0.2, +2, +2.2, +10 and +10.2 s.
+
+        The initial STOP is sent by the pulse runner before this task starts.
+        An explicit new Run/Pulse/Stop/auxiliary output supersedes ALL pending
+        backups; settings-only edits do not issue physical output commands.
+        """
+        began = time.monotonic()
+        try:
+            for delay in PULSE_STOP_BACKUP_DELAYS:
+                await asyncio.sleep(max(0.0, began + delay - time.monotonic()))
+                async with self._lock(key):
+                    device = self.devices.get(key)
+                    if (
+                        device is None
+                        or self._shutting_down
+                        or not self.enabled
+                        or client is not self._client
+                        or not client.connected
+                        or not device.connected
+                        or device.generation != generation
+                        or self._command_serials.get(key, 0) != serial
+                        or device.running
+                        or self._desired_outputs.get(key) is not None
+                        or self._runs.get(key) is not None
+                    ):
+                        return
+                    # A server OK is not proof that a firmware mode stopped.
+                    # The duplicates therefore run even after a successful OK.
+                    verified = await self._send_stop(
+                        device, client, generation=generation,
+                        close_on_failure=False, force_native_zero=native_zero,
+                    )
+                    if verified and device.last_error in {
+                        "Stop could not be confirmed; check the device",
+                        "Native stop could not be confirmed; check the device",
+                    }:
+                        device.last_error = None
+                        self._notify()
+        finally:
+            if self._stop_backups.get(key) is asyncio.current_task():
+                self._stop_backups.pop(key, None)
+
     def _require_device(self, key: str) -> OggDevice:
         if key not in self.devices:
             raise HomeAssistantError("This device is no longer known to Ogg")
@@ -793,7 +902,10 @@ class OggHub:
             # The deadline starts with the original button press, not when
             # a later server or BLE session becomes available.
             deadline = time.monotonic() + self.pulse_duration if pulse else None
-            intent = DesiredOutput("pulse" if pulse else "continuous", deadline)
+            intent = DesiredOutput(
+                "pulse" if pulse else "continuous", deadline,
+                command_serial=self._command_serials.get(key, 0),
+            )
             self._desired_outputs[key] = intent
             device.running = True
             device.mode = intent.mode
@@ -819,6 +931,11 @@ class OggHub:
         # cannot re-arm it. Disconnect recovery is the sole exception.
         if not preserve_desired:
             self._desired_outputs.pop(device.key, None)
+            self._invalidate_stop_backups(device.key)
+        else:
+            # A physical connection change invalidates the old watchdog,
+            # but does not revoke the desired Run/Pulse or its deadline.
+            self._cancel_stop_backups(device.key)
         generation = device.generation
         task = self._runs.pop(device.key, None)
         if task is not None and task is not asyncio.current_task():
@@ -840,6 +957,7 @@ class OggHub:
         *,
         generation: int | None = None,
         close_on_failure: bool = True,
+        force_native_zero: bool = False,
     ) -> bool:
         def current_generation() -> bool:
             return generation is None or (
@@ -850,7 +968,7 @@ class OggHub:
             return False
         try:
             native_stop_failed = False
-            if device.native_maybe_active and device.native_available:
+            if (device.native_maybe_active or force_native_zero) and device.native_available:
                 try:
                     await client.raw_write(
                         device.index, build_classic_packet("steady", [0.0] * device.motor_count)
@@ -955,6 +1073,17 @@ class OggHub:
             device.last_error = "Output stopped after an unexpected error"
             _LOGGER.exception("Ogg stopped a device pattern after an error")
         finally:
+            pulse_expired = (
+                deadline is not None
+                and time.monotonic() >= deadline
+                and intent.lost_at is None
+                and self._desired_outputs.get(device.key) is intent
+                and self._runs.get(device.key) is asyncio.current_task()
+                and self._command_serials.get(device.key, 0) == intent.command_serial
+            )
+            # Save the native profile before the first STOP clears that flag:
+            # every backup must send a native zero packet too, if applicable.
+            native_zero = device.engine == "native" or device.native_maybe_active
             if self._desired_outputs.get(device.key) is intent:
                 if not self.enabled or self._shutting_down or not device.commands_enabled:
                     self._desired_outputs.pop(device.key, None)
@@ -972,13 +1101,19 @@ class OggHub:
                     # not automatically retry an errored command.
                     self._desired_outputs.pop(device.key, None)
             if client is self._client and device.connected and device.generation == generation:
-                await self._send_stop(device, client, generation=generation)
+                await self._send_stop(
+                    device, client, generation=generation, force_native_zero=native_zero
+                )
             if device.generation == generation and self._runs.get(device.key) is asyncio.current_task():
                 device.running = False
                 device.mode = "idle"
                 device.remaining = None
             if self._runs.get(device.key) is asyncio.current_task():
                 self._runs.pop(device.key, None)
+            if pulse_expired:
+                self._schedule_pulse_stop_backups(
+                    device, client, generation, intent, native_zero
+                )
             self._notify()
 
     async def _send_frame(
@@ -1197,6 +1332,7 @@ class OggHub:
             await self._disconnect(self._client)
         for task in tuple(self._event_tasks):
             task.cancel()
+        self._stop_backups.clear()
         await asyncio.gather(*self._event_tasks, return_exceptions=True)
         self._event_tasks.clear()
         await self._store.async_save(self._saved_data())
