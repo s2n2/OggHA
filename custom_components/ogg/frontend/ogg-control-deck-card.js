@@ -1,5 +1,5 @@
 /*
- * Ogg Control Deck Card v1.0.4
+ * Ogg Control Deck Card v1.0.5
  * A mobile-first Home Assistant card for IntiHA v0.3.0b14 and Ogg v0.1.2.
  * No dependencies, no hard-coded device IDs, no external network requests.
  * Apache-2.0 license.
@@ -67,7 +67,7 @@
     button,select{font:inherit;touch-action:manipulation}
     button{cursor:pointer}button:disabled,select:disabled{cursor:not-allowed;opacity:.43}
     button:focus-visible,select:focus-visible{outline:3px solid #8ee3ee;outline-offset:3px}
-    ha-card{display:block;border:1px solid #293552;border-radius:26px;overflow:hidden;background:#0a1122;box-shadow:0 20px 55px rgba(0,0,0,.22);color:var(--ink)}
+    ha-card{display:block;container-type:inline-size;border:1px solid #293552;border-radius:26px;overflow:hidden;background:#0a1122;box-shadow:0 20px 55px rgba(0,0,0,.22);color:var(--ink)}
     .deck{position:relative;padding:22px;overflow:hidden;isolation:isolate}
     .deck:before{content:"";position:absolute;z-index:-1;top:-130px;right:-110px;width:340px;height:340px;background:radial-gradient(circle,rgba(105,100,240,.24),transparent 67%);pointer-events:none}
     .deck:after{content:"";position:absolute;z-index:-1;top:130px;left:-145px;width:300px;height:350px;background:radial-gradient(circle,rgba(44,199,191,.09),transparent 70%);pointer-events:none}
@@ -83,14 +83,17 @@
     .live-badge.zero{border-color:rgba(174,194,246,.14);color:var(--muted);background:rgba(169,184,217,.08)}
     .live-badge.zero .dot{background:#72809f;box-shadow:none}
     .live-badge strong{font-variant-numeric:tabular-nums;font-weight:800;color:#e7fff9}
-    .masters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-bottom:12px}
-    .master{display:flex;align-items:center;justify-content:space-between;gap:9px;min-width:0;min-height:82px;padding:13px 12px;border-radius:18px;border:1px solid var(--border);background:rgba(255,255,255,.045)}
+    /* Narrow dashboard cards get full-width, independent server rows. This is
+       the default, not dependent on a browser or container media query. */
+    .masters{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;margin-bottom:12px}
+    .master{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;min-width:0;min-height:76px;padding:12px 13px;border-radius:18px;border:1px solid var(--border);background:rgba(255,255,255,.045)}
+    .master-body{flex:1 1 115px;min-width:0}
     .master-top{display:flex;align-items:center;gap:7px;margin-bottom:7px;min-width:0}
     .master-top svg{width:15px;height:15px;color:#a9a0ff;flex:none}
     .master-name{font-size:12.5px;line-height:1.15;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
     .master-status{font-size:11px;color:var(--muted);padding-left:22px;white-space:nowrap}
     .master-status.on{color:#83e1cd}
-    .master-actions{display:flex;align-items:center;gap:7px;flex:none}
+    .master-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex:0 0 auto;min-width:0}
     .settings-link{display:grid;place-items:center;flex:none;width:32px;height:32px;color:#a8b8da;border:1px solid rgba(174,194,246,.18);border-radius:11px;background:rgba(255,255,255,.035);text-decoration:none;transition:color .15s ease,background .15s ease}
     .settings-link svg{width:17px;height:17px}
     .settings-link:hover{background:rgba(152,168,249,.14);color:#edf2ff}
@@ -122,21 +125,24 @@
     .device-list{display:flex;flex-direction:column;gap:10px}
     .device{border:1px solid var(--border);border-radius:19px;padding:14px;background:linear-gradient(145deg,rgba(255,255,255,.056),rgba(255,255,255,.025));transition:border-color .15s ease,background .15s ease}
     .device.running{border-color:rgba(104,227,206,.37);background:linear-gradient(145deg,rgba(52,194,174,.1),rgba(115,107,215,.045))}
-    .device-top{display:flex;align-items:center;gap:9px;margin-bottom:12px;min-width:0}
+    .device-top{display:grid;grid-template-columns:36px minmax(0,1fr);grid-template-rows:auto auto;align-items:start;gap:7px 9px;margin-bottom:12px;min-width:0}
+    .device-avatar{grid-column:1;grid-row:1/3}
+    .device-heading{grid-column:2;grid-row:1}
+    .permission{grid-column:2;grid-row:2;justify-self:start}
     .device-avatar{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:12px;background:#263252;border:1px solid rgba(158,170,251,.18)}
     .device-avatar svg{color:#a7b7f8;width:19px;height:19px}
     .device.running .device-avatar{background:rgba(67,190,169,.16);border-color:rgba(67,190,169,.25)}
     .device.running .device-avatar svg{color:#80ebd6}
     .device-heading{min-width:0;flex:1}
-    .device-name-row{display:flex;align-items:center;gap:8px;min-width:0}
-    .sparkline{height:33px;width:102px;min-width:72px;flex:none;display:flex;align-items:center;justify-content:center;padding:3px 5px;border:1px solid rgba(103,213,194,.16);border-radius:10px;background:linear-gradient(110deg,rgba(65,211,184,.07),rgba(109,128,238,.065));color:#79e4d3;overflow:hidden}
+    .device-name-row{display:grid;grid-template-columns:minmax(0,1fr) 82px;align-items:center;gap:9px;min-width:0}
+    .sparkline{height:31px;width:82px;min-width:0;flex:none;display:flex;align-items:center;justify-content:center;padding:3px 5px;border:1px solid rgba(103,213,194,.16);border-radius:10px;background:linear-gradient(110deg,rgba(65,211,184,.07),rgba(109,128,238,.065));color:#79e4d3;overflow:hidden}
     .sparkline svg{width:100%;height:100%;display:block;overflow:visible}
     .sparkline .spark-fill{fill:rgba(79,219,189,.11)}
     .sparkline .spark-line{stroke:rgba(147,183,209,.65);stroke-width:1.6;stroke-dasharray:3 2;stroke-linecap:round;stroke-linejoin:round;fill:none;vector-effect:non-scaling-stroke}
     .sparkline .spark-actual{stroke:#80ebdb;stroke-width:2.15;stroke-linecap:round;stroke-linejoin:round;fill:none;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 2px rgba(88,229,202,.45))}
     .sparkline .spark-dot{fill:#c3fff1;stroke:#59d3b8;stroke-width:1.1}
     .sparkline.idle{opacity:.48}
-    .device-heading strong{display:block;flex:1;min-width:0;color:#f5f7ff;font-size:15px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.013em}
+    .device-heading strong{display:-webkit-box;min-width:0;color:#f5f7ff;font-size:15px;line-height:1.25;overflow:hidden;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere;letter-spacing:-.013em}
     .device-caption{display:block;color:var(--muted);font-size:11px;margin-top:3px;font-variant-numeric:tabular-nums}
     .permission{border:1px solid rgba(143,163,200,.2);border-radius:20px;background:rgba(255,255,255,.045);color:#92a2be;font-size:10px;font-weight:800;letter-spacing:.01em;min-height:31px;padding:5px 10px;white-space:nowrap;display:flex;align-items:center;gap:5px;max-width:120px}
     .permission svg{width:12px;height:12px}
@@ -161,8 +167,13 @@
     .foot{display:flex;align-items:center;justify-content:center;gap:6px;padding-top:15px;color:#8290ad;font-size:10px;text-align:center;line-height:1.4}
     .foot svg{height:12px;width:12px}
     .toast{display:none;position:relative;background:#51273a;color:#ffe1e7;border:1px solid #a95974;border-radius:12px;padding:10px 12px;font-size:12px;margin-bottom:12px;line-height:1.35}
-    @media(max-width:420px){.sparkline{width:82px;height:30px;padding:3px 4px}.config-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.control-group.pattern-setting{grid-column:1/-1}.deck{padding:15px}.hero{margin-bottom:17px}.brand{width:42px;height:42px;border-radius:13px}h2{font-size:22px}.master{min-height:75px;padding:11px 9px}.master-actions{gap:5px}.settings-link{width:28px;height:28px;border-radius:9px}.settings-link svg{width:16px;height:16px}.master-name{font-size:12px}.master-top{gap:5px}.master-top svg{width:13px;height:13px}.master-status{padding-left:18px}.toggle{width:42px;height:26px}.toggle:after{height:18px;width:18px}.toggle[aria-checked="true"]:after{transform:translateX(16px)}.pulse-zone{padding:12px}.device{padding:12px}.device-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 43px;gap:7px}.run-wrap{padding:5px 7px 5px 9px}.run-wrap span{font-size:11px}.live-badge{padding:7px 8px;font-size:10px}.permission{font-size:9px;padding:5px 7px}.pulse-actions{grid-template-columns:minmax(0,1fr) 95px}}
-    @media(max-width:330px){.hero{flex-wrap:wrap}.live-badge{margin-left:54px}.masters{grid-template-columns:1fr}.master{min-height:63px}.device-main{grid-template-columns:minmax(0,1fr) 80px 42px}.config-grid{grid-template-columns:1fr 1fr}}
+    /* Container breakpoints follow the card width, not the full HA browser window. */
+    /* Two server columns are used ONLY when each is wide enough for its
+       labels and controls. The single-column base is inherently collision-free. */
+    @container (min-width:740px){.masters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @container (max-width:520px){.deck{padding:15px}.hero{margin-bottom:17px}.brand{width:42px;height:42px;border-radius:13px}h2{font-size:22px}.master{padding:11px 12px}.pulse-zone{padding:12px}.device{padding:12px}.device-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 43px;gap:7px}.run-wrap{padding:5px 7px 5px 9px}.run-wrap span{font-size:11px}.live-badge{padding:7px 8px;font-size:10px}.permission{font-size:9px;padding:5px 7px}.pulse-actions{grid-template-columns:minmax(0,1fr) 95px}.config-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.control-group.pattern-setting{grid-column:1/-1}}
+    @container (max-width:355px){.hero{flex-wrap:wrap}.live-badge{margin-left:54px}.global-select{width:100px}.pulse-top{gap:8px}.small-label{font-size:12px;gap:5px}.device-main{grid-template-columns:minmax(0,1fr) 80px 42px}.device-name-row{grid-template-columns:minmax(0,1fr) 72px;gap:6px}}
+    @container (max-width:290px){.masters{grid-template-columns:1fr}.master{min-height:76px}.master-actions{gap:10px}}
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;animation:none!important}}
   `;
 
@@ -261,7 +272,7 @@
           <div class="section-head"><h3>Connected devices</h3><span id="list-subtitle">Live from Ogg</span></div>
           <div id="devices" class="device-list"></div>
           <div id="empty" class="empty">${icon('nodes')}<strong id="empty-title">No connected devices</strong><p id="empty-detail">Devices appear here when Ogg connects to them.</p></div>
-          <div class="foot">${icon('shield')}<span>Connections and commands are managed by IntiHA & Ogg</span></div>
+          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v0.1.12</span></div>
         </div>`;
       this.shadowRoot.appendChild(root);
       this._shell = root;

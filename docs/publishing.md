@@ -15,7 +15,7 @@ personal server addresses.
    repositories require a public GitHub repository.
 5. Run the **Validate Ogg** workflow and review every job.
 6. Create a GitHub release whose version matches
-   `custom_components/ogg/manifest.json` (currently `0.1.10`).
+   `custom_components/ogg/manifest.json` (currently `0.1.12`).
 
 HACS can install directly from the default branch before a release exists. A
 release gives users a clearer update version. This is separate from submitting
