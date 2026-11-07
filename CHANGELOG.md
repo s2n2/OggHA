@@ -1,3 +1,18 @@
+## v0.1.12 — Card layout and feedback clarity
+
+- Server settings and switches now appear in independent full-width rows until the card has room for two wide tiles, avoiding collisions in section views.
+- Device names can occupy two lines, with the target/feedback sparkline to the right and the Allowed badge underneath.
+- A footer version marker helps identify stale browser-cached card resources.
+- Refresh the bundled resource during Ogg integration reload as well as Home Assistant startup.
+- No changes to Ogg pulse timing, STOP safety net or physical motor commands.
+
+## 0.1.12 - Responsive Control Deck layout fix
+- Prevent HA Server/Ogg switches and settings links colliding inside narrow dashboard columns.
+- Lay out server tiles with controls on their own lower row when the card is narrow, then restore a horizontal layout in wider cards.
+- Use CSS container queries so the mobile layout responds to the actual dashboard card width, even when Home Assistant is open in a desktop browser or a narrow grid section.
+- Preserve the v0.1.10 dual intensity traces, v0.1.8 repeated pulse STOP watchdog, and all existing control entities and service calls.
+- Bump the auto-registered Lovelace resource URL to refresh cached JavaScript after HACS update.
+
 ## 0.1.10 - Target versus device-reported waveform
 - Show two independent tracks in the Ogg Control Deck: a dim dashed **target** pattern and a brighter solid **device-reported** level from IntiHA b19, when the sensor is available.
 - Discover feedback sensors by a unique match to the Home Assistant device name, or map manually via `reported_intensity_entities` when aliases differ. Never assume two devices are the same just because both say We-Vibe.

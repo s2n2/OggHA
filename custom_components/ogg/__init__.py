@@ -34,6 +34,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: OggConfigEntry) -> bool:
     An unreachable server is an ordinary runtime state. There is deliberately
     no connection attempt and no ConfigEntryNotReady path in entry setup.
     """
+    # A HACS integration reload does not call async_setup again. Refresh the
+    # bundled Lovelace resource here as well, without allowing frontend issues
+    # to affect the running controller. Registration itself is idempotent.
+    try:
+        await async_register_control_deck(hass)
+    except Exception:  # noqa: BLE001
+        _LOGGER.exception("Could not refresh Ogg Control Deck resource")
     hub = OggHub(hass, entry)
     entry.runtime_data = hub
     try:
