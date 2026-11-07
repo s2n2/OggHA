@@ -128,6 +128,7 @@ class OggDevice:
     bindings: dict[str, int] = field(default_factory=dict)
     identity_display_name: str = ""
     motor_level_memory: list[float] = field(default_factory=list)
+    feedback_generation: int = -1
 
     def __post_init__(self) -> None:
         supplied_levels = self.settings.get("motor_levels")

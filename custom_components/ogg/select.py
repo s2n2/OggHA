@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .coordinator import OggHub
+from .coordinator import CONNECT_FEEDBACK_OPTIONS, OggHub
 from .entity import OggEntity, async_register_device_entities
 from .patterns import NATIVE_PATTERNS, SOFTWARE_PATTERNS
 
@@ -21,7 +21,30 @@ MOTOR_OPTIONS = ["together", "alternating", "motor_1", "motor_2"]
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
+    async_add_entities([OggConnectFeedback(entry.runtime_data)])
     async_register_device_entities(entry, async_add_entities, _device_selects)
+
+
+class OggConnectFeedback(OggEntity, SelectEntity):
+    """Whether devices give a very short buzz when they (re)connect."""
+
+    _attr_icon = "mdi:vibrate"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_options = list(CONNECT_FEEDBACK_OPTIONS)
+
+    def __init__(self, hub: OggHub) -> None:
+        super().__init__(hub, "connect_feedback", "connect_feedback")
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    @property
+    def current_option(self) -> str:
+        return self.hub.connect_feedback
+
+    async def async_select_option(self, option: str) -> None:
+        await self.hub.async_set_connect_feedback(option)
 
 
 def _device_selects(hub: OggHub, key: str) -> list[OggSelect]:

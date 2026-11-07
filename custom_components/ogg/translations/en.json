@@ -150,6 +150,13 @@
           "disabled": "Software patterns",
           "classic": "Classic 8-byte profile (confirmed)"
         }
+      },
+      "connect_feedback": {
+        "name": "Connection feedback",
+        "state": {
+          "silent": "Silent",
+          "short_pulse": "Short pulse"
+        }
       }
     },
     "binary_sensor": {
