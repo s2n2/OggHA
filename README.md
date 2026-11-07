@@ -1,3 +1,6 @@
+### Compact control deck (0.1.13)
+HA Server and Ogg now share a **single compact row** again on narrow dashboards. Each control keeps its settings link, status and switch, without overlap.
+
 ### Control Deck layout (0.1.12)
 
 The bundled Ogg Control Deck automatically adapts to **card width**, not browser size. On narrow Home Assistant dashboard columns, server toggles and settings gears use a second row within their tile to prevent overlap. No YAML or entity changes are needed. The existing dual-trace waveform, pulse STOP retries and other functionality are unchanged.
@@ -338,6 +341,6 @@ reported_intensity_entities:
 
 The card otherwise auto-matches only when a name uniquely identifies an IntiHA device. A generic name or ambiguous match is not trusted. It never adds an extension to public Buttplug messages and does not change the pulse safety logic.
 
-### Card resource version (0.1.12)
+### Card resource version (0.1.13)
 
-If the server switches still overlap, check the bottom of the card for `card v0.1.12`. If the marker is missing, the browser is still loading an older JavaScript resource. Update the Lovelace resource URL to `/ogg/control-deck/ogg-control-deck-card.js?v=0.1.12` and reload the dashboard, and remove any older duplicate `/local/ogg-control-deck-card.js` resource.
+The dashboard footer should display `card v0.1.13`. If you still see the older tall server layout, Home Assistant may be using cached JavaScript. The automatically registered resource uses `/ogg/control-deck/ogg-control-deck-card.js?v=0.1.13`. Remove any obsolete duplicate resource such as `/local/ogg-control-deck-card.js` and refresh the dashboard.

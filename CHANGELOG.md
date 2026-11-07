@@ -1,3 +1,8 @@
+## 0.1.13 - Compact server controls
+- HA Server and Ogg return to one horizontal pair of compact tiles at mobile dashboard widths.
+- Each tile keeps its own settings gear, On/Off state and toggle on two tidy internal lines, avoiding overlapping switches and the 2x vertical height of v0.1.12.
+- No backend, pulse STOP watchdog or sensor changes; existing dashboard resources update to a new cached version.
+
 ## v0.1.12 — Card layout and feedback clarity
 
 - Server settings and switches now appear in independent full-width rows until the card has room for two wide tiles, avoiding collisions in section views.
