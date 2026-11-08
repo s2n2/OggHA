@@ -128,6 +128,21 @@ class MultiServerConnection:
         self._scanning.clear()
         await self._all(lambda sub: sub.stop_scanning(), ignore_errors=True)
 
+    async def start_scanning_on(self, slot: int) -> bool:
+        """Scan on one server only (e.g. slot 0, the local IntiHA)."""
+        sub = self._subs.get(slot)
+        if sub is None or not sub.connected:
+            return False
+        await sub.start_scanning()
+        self._scanning.add(slot)
+        return True
+
+    async def stop_scanning_on(self, slot: int) -> None:
+        sub = self._subs.get(slot)
+        self._scanning.discard(slot)
+        if sub is not None and sub.connected:
+            await sub.stop_scanning()
+
     async def stop_device(self, index: int) -> None:
         slot, server_index = split_index(index)
         await self._sub(slot).stop_device(server_index)

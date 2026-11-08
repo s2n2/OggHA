@@ -90,7 +90,7 @@
   };
   const INTENSITY_OPTIONS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
   const fmtPercent = (v) => `${Number(v)}%`;
-  const PULSE_OPTIONS = [0.5, 1, 2, 3, 5, 10, 15, 30, 60];
+  const PULSE_OPTIONS = [0.5, 1, 2, 3, 5, 7, 10, 15, 30, 60];
   const VALID = (s) => !!s && s.state !== 'unknown' && s.state !== 'unavailable';
   const pretty = (v) => String(v || '').replace(/_/g, ' ').replace(/\b\w/g, (x) => x.toUpperCase());
   const fmtSecs = (v) => `${Number(v)}s`;
@@ -227,6 +227,8 @@
     .run-wrap span{font-size:12px;font-weight:720;color:#d2dcf3}
     .device-action{border:1px solid rgba(118,200,239,.35);background:#24395a;color:#bef2ff;border-radius:13px;display:flex;align-items:center;justify-content:center;gap:7px;min-height:45px;font-size:12px;font-weight:760;transition:.12s ease}
     .device-action.pulse svg{width:17px;height:17px}
+    .device.blocked .device-main,.device.blocked .hold-row,.device.blocked .config-grid{display:none}
+    .device.blocked .device-top{margin-bottom:0}
     .hold-row{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin:-4px 0 12px}
     .hold-row.dual{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
     .hold-btn{border:1px dashed rgba(183,166,255,.45);background:rgba(120,104,220,.1);color:#d9d0ff;border-radius:13px;min-height:40px;font:inherit;font-size:12px;font-weight:760;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:.12s ease}
@@ -358,7 +360,7 @@
           <div class="section-head"><h3>Connected devices</h3><div class="head-right"><div class="filter-chips" role="group" aria-label="Show devices"><button data-filter="all" type="button">All</button><button data-filter="his" type="button">His</button><button data-filter="hers" type="button">Hers</button></div><span id="list-subtitle">Live from Ogg</span></div></div>
           <div id="devices" class="device-list"></div>
           <div id="empty" class="empty">${icon('nodes')}<strong id="empty-title">No connected devices</strong><p id="empty-detail">Devices appear here when Ogg connects to them.</p></div>
-          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v1.0.0</span></div>
+          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v1.1.0b3</span></div>
         </div>`;
       this.shadowRoot.appendChild(root);
       this._shell = root;
@@ -780,6 +782,8 @@
       r.permission.style.display = device.commands ? 'inline-flex' : 'none';
       r.permission.classList.toggle('allowed', permitted);
       r.permission.classList.toggle('blocked', !permitted);
+      // A blocked device shows only its name, status and chips (tap Blocked to allow it again).
+      view.root.classList.toggle('blocked', !permitted);
       r['permission-text'].textContent = permitted ? 'Allowed' : 'Blocked';
       r.permission.disabled = !permissionAvailable;
       r.permission.title = 'Ogg command permission (does not disconnect Bluetooth)';
