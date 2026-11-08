@@ -237,16 +237,17 @@
     .permission svg{width:12px;height:12px}
     .permission.allowed{color:#8ddccc;background:rgba(56,200,170,.08);border-color:rgba(56,200,170,.17)}
     .permission.blocked{color:#efbbbf;background:rgba(245,103,119,.09);border-color:rgba(245,103,119,.2)}
-    .device-main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 45px;gap:8px;margin-bottom:12px}
+    .device-main{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr) 45px;gap:8px;margin-bottom:12px}
+    .device-main.dual{grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr) minmax(0,1.4fr) 45px}
     .run-wrap{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid #364563;background:#17243e;border-radius:13px;min-height:45px;padding:7px 9px 7px 12px}
     .run-wrap span{font-size:12px;font-weight:720;color:#d2dcf3}
     .device-action{border:1px solid rgba(118,200,239,.35);background:#24395a;color:#bef2ff;border-radius:13px;display:flex;align-items:center;justify-content:center;gap:7px;min-height:45px;font-size:12px;font-weight:760;transition:.12s ease}
     .device-action.pulse svg{width:17px;height:17px}
     .device.blocked .device-main,.device.blocked .hold-row,.device.blocked .config-grid{display:none}
     .device.blocked .device-top{margin-bottom:0}
-    .hold-row{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin:-4px 0 12px}
+    .hold-row{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;min-width:0}
     .hold-row.dual{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-    .hold-btn{border:1px dashed rgba(183,166,255,.45);background:rgba(120,104,220,.1);color:#d9d0ff;border-radius:13px;min-height:40px;font:inherit;font-size:12px;font-weight:760;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:.12s ease}
+    .hold-btn{border:1px dashed rgba(183,166,255,.45);background:rgba(120,104,220,.1);color:#d9d0ff;border-radius:13px;min-height:45px;min-width:0;padding:0 4px;font:inherit;font-size:12px;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:.12s ease}
     .hold-btn[hidden]{display:none}
     .hold-btn:disabled{opacity:.4;cursor:default}
     .hold-btn.holding{border-style:solid;background:linear-gradient(110deg,#8f7dff,#b49cff);color:#140c3a;box-shadow:0 0 0 3px rgba(160,140,255,.18)}
@@ -274,8 +275,8 @@
     .foot svg{height:12px;width:12px}
     .toast{display:none;position:relative;background:#51273a;color:#ffe1e7;border:1px solid #a95974;border-radius:12px;padding:10px 12px;font-size:12px;margin-bottom:12px;line-height:1.35}
     /* All size rules follow the actual card container, not browser width. */
-    @container (max-width:520px){.deck{padding:15px}.hero{margin-bottom:16px}.brand{width:42px;height:42px;border-radius:13px}h2{font-size:22px}.master{padding:7px 8px 7px 9px}.master-name{font-size:11.5px}.pulse-zone{padding:12px}.device{padding:12px}.device-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 43px;gap:7px}.run-wrap{padding:5px 7px 5px 9px}.run-wrap span{font-size:11px}.live-badge{padding:7px 8px;font-size:10px}.permission{font-size:9px;padding:5px 7px}.pulse-actions{grid-template-columns:minmax(0,1fr) 95px}.config-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.control-group.pattern-setting{grid-column:1/-1}}
-    @container (max-width:355px){.hero{flex-wrap:wrap}.live-badge{margin-left:54px}.global-select{width:100px}.pulse-top{gap:8px}.small-label{font-size:12px;gap:5px}.master{padding:6px 7px;column-gap:4px}.master-label svg{width:12px;height:12px}.master-name{font-size:11px}.settings-link{width:24px;height:24px}.settings-link svg{width:14px;height:14px}.device-main{grid-template-columns:minmax(0,1fr) 80px 42px}.device-name-row{grid-template-columns:minmax(0,1fr) 72px;gap:6px}}
+    @container (max-width:520px){.deck{padding:15px}.hero{margin-bottom:16px}.brand{width:42px;height:42px;border-radius:13px}h2{font-size:22px}.master{padding:7px 8px 7px 9px}.master-name{font-size:11.5px}.pulse-zone{padding:12px}.device{padding:12px}.device-main{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr) 43px;gap:7px}.device-main.dual{grid-template-columns:minmax(0,1fr) 46px minmax(0,1.7fr) 43px}.device-main.dual .device-action.pulse span{display:none}.hold-btn{font-size:11px}.device-action{gap:5px}.run-wrap{padding:5px 7px 5px 9px}.run-wrap span{font-size:11px}.live-badge{padding:7px 8px;font-size:10px}.permission{font-size:9px;padding:5px 7px}.pulse-actions{grid-template-columns:minmax(0,1fr) 95px}.config-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.control-group.pattern-setting{grid-column:1/-1}}
+    @container (max-width:355px){.hero{flex-wrap:wrap}.live-badge{margin-left:54px}.global-select{width:100px}.pulse-top{gap:8px}.small-label{font-size:12px;gap:5px}.master{padding:6px 7px;column-gap:4px}.master-label svg{width:12px;height:12px}.master-name{font-size:11px}.settings-link{width:24px;height:24px}.settings-link svg{width:14px;height:14px}.device-main{grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(0,.8fr) 40px;gap:6px}.device-main.dual{grid-template-columns:minmax(0,1fr) 42px minmax(0,1.6fr) 40px}.device-action.pulse span{display:none}.device-name-row{grid-template-columns:minmax(0,1fr) 72px;gap:6px}}
     @container (max-width:285px){.master-label svg{display:none}.master-name{font-size:10.5px}.master{padding:6px 6px}.masters{gap:6px}.master-status{font-size:9px}}
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;animation:none!important}}
   `;
@@ -375,7 +376,7 @@
           <div class="section-head"><h3>Connected devices</h3><div class="head-right"><div class="filter-chips" role="group" aria-label="Show devices"><button data-filter="all" type="button">All</button><button data-filter="his" type="button">His</button><button data-filter="hers" type="button">Hers</button></div><span id="list-subtitle">Live from Ogg</span></div></div>
           <div id="devices" class="device-list"></div>
           <div id="empty" class="empty">${icon('nodes')}<strong id="empty-title">No connected devices</strong><p id="empty-detail">Devices appear here when Ogg connects to them.</p></div>
-          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v2.4.0</span></div>
+          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v2.4.1</span></div>
         </div>`;
       this.shadowRoot.appendChild(root);
       this._shell = root;
@@ -722,12 +723,9 @@
         <div data-role="sparkline" class="spark idle" title="Shaded: requested level. Line: what the device reports (not motor RPM)."><div class="lane in" data-role="lane1"><span class="lane-name">In</span><svg viewBox="0 0 100 36" preserveAspectRatio="none"><path class="base" data-role="base1"></path><path class="req" data-role="req1"></path><path class="edge" data-role="edge1"></path><path class="rep" data-role="rep1"></path></svg><span class="lane-val"><b data-role="vreq1">0%</b><small data-role="vrep1"></small></span></div><div class="lane out" data-role="lane2"><span class="lane-name">Out</span><svg viewBox="0 0 100 36" preserveAspectRatio="none"><path class="base" data-role="base2"></path><path class="req" data-role="req2"></path><path class="edge" data-role="edge2"></path><path class="rep" data-role="rep2"></path></svg><span class="lane-val"><b data-role="vreq2">0%</b><small data-role="vrep2"></small></span></div><div class="spark-key" data-role="spark-key" hidden><span><i class="k-req"></i>Requested</span><span><i class="k-rep"></i>Device reports</span></div></div>
         <div class="device-main">
           <div class="run-wrap"><span>Run</span><button data-role="run" class="toggle small" type="button" role="switch" aria-label="Continuous run" aria-checked="false"></button></div>
-          <button data-role="pulse" class="device-action pulse" type="button">${icon('pulse')}<span>Pulse</span></button>
+          <button data-role="pulse" class="device-action pulse" type="button" title="Pulse" aria-label="Pulse">${icon('pulse')}<span>Pulse</span></button>
+          <div data-role="hold-row" class="hold-row"><button data-role="hold-1" class="hold-btn" type="button">Hold</button><button data-role="hold-2" class="hold-btn" type="button" hidden>Hold 2</button></div>
           <button data-role="stop" class="device-action stop" type="button" title="Stop device" aria-label="Stop device">${icon('stop')}</button>
-        </div>
-        <div data-role="hold-row" class="hold-row">
-          <button data-role="hold-1" class="hold-btn" type="button">Hold to run</button>
-          <button data-role="hold-2" class="hold-btn" type="button" hidden>Hold 2</button>
         </div>
         <div class="config-grid">
           <div class="control-group pattern-setting"><label>Pattern</label><div class="select-shell"><select data-role="pattern" aria-label="Device pattern"></select>${icon('chevron')}</div></div>
@@ -815,8 +813,9 @@
       r.pulse.disabled = !permitted || !this._available(device.pulse);
       const dual = Boolean(device.motor2);
       r['hold-row'].classList.toggle('dual', dual);
+      r['hold-row'].parentElement?.classList.toggle('dual', dual);
       r['hold-2'].hidden = !dual;
-      r['hold-1'].textContent = dual ? 'Hold 1' : 'Hold to run';
+      r['hold-1'].textContent = dual ? 'Hold 1' : 'Hold';
       const holdable = permitted && this._available(device.run);
       for (const b of [r['hold-1'], r['hold-2']]) { if (!b.classList.contains('holding')) b.disabled = !holdable; }
       r['hold-1'].title = dual ? 'Hold to run motor 1' : 'Hold to run; release to stop';
