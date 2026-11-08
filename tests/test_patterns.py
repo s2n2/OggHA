@@ -78,9 +78,10 @@ def test_classic_gate_requires_exact_model_and_feature_resolution():
 def test_dual_patterns_drive_each_motor_differently():
     from custom_components.ogg.patterns import DUAL_PATTERNS, sample
 
+    shared = {"dual_steady", "dual_pulse", "dual_wave"}  # both motors in step
     for pattern in DUAL_PATTERNS:
         curves = [[sample(pattern, step / 16, motor) for step in range(16)] for motor in (0, 1)]
-        assert curves[0] != curves[1], pattern
+        assert (curves[0] == curves[1]) == (pattern in shared), pattern
         assert all(0 <= v <= 1 for curve in curves for v in curve)
 
 

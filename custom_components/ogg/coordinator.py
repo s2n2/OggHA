@@ -44,6 +44,15 @@ from .protocol import ButtplugConnection, CommandError, ProtocolError
 
 _LOGGER = logging.getLogger(__name__)
 _PATTERNS = set(SOFTWARE_PATTERNS) | set(NATIVE_PATTERNS) | set(DUAL_PATTERNS) | {RANDOM_PATTERN}
+
+
+def _pattern_allowed(pattern: str, motor_count: int) -> bool:
+    """Two-motor devices use the two-motor set; others the single-motor set."""
+    if pattern == RANDOM_PATTERN:
+        return True
+    if motor_count > 1:
+        return pattern in DUAL_PATTERNS
+    return pattern in _PATTERNS and pattern not in DUAL_PATTERNS
 RECONNECT_GRACE_SECONDS = 30.0
 # After a completed pulse, repeat STOP even when the server acknowledged it:
 # a queued intensity update or a device-specific BLE write may arrive late.
@@ -72,6 +81,8 @@ class DesiredOutput:
     deadline: float | None
     lost_at: float | None = None
     command_serial: int = 0
+    # Vibration-motor ordinals this output drives; None means all motors.
+    motors: frozenset[int] | None = None
 
     def may_resume(self, now: float) -> bool:
         return (
@@ -1031,10 +1042,20 @@ class OggHub:
         assert self._client is not None
         return self._client
 
-    async def async_start(self, key: str, pulse: bool = False) -> None:
-        """Replace an existing run; repeated pulses restart one timer."""
+    async def async_start(
+        self, key: str, pulse: bool = False, motors: frozenset[int] | None = None
+    ) -> None:
+        """Replace an existing run; repeated pulses restart one timer.
+
+        ``motors`` limits the output to some vibration motors (0=in, 1=out on
+        two-motor devices); None drives all of them.
+        """
         epoch = self._operation_epoch
         device = self._require_device(key)
+        if motors is not None and (not motors or any(
+            not 0 <= motor < device.motor_count for motor in motors
+        )):
+            raise HomeAssistantError("This device does not have that motor")
         async with self._lock(key):
             client = self._require_online(device)
             if epoch != self._operation_epoch:
@@ -1054,6 +1075,7 @@ class OggHub:
             intent = DesiredOutput(
                 "pulse" if pulse else "continuous", deadline,
                 command_serial=self._command_serials.get(key, 0),
+                motors=motors,
             )
             self._desired_outputs[key] = intent
             self._random_programs.pop(key, None)
@@ -1214,7 +1236,9 @@ class OggHub:
                     and device.generation == generation
                 ):
                     now = time.monotonic()
-                    last_frame = await self._send_frame(device, client, now - started, last_frame)
+                    last_frame = await self._send_frame(
+                        device, client, now - started, last_frame, intent.motors
+                    )
                     now = time.monotonic()
                     device.remaining = max(0.0, deadline - now) if deadline is not None else None
                     if now - last_notified >= 0.5:
@@ -1281,6 +1305,7 @@ class OggHub:
         client: ButtplugConnection,
         elapsed: float,
         last_frame: tuple[Any, ...] | None,
+        motors: frozenset[int] | None = None,
     ) -> tuple[Any, ...]:
         settings = device.settings
         intensity = settings["intensity"] / 100
@@ -1295,6 +1320,8 @@ class OggHub:
         )
         if native:
             levels = [intensity * value / 100 for value in settings["motor_levels"]]
+            if motors is not None:
+                levels = [v if i in motors else 0 for i, v in enumerate(levels)]
             if mode == "motor_1":
                 levels = [value if index == 0 else 0 for index, value in enumerate(levels)]
             elif mode == "motor_2":
@@ -1346,6 +1373,8 @@ class OggHub:
                     / 100
                     * sample(pattern, phase, ordinal, mode)
                 )
+            if motors is not None and ordinal not in motors:
+                value = 0.0
             steps = feature.get("StepCount", 100)
             steps = steps if isinstance(steps, int) and steps > 0 else 100
             value = math.floor(value * steps + 0.5) / steps
@@ -1368,8 +1397,12 @@ class OggHub:
         elif setting == "pattern":
             if value not in _PATTERNS:
                 raise HomeAssistantError("Unknown pattern")
-            if value in DUAL_PATTERNS and device.motor_count < 2:
-                raise HomeAssistantError("This pattern needs a device with two motors")
+            if not _pattern_allowed(value, device.motor_count):
+                raise HomeAssistantError(
+                    "Two-motor devices use two-motor patterns"
+                    if device.motor_count > 1
+                    else "This pattern needs a device with two motors"
+                )
             self._random_programs.pop(key, None)
         elif setting == "motor_mode":
             if value not in MOTOR_MODES or (value != "together" and device.motor_count < 2):
@@ -1463,12 +1496,10 @@ class OggHub:
     @staticmethod
     def _sanitise_settings(device: OggDevice) -> None:
         settings = device.settings
-        if (
-            not isinstance(settings.get("pattern"), str)
-            or settings["pattern"] not in _PATTERNS
-            or (settings["pattern"] in DUAL_PATTERNS and device.motor_count < 2)
+        if not isinstance(settings.get("pattern"), str) or not _pattern_allowed(
+            settings["pattern"], device.motor_count
         ):
-            settings["pattern"] = "steady"
+            settings["pattern"] = "dual_steady" if device.motor_count > 1 else "steady"
         if (
             not isinstance(settings.get("motor_mode"), str)
             or settings["motor_mode"] not in MOTOR_MODES

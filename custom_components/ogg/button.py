@@ -25,7 +25,12 @@ def _device_buttons(hub: OggHub, key: str) -> list[OggButton]:
     buttons = [OggButton(hub, "stop", key)]
     if hub.devices[key].motor_count:
         buttons.append(OggButton(hub, "pulse", key))
+    if hub.devices[key].motor_count > 1:
+        buttons.extend(OggButton(hub, action, key) for action in ("pulse_in", "pulse_out"))
     return buttons
+
+
+_MOTOR_OF = {"pulse_in": 0, "pulse_out": 1}
 
 
 class OggButton(OggEntity, ButtonEntity):
@@ -37,6 +42,8 @@ class OggButton(OggEntity, ButtonEntity):
         self._attr_icon = {
             "pulse_all": "mdi:timer-play-outline",
             "pulse": "mdi:timer-play-outline",
+            "pulse_in": "mdi:arrow-collapse-horizontal",
+            "pulse_out": "mdi:arrow-expand-horizontal",
             "stop_all": "mdi:stop-circle-outline",
             "stop": "mdi:stop-circle-outline",
             "search_now": "mdi:magnify",
@@ -46,6 +53,12 @@ class OggButton(OggEntity, ButtonEntity):
     def available(self) -> bool:
         if self.action == "pulse":
             return self.device_online and self.device.commands_enabled and self.device.motor_count > 0
+        if self.action in _MOTOR_OF:
+            return (
+                self.device_online
+                and self.device.commands_enabled
+                and self.device.motor_count > _MOTOR_OF[self.action]
+            )
         if self.action == "pulse_all":
             return self.hub.enabled and self.hub.connected
         # Stop actions also clear local state offline; search can be requested
@@ -62,6 +75,11 @@ class OggButton(OggEntity, ButtonEntity):
         elif self.action == "pulse":
             assert self.device_key is not None
             await self.hub.async_start(self.device_key, pulse=True)
+        elif self.action in _MOTOR_OF:
+            assert self.device_key is not None
+            await self.hub.async_start(
+                self.device_key, pulse=True, motors=frozenset({_MOTOR_OF[self.action]})
+            )
         else:
             assert self.device_key is not None
             await self.hub.async_stop(self.device_key)

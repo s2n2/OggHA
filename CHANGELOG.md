@@ -1,3 +1,8 @@
+## 0.1.18 - Two-motor control
+- **Two-motor devices** (e.g. Sync 2) now use a full two-motor pattern set instead of the single-motor list: Steady/Pulse/Wave (both), Ping-pong, Chase, Counter wave, Breath (offset), Heartbeat and Double pulse (in, then out), Echo bounce, Ramp swap, Steps cross, Tease pulse, Rumble pulse and Surge layer, plus Random. Saved single-motor patterns switch to Steady (both).
+- **Pulse in / Pulse out** buttons (new entities) pulse just the inner or outer motor; the card shows **In / Out / Both** instead of a single Pulse button for two-motor devices. Random on two-motor devices uses the two-motor set and steps the motors out of phase.
+- **Card:** server tiles show the real state (Disabled, Connected, Connected · searching, Engine offline, Searching, Reconnecting, …). A **Search** button under the connected count starts a device search on whichever server Ogg is connected to. The Motors selector is replaced by the In/Out/Both buttons.
+
 ## 0.1.17 - Two-motor patterns, Random mode
 - **Two-motor patterns** (shown only for two-motor devices such as Sync 2): Ping-pong, Chase, Counter wave, Tease pulse and Rumble pulse, each driving the two motors differently.
 - **Random mode** for every device: intensity sets how often it runs (about intensity squared: 100% almost continuously with brief silent gaps, 50% about a quarter of the time, 10% about 1%). Each burst has a random pattern or step sequence (including silent steps), speed, cycle time and length; two-motor devices also get random motor combinations.

@@ -43,13 +43,24 @@ NATIVE_PATTERNS: dict[str, int] = {
     "heartbeat": 0x17,
 }
 
-# Patterns that only make sense with two motors; each motor gets its own curve.
+# Two-motor patterns. On a two-motor device these replace the single-motor
+# list; motor 0 is "in" and motor 1 is "out", and each has its own curve.
 DUAL_PATTERNS: tuple[str, ...] = (
-    "ping_pong",     # motors take turns
-    "chase",         # one wave follows the other a quarter-cycle behind
-    "counter_wave",  # as one rises the other falls
-    "tease_pulse",   # one motor holds a low hum while the other pulses
-    "rumble_pulse",  # one slow swell, the other quick taps
+    "dual_steady",      # both motors steady
+    "dual_pulse",       # both pulse together
+    "dual_wave",        # both swell together
+    "ping_pong",        # motors take turns
+    "chase",            # out follows in a quarter-cycle behind
+    "counter_wave",     # as one rises the other falls
+    "breath_offset",    # out breathes half a cycle after in
+    "heartbeat_split",  # first beat in, second beat out
+    "double_pulse_split",  # first pulse in, second pulse out
+    "echo_bounce",      # fading echoes bounce between motors
+    "ramp_swap",        # in ramps up while out ramps down
+    "steps_cross",      # in steps up while out steps down
+    "tease_pulse",      # in holds a low hum while out pulses
+    "rumble_pulse",     # in swells slowly while out taps quickly
+    "surge_layer",      # in surges, out adds a softer wave underneath
 )
 
 # Intensity-driven random program (see RandomProgram).
@@ -202,22 +213,45 @@ def build_classic_packet(pattern: str, levels: list[float]) -> bytes:
 
 
 def _dual(pattern: str, position: float, motor: int) -> float:
-    """Per-motor envelopes for the two-motor patterns (motor 0 or 1)."""
+    """Per-motor envelopes for the two-motor patterns (motor 0=in, 1=out)."""
     wave = (1 - math.cos(2 * math.pi * position)) / 2
-    if pattern == "ping_pong":
-        # Hard hand-over with a short overlap so it never feels dead.
-        first = position < 0.5 or position > 0.96
-        second = 0.46 < position < 1.0
-        value = 1.0 if (first if motor == 0 else second) else 0.0
+    inner = motor == 0
+    if pattern == "dual_steady":
+        value = 1.0
+    elif pattern == "dual_pulse":
+        value = 1.0 if position < 0.5 else 0.0
+    elif pattern == "dual_wave":
+        value = wave
+    elif pattern == "ping_pong":
+        # Hand-over with a short overlap so it never feels dead.
+        value = 1.0 if ((position < 0.5 or position > 0.96) if inner else 0.46 < position) else 0.0
     elif pattern == "chase":
         shifted = (position - 0.25 * motor) % 1.0
         value = (1 - math.cos(2 * math.pi * shifted)) / 2
     elif pattern == "counter_wave":
-        value = wave if motor == 0 else 1 - wave
+        value = wave if inner else 1 - wave
+    elif pattern == "breath_offset":
+        shifted = (position - 0.5 * motor) % 1.0
+        value = ((1 - math.cos(2 * math.pi * shifted)) / 2) ** 1.5
+    elif pattern == "heartbeat_split":
+        value = (1.0 if position < 0.13 else 0.0) if inner else (0.8 if 0.25 <= position < 0.4 else 0.0)
+    elif pattern == "double_pulse_split":
+        value = (1.0 if position < 0.2 else 0.0) if inner else (1.0 if 0.35 <= position < 0.55 else 0.0)
+    elif pattern == "echo_bounce":
+        stage = min(int(position * 6), 5)
+        level = (1.0, 0.8, 0.6, 0.45, 0.3, 0.15)[stage]
+        value = level if (stage % 2 == 0) == inner else 0.0
+    elif pattern == "ramp_swap":
+        value = position if inner else 1 - position
+    elif pattern == "steps_cross":
+        step = (min(int(position * 4), 3) + 1) / 4
+        value = step if inner else 1.25 - step
     elif pattern == "tease_pulse":
-        value = 0.4 if motor == 0 else (1.0 if (position * 2) % 1 < 0.35 else 0.0)
-    else:  # rumble_pulse
-        value = wave if motor == 0 else (1.0 if (position * 4) % 1 < 0.3 else 0.0)
+        value = 0.4 if inner else (1.0 if (position * 2) % 1 < 0.35 else 0.0)
+    elif pattern == "rumble_pulse":
+        value = wave if inner else (1.0 if (position * 4) % 1 < 0.3 else 0.0)
+    else:  # surge_layer
+        value = wave**0.5 if inner else 0.6 * wave
     return min(1.0, max(0.0, float(value)))
 
 
@@ -258,8 +292,9 @@ class RandomProgram:
         elapsed = now - segment["start"]
         if segment["kind"] == "steps":
             step = int(elapsed / segment["step_seconds"])
-            value = segment["values"][step % len(segment["values"])]
-            return [value] * motors
+            values = segment["values"]
+            # Two motors step through the sequence out of phase.
+            return [values[(step + index * 2) % len(values)] for index in range(motors)]
         phase = elapsed / segment["period"]
         return [
             segment["level"] * sample(segment["pattern"], phase, index, segment["mode"])
@@ -296,13 +331,12 @@ class RandomProgram:
                 "step_seconds": rng.uniform(0.4, 2.5),
             }
         else:
-            choices = [p for p in SOFTWARE_PATTERNS if p != "steady"]
             if motors > 1:
-                choices += list(DUAL_PATTERNS)
+                choices = [p for p in DUAL_PATTERNS if p != "dual_steady"]
+            else:
+                choices = [p for p in SOFTWARE_PATTERNS if p != "steady"]
             pattern = rng.choice(choices)
             mode = "together"
-            if motors > 1 and pattern not in DUAL_PATTERNS:
-                mode = rng.choice(MOTOR_MODES)
             self._segment = {
                 "kind": "pattern", "start": now, "pattern": pattern, "mode": mode,
                 "level": rng.uniform(0.3, 1.0), "period": rng.uniform(0.6, 6.0),
