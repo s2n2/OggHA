@@ -57,6 +57,36 @@
     steps_cross: 'Steps cross', tease_pulse: 'Tease pulse', rumble_pulse: 'Rumble pulse', surge_layer: 'Surge layer',
   };
   const MOTOR_LABELS = { together: 'Together', alternating: 'Alternating', motor_1: 'Motor 1 only', motor_2: 'Motor 2 only' };
+  const DUAL = new Set(['dual_steady', 'dual_pulse', 'dual_wave', 'ping_pong', 'chase', 'counter_wave', 'breath_offset',
+    'heartbeat_split', 'double_pulse_split', 'echo_bounce', 'ramp_swap', 'steps_cross', 'tease_pulse', 'rumble_pulse', 'surge_layer']);
+  const sampleMotor = (name, phase, motor) => {
+    if (!DUAL.has(name)) return sampleEnvelope(name, phase);
+    const position = ((Number(phase) % 1) + 1) % 1;
+    const wave = (1 - Math.cos(2 * Math.PI * position)) / 2;
+    const inner = motor === 0;
+    const shiftedWave = (shift) => (1 - Math.cos(2 * Math.PI * (((position - shift) % 1) + 1))) / 2;
+    switch (name) {
+      case 'dual_steady': return 1;
+      case 'dual_pulse': return position < 0.5 ? 1 : 0;
+      case 'dual_wave': return wave;
+      case 'ping_pong': return (inner ? (position < 0.5 || position > 0.96) : position > 0.46) ? 1 : 0;
+      case 'chase': return shiftedWave(0.25 * motor);
+      case 'counter_wave': return inner ? wave : 1 - wave;
+      case 'breath_offset': return shiftedWave(0.5 * motor) ** 1.5;
+      case 'heartbeat_split': return inner ? (position < 0.13 ? 1 : 0) : (position >= 0.25 && position < 0.4 ? 0.8 : 0);
+      case 'double_pulse_split': return inner ? (position < 0.2 ? 1 : 0) : (position >= 0.35 && position < 0.55 ? 1 : 0);
+      case 'echo_bounce': {
+        const stage = Math.min(Math.floor(position * 6), 5);
+        return (stage % 2 === 0) === inner ? [1, 0.8, 0.6, 0.45, 0.3, 0.15][stage] : 0;
+      }
+      case 'ramp_swap': return inner ? position : 1 - position;
+      case 'steps_cross': { const step = (Math.min(Math.floor(position * 4), 3) + 1) / 4; return inner ? step : Math.min(1, 1.25 - step); }
+      case 'tease_pulse': return inner ? 0.4 : ((position * 2) % 1 < 0.35 ? 1 : 0);
+      case 'rumble_pulse': return inner ? wave : ((position * 4) % 1 < 0.3 ? 1 : 0);
+      case 'surge_layer': return inner ? wave ** 0.5 : 0.6 * wave;
+      default: return 1;
+    }
+  };
   const INTENSITY_OPTIONS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
   const fmtPercent = (v) => `${Number(v)}%`;
   const PULSE_OPTIONS = [0.5, 1, 2, 3, 5, 10, 15, 30, 60];
@@ -179,6 +209,9 @@
     .sparkline svg{width:100%;height:100%;display:block;overflow:visible}
     .sparkline .spark-fill{fill:rgba(79,219,189,.11)}
     .sparkline .spark-line{stroke:rgba(147,183,209,.65);stroke-width:1.6;stroke-dasharray:3 2;stroke-linecap:round;stroke-linejoin:round;fill:none;vector-effect:non-scaling-stroke}
+    .sparkline .spark-line2{stroke:rgba(183,166,255,.85);stroke-width:1.6;stroke-dasharray:3 2;stroke-linecap:round;stroke-linejoin:round;fill:none;vector-effect:non-scaling-stroke}
+    .sparkline.dual .spark-line{stroke:rgba(110,226,205,.9)}
+    .sparkline.dual .spark-fill{fill:rgba(79,219,189,.07)}
     .sparkline .spark-actual{stroke:#80ebdb;stroke-width:2.15;stroke-linecap:round;stroke-linejoin:round;fill:none;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 2px rgba(88,229,202,.45))}
     .sparkline .spark-dot{fill:#c3fff1;stroke:#59d3b8;stroke-width:1.1}
     .sparkline.idle{opacity:.48}
@@ -312,7 +345,7 @@
           <div class="section-head"><h3>Connected devices</h3><span id="list-subtitle">Live from Ogg</span></div>
           <div id="devices" class="device-list"></div>
           <div id="empty" class="empty">${icon('nodes')}<strong id="empty-title">No connected devices</strong><p id="empty-detail">Devices appear here when Ogg connects to them.</p></div>
-          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v0.1.18</span></div>
+          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v0.1.19</span></div>
         </div>`;
       this.shadowRoot.appendChild(root);
       this._shell = root;
@@ -635,7 +668,7 @@
       el.innerHTML = `
         <div class="device-top">
           <div class="device-avatar">${icon('bolt')}</div>
-          <div class="device-heading"><div class="device-name-row"><strong data-role="name"></strong><div data-role="sparkline" class="sparkline idle" title="Dashed: target. Bright: device-reported intensity when available; not motor RPM." aria-hidden="true"><svg viewBox="0 0 96 30" preserveAspectRatio="none"><path data-role="spark-fill" class="spark-fill"></path><path data-role="spark-line" class="spark-line"></path><path data-role="spark-actual" class="spark-actual"></path><circle data-role="spark-dot" class="spark-dot" r="2.2" cx="95" cy="27"></circle></svg></div></div><span data-role="caption" class="device-caption">Connected · Ready</span></div>
+          <div class="device-heading"><div class="device-name-row"><strong data-role="name"></strong><div data-role="sparkline" class="sparkline idle" title="Dashed: target (two-motor devices: teal = in, violet = out). Bright: device-reported intensity when available; not motor RPM." aria-hidden="true"><svg viewBox="0 0 96 30" preserveAspectRatio="none"><path data-role="spark-fill" class="spark-fill"></path><path data-role="spark-line" class="spark-line"></path><path data-role="spark-line2" class="spark-line2"></path><path data-role="spark-actual" class="spark-actual"></path><circle data-role="spark-dot" class="spark-dot" r="2.2" cx="95" cy="27"></circle></svg></div></div><span data-role="caption" class="device-caption">Connected · Ready</span></div>
           <button data-role="permission" class="permission allowed" type="button" aria-label="Toggle command permission">${icon('shield')}<span data-role="permission-text">Allowed</span></button>
         </div>
         <div class="device-main">
@@ -654,8 +687,8 @@
           <div class="control-group"><label data-role="intensity-label">Intensity</label><div class="select-shell"><select data-role="intensity" aria-label="Device intensity"></select>${icon('chevron')}</div></div>
         </div>`;
       const refs = {};
-      for (const part of ['name','caption','sparkline','spark-fill','spark-line','spark-actual','spark-dot','permission','permission-text','run','pulse','pulse-split','pulse-in','pulse-out','pulse-both','stop','pattern','cycle','intensity','cycle-group','intensity-label']) refs[part] = el.querySelector(`[data-role="${part}"]`);
-      const view = { root: el, refs, device, spark: { points: [], actualPoints: [], active: false, startedAt: 0, pattern: 'steady', period: 2, intensity: 0, reportedEntity: null, reportedLevel: null } };
+      for (const part of ['name','caption','sparkline','spark-fill','spark-line','spark-line2','spark-actual','spark-dot','permission','permission-text','run','pulse','pulse-split','pulse-in','pulse-out','pulse-both','stop','pattern','cycle','intensity','cycle-group','intensity-label']) refs[part] = el.querySelector(`[data-role="${part}"]`);
+      const view = { root: el, refs, device, spark: { points: [], points2: [], dual: false, actualPoints: [], active: false, startedAt: 0, pattern: 'steady', period: 2, intensity: 0, reportedEntity: null, reportedLevel: null } };
       this._paintSpark(view);
       refs.permission.addEventListener('click', () => this._togglePermission(view.device));
       refs.run.addEventListener('click', () => this._toggleRun(view.device));
@@ -684,6 +717,8 @@
       if (active && !graph.active) graph.startedAt = performance.now();
       graph.active = active;
       graph.pattern = String(this._state(device.pattern)?.state || 'steady');
+      graph.dual = Boolean(device.pulse_in && device.pulse_out);
+      r.sparkline.classList.toggle('dual', graph.dual);
       const cycleSeconds = Number(this._state(device.period)?.state);
       graph.period = Number.isFinite(cycleSeconds) && cycleSeconds > 0 ? cycleSeconds : 2;
       const power = Number(this._state(device.intensity)?.state);
@@ -779,16 +814,21 @@
       let anyActivity = false;
       for (const view of this._elementMap.values()) {
         const graph = view.spark;
-        const envelope = graph.active ? sampleEnvelope(graph.pattern, (now - graph.startedAt) / (graph.period * 1000)) : 0;
+        const phase = (now - graph.startedAt) / (graph.period * 1000);
+        const envelope = graph.active ? (graph.dual ? sampleMotor(graph.pattern, phase, 0) : sampleEnvelope(graph.pattern, phase)) : 0;
         const level = Math.max(0, Math.min(100, envelope * graph.intensity));
         graph.points.push(level);
+        if (!graph.points2) graph.points2 = [];
+        const outer = graph.active && graph.dual ? sampleMotor(graph.pattern, phase, 1) : 0;
+        graph.points2.push(graph.dual ? Math.max(0, Math.min(100, outer * graph.intensity)) : 0);
+        if (graph.points2.length > SPARK_POINTS) graph.points2.shift();
         if (!graph.actualPoints) graph.actualPoints = [];
         const reportIsFresh = Number.isFinite(graph.reportedAt) && Date.now() - graph.reportedAt < 5000;
         graph.actualPoints.push(reportIsFresh ? (graph.reportedLevel ?? null) : null);
         if (graph.points.length > SPARK_POINTS) graph.points.shift();
         if (graph.actualPoints.length > SPARK_POINTS) graph.actualPoints.shift();
         this._paintSpark(view);
-        if (graph.active || graph.points.some((v) => v > 0)
+        if (graph.active || graph.points.some((v) => v > 0) || (graph.points2 || []).some((v) => v > 0)
             || graph.actualPoints.some((v) => v !== null && v > 0)) anyActivity = true;
       }
       // Idle cards do not consume mobile battery redrawing an empty baseline.
@@ -806,6 +846,11 @@
       const baseline = 'M0,27 L95,27';
       const line = coords.length ? `M${coords.join(' L')}` : baseline;
       view.refs['spark-line'].setAttribute('d', line);
+      if (view.refs['spark-line2']) {
+        const second = view.spark.dual ? (view.spark.points2 || []) : [];
+        const coords2 = second.map((v, i) => `${(95 - (second.length - 1 - i) * (95 / (SPARK_POINTS - 1))).toFixed(2)},${y(v)}`);
+        view.refs['spark-line2'].setAttribute('d', coords2.length ? `M${coords2.join(' L')}` : '');
+      }
       view.refs['spark-fill'].setAttribute('d', coords.length ? `${line} L95,27 Z` : `${baseline} Z`);
       const reports = view.spark.actualPoints || [];
       let actualPath = '';
