@@ -20,7 +20,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up switches even when no endpoint is online."""
     hub: OggHub = entry.runtime_data
-    async_add_entities([OggEnabledSwitch(hub), OggAllSwitch(hub)])
+    async_add_entities([OggEnabledSwitch(hub), OggAllSwitch(hub), OggSearchSwitch(hub)])
     async_register_device_entities(
         entry,
         async_add_entities,
@@ -45,6 +45,25 @@ class OggEnabledSwitch(OggEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self.hub.async_set_enabled(False)
+
+
+class OggSearchSwitch(OggEntity, SwitchEntity):
+    """Search for devices on the connected server (StartScanning/StopScanning)."""
+
+    _attr_icon = "mdi:magnify-scan"
+
+    def __init__(self, hub: OggHub) -> None:
+        super().__init__(hub, "search", "search")
+
+    @property
+    def is_on(self) -> bool:
+        return self.hub.search_requested
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self.hub.async_set_search(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self.hub.async_set_search(False)
 
 
 class OggAllSwitch(OggEntity, SwitchEntity):

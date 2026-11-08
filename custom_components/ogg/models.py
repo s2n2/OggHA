@@ -97,6 +97,7 @@ def default_settings(motors: int) -> dict[str, Any]:
         "pattern": "steady",
         "motor_mode": "together",
         "native_profile": "disabled",
+        "owner": "unassigned",
         "motor_levels": [100.0] * motors,
     }
 

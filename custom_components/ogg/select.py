@@ -54,7 +54,8 @@ def _device_selects(hub: OggHub, key: str) -> list[OggSelect]:
     if not device.motor_count:
         return []
     options = DUAL_PATTERN_OPTIONS if device.motor_count > 1 else PATTERN_OPTIONS
-    entities = [OggSelect(hub, key, "pattern", options)]
+    entities = [OggSelect(hub, key, "pattern", options),
+                OggSelect(hub, key, "owner", ["unassigned", "his", "hers"])]
     if device.motor_count > 1:
         entities.append(OggSelect(hub, key, "motor_mode", MOTOR_OPTIONS))
     if device.native_available:
@@ -73,6 +74,7 @@ class OggSelect(OggEntity, SelectEntity):
             "pattern": "mdi:waveform",
             "motor_mode": "mdi:tune-variant",
             "native_profile": "mdi:chip",
+            "owner": "mdi:account-heart",
         }[setting]
         if setting == "native_profile":
             self._attr_entity_category = EntityCategory.CONFIG

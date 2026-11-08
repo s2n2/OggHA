@@ -1,3 +1,10 @@
+## 1.0.0 - First stable release
+- **Hold to run:** every device has a hold button (two-motor devices: Hold 1 and Hold 2, one per motor). It runs the device's pattern while held and stops on release; if the card stops refreshing (released, closed, connection lost) the output stops by itself within about a second. New `ogg.hold` service.
+- **Search** is now a toggle (switch "Search for devices") using the standard Buttplug StartScanning/StopScanning. Ogg no longer scans continuously; a search stops when the server reports it finished, when switched off, or after 5 minutes. The card's Search pill shows the toggle.
+- **His / hers:** each device has an Owner setting (Unassigned/His/Hers) with a small chip on the card; the device list can be filtered All/His/Hers, and Pulse all / Stop all then act on the shown devices only.
+- The separate Pulse in / Pulse out buttons were removed (single Pulse button again); old entities are cleaned up automatically.
+- Includes everything since 0.1.13: device identity and duplicate cleanup, connection feedback, two-motor patterns, Random mode, compact server tiles and the two-line sparkline.
+
 ## 0.1.19 - Two-motor control
 - **Two-motor devices** (e.g. Sync 2) now use a full two-motor pattern set instead of the single-motor list: Steady/Pulse/Wave (both), Ping-pong, Chase, Counter wave, Breath (offset), Heartbeat and Double pulse (in, then out), Echo bounce, Ramp swap, Steps cross, Tease pulse, Rumble pulse and Surge layer, plus Random. Saved single-motor patterns switch to Steady (both).
 - **Pulse in / Pulse out** buttons (new entities) pulse just the inner or outer motor; the card shows **In / Out / Both** instead of a single Pulse button for two-motor devices. Random on two-motor devices uses the two-motor set and steps the motors out of phase.
