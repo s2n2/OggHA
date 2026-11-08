@@ -90,7 +90,7 @@
   };
   const INTENSITY_OPTIONS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
   const fmtPercent = (v) => `${Number(v)}%`;
-  const PULSE_OPTIONS = [0.5, 1, 2, 3, 5, 7, 10, 15, 30, 60];
+  const PULSE_OPTIONS = [0.5, 1, 2, 3, 5, 6, 10, 15, 30, 60];
   const VALID = (s) => !!s && s.state !== 'unknown' && s.state !== 'unavailable';
   const pretty = (v) => String(v || '').replace(/_/g, ' ').replace(/\b\w/g, (x) => x.toUpperCase());
   const fmtSecs = (v) => `${Number(v)}s`;
