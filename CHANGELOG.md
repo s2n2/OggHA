@@ -1,3 +1,10 @@
+## 1.1.0b1 - Two servers at once (beta)
+- New option **Connect to two servers at once (beta)** in Ogg's settings (off by default). Ogg keeps the first configured address (normally this Home Assistant's IntiHA) and one other reachable address (for example your phone running Intiface) connected together, so house devices and phone devices can be played simultaneously.
+- Devices from both servers appear as one list; which server a device is on is invisible. Commands are routed to the device's own server automatically.
+- If one server drops, only its devices go offline and that server is retried in the background; Ogg only reports disconnected when no server is reachable. Search starts and stops scanning on both servers.
+- IntiHA's Bluetooth-address identity is read from each connected server, so the same toy stays one device.
+- With the option off, behaviour is unchanged from 1.0.0 (one server at a time, failing over between addresses).
+
 ## 1.0.0 - First stable release
 - **Hold to run:** every device has a hold button (two-motor devices: Hold 1 and Hold 2, one per motor). It runs the device's pattern while held and stops on release; if the card stops refreshing (released, closed, connection lost) the output stops by itself within about a second. New `ogg.hold` service.
 - **Search** is now a toggle (switch "Search for devices") using the standard Buttplug StartScanning/StopScanning. Ogg no longer scans continuously; a search stops when the server reports it finished, when switched off, or after 5 minutes. The card's Search pill shows the toggle.

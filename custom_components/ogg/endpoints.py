@@ -110,12 +110,16 @@ def validate_config(data: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Choose sensor entities containing an address in their state")
     if not manual and not sensors:
         raise ValueError("Configure at least one address or sensor")
+    multi = data.get("multi_server", False)
+    if not isinstance(multi, bool):
+        raise ValueError("Invalid two-server setting")
     return {
         "manual_hosts": manual,
         "sensor_entities": sensors,
         "port": port,
         "ssl": secure,
         "scan_interval": interval,
+        "multi_server": multi,
     }
 
 

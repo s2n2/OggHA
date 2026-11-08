@@ -10,14 +10,16 @@
           "sensor_entities": "Address sensors",
           "port": "Default server port",
           "ssl": "Use a secure connection by default",
-          "scan_interval": "Search interval"
+          "scan_interval": "Search interval",
+          "multi_server": "Connect to two servers at once (beta)"
         },
         "data_description": {
           "manual_hosts": "Up to five IP addresses, hostnames, or full ws:// / wss:// URLs. Leave empty when using address sensors only. These are alternative servers; one is connected at a time.",
           "sensor_entities": "Up to five sensors whose state is an IP address, hostname, or WebSocket URL. Unavailable or invalid states are skipped until they become valid.",
           "port": "Used when an address does not include its own port.",
           "ssl": "Uses wss:// for addresses without an explicit scheme. Certificate verification stays enabled.",
-          "scan_interval": "Seconds between checks when disconnected and between device scans while connected."
+          "scan_interval": "Seconds between checks when disconnected and between device scans while connected.",
+          "multi_server": "Keep the first address (for example this Home Assistant's IntiHA) and one other reachable address (for example your phone) connected together. Devices from both appear as one list. Off: only one server is connected at a time."
         }
       }
     },
@@ -39,14 +41,16 @@
           "sensor_entities": "Address sensors",
           "port": "Default server port",
           "ssl": "Use a secure connection by default",
-          "scan_interval": "Search interval"
+          "scan_interval": "Search interval",
+          "multi_server": "Connect to two servers at once (beta)"
         },
         "data_description": {
           "manual_hosts": "Up to five IP addresses, hostnames, or full ws:// / wss:// URLs. Leave empty when using address sensors only. These are alternative servers; one is connected at a time.",
           "sensor_entities": "Up to five sensors whose state is an IP address, hostname, or WebSocket URL. Unavailable or invalid states are skipped until they become valid.",
           "port": "Used when an address does not include its own port.",
           "ssl": "Uses wss:// for addresses without an explicit scheme. Certificate verification stays enabled.",
-          "scan_interval": "Seconds between checks when disconnected and between device scans while connected."
+          "scan_interval": "Seconds between checks when disconnected and between device scans while connected.",
+          "multi_server": "Keep the first address (for example this Home Assistant's IntiHA) and one other reachable address (for example your phone) connected together. Devices from both appear as one list. Off: only one server is connected at a time."
         }
       }
     },

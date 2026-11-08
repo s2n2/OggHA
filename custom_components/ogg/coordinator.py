@@ -30,6 +30,7 @@ from .endpoints import Candidate, resolve_candidates, validate_config
 from .identity import load_devices, match_device, new_device_key
 from .migration import async_migrate_device_registry
 from .models import OggDevice, physical_address, useful_label
+from .multi import SLOT_STRIDE, MultiServerConnection
 from .patterns import (
     DUAL_PATTERNS,
     MOTOR_MODES,
@@ -66,6 +67,8 @@ CONNECT_FEEDBACK_SECONDS = 0.2
 # Spread "all devices" commands so one Bluetooth proxy is not hit by a burst.
 ALL_DEVICES_STAGGER_SECONDS = 0.05
 IDENTITY_TIMEOUT_SECONDS = 3.0
+# Source label for the combined two-server connection.
+MULTI_SOURCE = "multi:servers"
 # Hold-to-run: the card refreshes a short deadline while the button is held.
 HOLD_MAX_SECONDS = 3.0
 # A search (StartScanning) stops by itself after this long.
@@ -287,6 +290,24 @@ class OggHub:
             self._ensure_monitor()
         self._notify()
 
+    def _new_multi_client(self) -> MultiServerConnection:
+        """Up to two servers (first location + one other) shown as one."""
+        session = async_get_clientsession(self.hass)
+
+        def factory(callback):
+            return ButtplugConnection(session, callback, connect_timeout=3, request_timeout=5)
+
+        def resolve() -> list[str]:
+            return [item.url for item in resolve_candidates(self.config, self.hass.states)]
+
+        client = MultiServerConnection(
+            factory,
+            lambda kind, payload: self._on_event(client, kind, payload),
+            resolve,
+            retry_seconds=float(self.config["scan_interval"]),
+        )
+        return client
+
     def _new_client(self) -> ButtplugConnection:
         """Bind callbacks to one session without changing transport internals."""
         client = ButtplugConnection(
@@ -312,14 +333,19 @@ class OggHub:
                     self.last_error = "Waiting for a valid configured address"
                 self._notify()
                 established = False
-                for candidate in candidates:
+                multi = bool(self.config.get("multi_server")) and len(candidates) > 1
+                attempts = [Candidate(MULTI_SOURCE, candidates[0].url)] if multi else candidates
+                for candidate in attempts:
                     if not self.enabled or self._shutting_down:
                         break
                     self.status = "connecting"
                     self._notify()
-                    client = self._new_client()
+                    client = self._new_multi_client() if multi else self._new_client()
                     try:
-                        await client.connect(candidate.url)
+                        if multi:
+                            await client.connect_any()
+                        else:
+                            await client.connect(candidate.url)
                     except ProtocolError as err:
                         # A failed WebSocket/Buttplug handshake is not a device
                         # failure. Keep the integration loaded and identify the
@@ -416,23 +442,26 @@ class OggHub:
         candidate = self._candidate
         if candidate is None or client is not self._client:
             return
-        parts = urlsplit(candidate.url)
-        scheme = "https" if parts.scheme == "wss" else "http"
-        url = urlunsplit((scheme, parts.netloc, "/intiha/devices", "", ""))
+        endpoints = getattr(client, "endpoints", None) or [(0, candidate.url)]
         mapping: dict[int, str] = {}
-        try:
-            async with asyncio.timeout(IDENTITY_TIMEOUT_SECONDS):
-                response = await async_get_clientsession(self.hass).get(url)
-                if response.status == 200:
-                    body = await response.json(content_type=None)
-                    for item in body.get("devices", []) if isinstance(body, dict) else []:
-                        index = item.get("DeviceIndex") if isinstance(item, dict) else None
-                        address = physical_address({"BluetoothAddress": item.get("address")}) if isinstance(item, dict) else ""
-                        if isinstance(index, int) and not isinstance(index, bool) and address:
-                            mapping[index] = address
-                response.release()
-        except (TimeoutError, aiohttp.ClientError, ValueError):
-            mapping = {}
+        for slot, server_url in endpoints:
+            parts = urlsplit(server_url)
+            scheme = "https" if parts.scheme == "wss" else "http"
+            url = urlunsplit((scheme, parts.netloc, "/intiha/devices", "", ""))
+            offset = slot * SLOT_STRIDE if isinstance(client, MultiServerConnection) else 0
+            try:
+                async with asyncio.timeout(IDENTITY_TIMEOUT_SECONDS):
+                    response = await async_get_clientsession(self.hass).get(url)
+                    if response.status == 200:
+                        body = await response.json(content_type=None)
+                        for item in body.get("devices", []) if isinstance(body, dict) else []:
+                            index = item.get("DeviceIndex") if isinstance(item, dict) else None
+                            address = physical_address({"BluetoothAddress": item.get("address")}) if isinstance(item, dict) else ""
+                            if isinstance(index, int) and not isinstance(index, bool) and address:
+                                mapping[offset + index] = address
+                    response.release()
+            except (TimeoutError, aiohttp.ClientError, ValueError):
+                continue
         if client is not self._client:
             return
         changed = mapping != self._addresses or self._address_client is not client
