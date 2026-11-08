@@ -48,6 +48,7 @@
       default: return 1; // Unknown pattern: show its intensity setpoint, not invented movement.
     }
   };
+  const OWNER_LABELS = { unassigned: 'Unassigned', his: 'His', hers: 'Hers' };
   const OGG_STATES = { searching: 'Searching', connecting: 'Connecting', reconnecting: 'Reconnecting', no_endpoints: 'No server set', error: 'Error', disabled: 'Disabled', connected: 'Connected' };
   const PATTERN_LABELS = {
     double_pulse: 'Double pulse', chachacha: 'Cha-cha-cha',
@@ -198,7 +199,7 @@
     .device-top{display:grid;grid-template-columns:36px minmax(0,1fr);grid-template-rows:auto auto;align-items:start;gap:7px 9px;margin-bottom:12px;min-width:0}
     .device-avatar{grid-column:1;grid-row:1/3}
     .device-heading{grid-column:2;grid-row:1}
-    .permission{grid-column:2;grid-row:2;justify-self:start}
+
     .device-avatar{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:12px;background:#263252;border:1px solid rgba(158,170,251,.18)}
     .device-avatar svg{color:#a7b7f8;width:19px;height:19px}
     .device.running .device-avatar{background:rgba(67,190,169,.16);border-color:rgba(67,190,169,.25)}
@@ -226,9 +227,21 @@
     .run-wrap span{font-size:12px;font-weight:720;color:#d2dcf3}
     .device-action{border:1px solid rgba(118,200,239,.35);background:#24395a;color:#bef2ff;border-radius:13px;display:flex;align-items:center;justify-content:center;gap:7px;min-height:45px;font-size:12px;font-weight:760;transition:.12s ease}
     .device-action.pulse svg{width:17px;height:17px}
-    .device-action[hidden],.pulse-split[hidden]{display:none}
-    .pulse-split{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;min-width:0}
-    .device-action.mini{min-height:45px;padding:0 4px;font-size:11.5px;border-radius:11px}
+    .hold-row{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin:-4px 0 12px}
+    .hold-row.dual{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+    .hold-btn{border:1px dashed rgba(183,166,255,.45);background:rgba(120,104,220,.1);color:#d9d0ff;border-radius:13px;min-height:40px;font:inherit;font-size:12px;font-weight:760;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:.12s ease}
+    .hold-btn[hidden]{display:none}
+    .hold-btn:disabled{opacity:.4;cursor:default}
+    .hold-btn.holding{border-style:solid;background:linear-gradient(110deg,#8f7dff,#b49cff);color:#140c3a;box-shadow:0 0 0 3px rgba(160,140,255,.18)}
+    .chips{grid-column:2;grid-row:2;justify-self:start;display:flex;gap:6px;flex-wrap:wrap}
+    .owner-chip{border:1px solid rgba(143,163,200,.2);border-radius:20px;background:rgba(255,255,255,.045);color:#92a2be;font:inherit;font-size:10px;font-weight:800;min-height:31px;padding:5px 10px;cursor:pointer;white-space:nowrap}
+    .owner-chip.his{color:#9fd3ff;border-color:rgba(110,180,255,.4);background:rgba(70,140,230,.12)}
+    .owner-chip.hers{color:#ffb3d9;border-color:rgba(255,130,190,.4);background:rgba(230,90,160,.12)}
+    .filter-chips{display:flex;gap:4px}
+    .filter-chips button{border:1px solid rgba(143,163,200,.2);border-radius:20px;background:transparent;color:#92a2be;font:inherit;font-size:10.5px;font-weight:760;padding:3px 9px;cursor:pointer}
+    .filter-chips button.active{background:rgba(152,168,249,.18);color:#edf2ff;border-color:rgba(152,168,249,.4)}
+    .section-head .head-right{display:flex;align-items:center;gap:8px}
+    .search-pill.active{background:linear-gradient(110deg,rgba(49,198,184,.25),rgba(84,212,188,.18));border-color:rgba(84,212,188,.5);color:#d9fff6}
     .device-action.stop{color:#e9adb7;background:rgba(246,104,121,.08);border-color:rgba(246,104,121,.2)}
     .device-action.stop svg{width:17px;height:17px}
     .config-grid{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(0,.9fr) minmax(0,.77fr);gap:9px}
@@ -342,10 +355,10 @@
               <button id="stop-all" class="cta stop-all" type="button">${icon('stop')}<span>Stop all</span></button>
             </div>
           </section>
-          <div class="section-head"><h3>Connected devices</h3><span id="list-subtitle">Live from Ogg</span></div>
+          <div class="section-head"><h3>Connected devices</h3><div class="head-right"><div class="filter-chips" role="group" aria-label="Show devices"><button data-filter="all" type="button">All</button><button data-filter="his" type="button">His</button><button data-filter="hers" type="button">Hers</button></div><span id="list-subtitle">Live from Ogg</span></div></div>
           <div id="devices" class="device-list"></div>
           <div id="empty" class="empty">${icon('nodes')}<strong id="empty-title">No connected devices</strong><p id="empty-detail">Devices appear here when Ogg connects to them.</p></div>
-          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v0.1.19</span></div>
+          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v1.0.0</span></div>
         </div>`;
       this.shadowRoot.appendChild(root);
       this._shell = root;
@@ -361,8 +374,12 @@
       }
       this._refs.duration.addEventListener('change', (e) => this._setNumber(this._hub.pulse_duration, e.target.value));
       this._refs.search.addEventListener('click', () => this._search());
-      this._refs['pulse-all'].addEventListener('click', () => this._press(this._hub.pulse_all));
-      this._refs['stop-all'].addEventListener('click', () => this._press(this._hub.stop_all));
+      this._refs['pulse-all'].addEventListener('click', () => this._groupAction('pulse'));
+      this._refs['stop-all'].addEventListener('click', () => this._groupAction('stop'));
+      try { this._filter = localStorage.getItem('ogg-deck-filter') || 'all'; } catch (e) { this._filter = 'all'; }
+      for (const button of this.shadowRoot.querySelectorAll('[data-filter]')) {
+        button.addEventListener('click', () => this._setFilter(button.dataset.filter));
+      }
     }
 
     _schedule() {
@@ -434,12 +451,12 @@
       const entityList = this._registryEntities || [];
       const knownKeys = {
         connected: ':connected', run: ':run', pulse: ':pulse', stop: ':stop',
-        pattern: ':pattern', motor_mode: ':motor_mode', period: ':period', pulse_in: ':pulse_in', pulse_out: ':pulse_out', intensity: ':intensity', commands: ':connect_this_device',
+        pattern: ':pattern', motor_mode: ':motor_mode', period: ':period', motor2: ':motor_level_1', owner: ':owner', intensity: ':intensity', commands: ':connect_this_device',
         status: ':status', battery: ':battery', remaining: ':remaining',
       };
       const hubKeys = {
         enabled: ':enabled', connected: ':connected', pulse_duration: ':pulse_duration',
-        search_now: ':search_now', connection_status: ':connection_status',
+        search_now: ':search_now', search: ':search', connection_status: ':connection_status',
         pulse_all: ':pulse_all', stop_all: ':stop_all',
       };
       const deviceNames = new Map((this._registryDevices || []).map((device) => [device.id, device.name_by_user || device.name || '']));
@@ -467,7 +484,7 @@
         const segments = uid.split(':');
         const key = segments[segments.length - 1];
         if (segments.length === 2 && hubKeys[key] && (key !== 'connected' || prefix === 'binary_sensor')
-            && (key !== 'connection_status' || prefix === 'sensor')) {
+            && (key !== 'connection_status' || prefix === 'sensor') && (key !== 'search' || prefix === 'switch')) {
           hub[key] = entry.entity_id;
           continue;
         }
@@ -510,6 +527,7 @@
         ogg_connected: c.ogg_connected || detected.hub.connected || 'binary_sensor.ogg_connected',
         ogg_status: c.ogg_status || detected.hub.connection_status || 'sensor.ogg_connection_status',
         search_now: c.search_now || detected.hub.search_now || 'button.ogg_search_now',
+        search: c.search || detected.hub.search || 'switch.ogg_search_for_devices',
         inti_search: c.inti_search || detected.hub.inti_search,
         inti_engine: c.inti_engine || detected.hub.inti_engine,
         inti_scanning: c.inti_scanning || detected.hub.inti_scanning,
@@ -561,9 +579,12 @@
       const oggState = String(this._state(hub.ogg_status)?.state || '');
       this._setStatus(r['ogg-status'], ogg,
         oggUp ? ['Connected', 'ok'] : [OGG_STATES[oggState] || 'Looking for server', 'warn']);
-      const searchTarget = oggUp ? hub.search_now : (engineUp ? hub.inti_search : null);
-      r.search.disabled = !searchTarget || !this._available(searchTarget);
-      r.search.classList.toggle('busy', scanning);
+      const searching = this._state(hub.search)?.state === 'on';
+      r.search.disabled = !this._available(hub.search) || ogg?.state !== 'on';
+      r.search.classList.toggle('active', searching);
+      r.search.classList.toggle('busy', searching);
+      r.search.setAttribute('aria-pressed', String(searching));
+      r.search.querySelector('span').textContent = searching ? 'Searching…' : 'Search';
 
       const duration = this._state(hub.pulse_duration);
       this._fillOptions(r.duration, PULSE_OPTIONS, Number(duration?.state), fmtSecs, 'Select duration');
@@ -574,8 +595,17 @@
         return state?.state === 'on';
       });
       visible.sort((a, b) => this._friendlyName(a).localeCompare(this._friendlyName(b)));
-      r.count.textContent = visible.length;
-      r.live.classList.toggle('zero', visible.length === 0);
+      const totalConnected = visible.length;
+      const filter = this._filter || 'all';
+      for (const button of this.shadowRoot.querySelectorAll('[data-filter]')) button.classList.toggle('active', button.dataset.filter === filter);
+      if (filter !== 'all') {
+        const keep = visible.filter((d) => String(this._state(d.owner)?.state || 'unassigned') === filter);
+        visible.length = 0;
+        visible.push(...keep);
+      }
+      this._visibleDevices = visible;
+      r.count.textContent = totalConnected;
+      r.live.classList.toggle('zero', totalConnected === 0);
       r['list-subtitle'].textContent = visible.length === 1 ? '1 available' : `${visible.length} available`;
       r['pulse-all'].disabled = !this._available(hub.pulse_all) || visible.length === 0 || ogg?.state !== 'on';
       r['stop-all'].disabled = !this._available(hub.stop_all);
@@ -609,11 +639,12 @@
     }
 
     async _search() {
-      // Search on whichever server Ogg is connected to (IntiHA or another
-      // Intiface server); fall back to IntiHA's own search if Ogg is offline.
-      const hub = this._hub;
-      const target = this._state(hub.ogg_connected)?.state === 'on' ? hub.search_now : hub.inti_search;
-      if (target) await this._press(target);
+      // Toggle a device search (Buttplug StartScanning/StopScanning) on the
+      // server Ogg is connected to.
+      const id = this._hub.search;
+      if (!id) return;
+      const on = this._state(id)?.state === 'on';
+      await this._call('switch', on ? 'turn_off' : 'turn_on', id);
     }
 
     _fillOptions(select, choices, value, formatter, placeholder) {
@@ -669,17 +700,16 @@
         <div class="device-top">
           <div class="device-avatar">${icon('bolt')}</div>
           <div class="device-heading"><div class="device-name-row"><strong data-role="name"></strong><div data-role="sparkline" class="sparkline idle" title="Dashed: target (two-motor devices: teal = in, violet = out). Bright: device-reported intensity when available; not motor RPM." aria-hidden="true"><svg viewBox="0 0 96 30" preserveAspectRatio="none"><path data-role="spark-fill" class="spark-fill"></path><path data-role="spark-line" class="spark-line"></path><path data-role="spark-line2" class="spark-line2"></path><path data-role="spark-actual" class="spark-actual"></path><circle data-role="spark-dot" class="spark-dot" r="2.2" cx="95" cy="27"></circle></svg></div></div><span data-role="caption" class="device-caption">Connected · Ready</span></div>
-          <button data-role="permission" class="permission allowed" type="button" aria-label="Toggle command permission">${icon('shield')}<span data-role="permission-text">Allowed</span></button>
+          <div class="chips"><button data-role="permission" class="permission allowed" type="button" aria-label="Toggle command permission">${icon('shield')}<span data-role="permission-text">Allowed</span></button><button data-role="owner" class="owner-chip" type="button" title="Assign to his or hers">Unassigned</button></div>
         </div>
         <div class="device-main">
           <div class="run-wrap"><span>Run</span><button data-role="run" class="toggle small" type="button" role="switch" aria-label="Continuous run" aria-checked="false"></button></div>
           <button data-role="pulse" class="device-action pulse" type="button">${icon('pulse')}<span>Pulse</span></button>
-          <div data-role="pulse-split" class="pulse-split" hidden role="group" aria-label="Pulse motors">
-            <button data-role="pulse-in" class="device-action pulse mini" type="button" title="Pulse the inner motor">In</button>
-            <button data-role="pulse-out" class="device-action pulse mini" type="button" title="Pulse the outer motor">Out</button>
-            <button data-role="pulse-both" class="device-action pulse mini" type="button" title="Pulse both motors">Both</button>
-          </div>
           <button data-role="stop" class="device-action stop" type="button" title="Stop device" aria-label="Stop device">${icon('stop')}</button>
+        </div>
+        <div data-role="hold-row" class="hold-row">
+          <button data-role="hold-1" class="hold-btn" type="button">Hold to run</button>
+          <button data-role="hold-2" class="hold-btn" type="button" hidden>Hold 2</button>
         </div>
         <div class="config-grid">
           <div class="control-group pattern-setting"><label>Pattern</label><div class="select-shell"><select data-role="pattern" aria-label="Device pattern"></select>${icon('chevron')}</div></div>
@@ -687,16 +717,16 @@
           <div class="control-group"><label data-role="intensity-label">Intensity</label><div class="select-shell"><select data-role="intensity" aria-label="Device intensity"></select>${icon('chevron')}</div></div>
         </div>`;
       const refs = {};
-      for (const part of ['name','caption','sparkline','spark-fill','spark-line','spark-line2','spark-actual','spark-dot','permission','permission-text','run','pulse','pulse-split','pulse-in','pulse-out','pulse-both','stop','pattern','cycle','intensity','cycle-group','intensity-label']) refs[part] = el.querySelector(`[data-role="${part}"]`);
+      for (const part of ['name','caption','sparkline','spark-fill','spark-line','spark-line2','spark-actual','spark-dot','permission','permission-text','run','pulse','stop','hold-row','hold-1','hold-2','owner','pattern','cycle','intensity','cycle-group','intensity-label']) refs[part] = el.querySelector(`[data-role="${part}"]`);
       const view = { root: el, refs, device, spark: { points: [], points2: [], dual: false, actualPoints: [], active: false, startedAt: 0, pattern: 'steady', period: 2, intensity: 0, reportedEntity: null, reportedLevel: null } };
       this._paintSpark(view);
       refs.permission.addEventListener('click', () => this._togglePermission(view.device));
       refs.run.addEventListener('click', () => this._toggleRun(view.device));
       refs.pulse.addEventListener('click', () => this._press(view.device.pulse));
-      refs['pulse-in'].addEventListener('click', () => this._press(view.device.pulse_in));
-      refs['pulse-out'].addEventListener('click', () => this._press(view.device.pulse_out));
-      refs['pulse-both'].addEventListener('click', () => this._press(view.device.pulse));
       refs.stop.addEventListener('click', () => this._press(view.device.stop));
+      refs.owner.addEventListener('click', () => this._cycleOwner(view.device));
+      this._bindHold(view, refs['hold-1'], 1);
+      this._bindHold(view, refs['hold-2'], 2);
       refs.pattern.addEventListener('change', (event) => this._select(view.device.pattern, event.target.value));
       refs.cycle.addEventListener('change', (event) => this._setNumber(view.device.period, event.target.value));
       refs.intensity.addEventListener('change', (event) => this._setNumber(view.device.intensity, event.target.value));
@@ -717,7 +747,7 @@
       if (active && !graph.active) graph.startedAt = performance.now();
       graph.active = active;
       graph.pattern = String(this._state(device.pattern)?.state || 'steady');
-      graph.dual = Boolean(device.pulse_in && device.pulse_out);
+      graph.dual = Boolean(device.motor2);
       r.sparkline.classList.toggle('dual', graph.dual);
       const cycleSeconds = Number(this._state(device.period)?.state);
       graph.period = Number.isFinite(cycleSeconds) && cycleSeconds > 0 ? cycleSeconds : 2;
@@ -757,12 +787,20 @@
       this._setSwitch(r.run, this._state(device.run), `${name} Run`);
       r.run.disabled = !permitted || !this._available(device.run);
       r.pulse.disabled = !permitted || !this._available(device.pulse);
-      const split = Boolean(device.pulse_in && device.pulse_out);
-      r['pulse-split'].hidden = !split;
-      r.pulse.hidden = split;
-      r['pulse-in'].disabled = !permitted || !this._available(device.pulse_in);
-      r['pulse-out'].disabled = !permitted || !this._available(device.pulse_out);
-      r['pulse-both'].disabled = r.pulse.disabled;
+      const dual = Boolean(device.motor2);
+      r['hold-row'].classList.toggle('dual', dual);
+      r['hold-2'].hidden = !dual;
+      r['hold-1'].textContent = dual ? 'Hold 1' : 'Hold to run';
+      const holdable = permitted && this._available(device.run);
+      for (const b of [r['hold-1'], r['hold-2']]) { if (!b.classList.contains('holding')) b.disabled = !holdable; }
+      r['hold-1'].title = dual ? 'Hold to run motor 1' : 'Hold to run; release to stop';
+      r['hold-2'].title = 'Hold to run motor 2';
+      const owner = String(this._state(device.owner)?.state || 'unassigned');
+      r.owner.hidden = !device.owner;
+      r.owner.textContent = OWNER_LABELS[owner] || 'Unassigned';
+      r.owner.classList.toggle('his', owner === 'his');
+      r.owner.classList.toggle('hers', owner === 'hers');
+
       r.stop.disabled = !this._available(device.stop);
       r.pulse.setAttribute('aria-label', `Pulse ${name}`);
       r.stop.setAttribute('aria-label', `Stop ${name}`);
@@ -894,6 +932,64 @@
       await this._call('switch', on ? 'turn_off' : 'turn_on', device.run);
     }
     async _press(entityId) { await this._call('button', 'press', entityId); }
+
+    async _cycleOwner(device) {
+      if (!device.owner) return;
+      const current = String(this._state(device.owner)?.state || 'unassigned');
+      await this._select(device.owner, current === 'his' ? 'hers' : 'his');
+    }
+
+    /** Hold-to-run: start on press, refresh while held, stop on release. */
+    _bindHold(view, button, motor) {
+      let timer = null;
+      const send = () => {
+        const device = view.device;
+        const data = { entity_id: device.stop, seconds: 1.0 };
+        if (device.motor2) data.motor = motor;
+        this._hass?.callService('ogg', 'hold', data).catch(() => {});
+      };
+      const start = (event) => {
+        if (button.disabled || timer !== null) return;
+        event?.preventDefault?.();
+        if (event?.pointerId !== undefined) button.setPointerCapture?.(event.pointerId);
+        button.classList.add('holding');
+        send();
+        timer = setInterval(send, 400);
+      };
+      const end = () => {
+        if (timer === null) return;
+        clearInterval(timer);
+        timer = null;
+        button.classList.remove('holding');
+        this._press(view.device.stop);
+      };
+      button.addEventListener('pointerdown', start);
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture', 'pointerleave']) button.addEventListener(type, end);
+      button.addEventListener('contextmenu', (event) => event.preventDefault());
+      button.addEventListener('keydown', (event) => { if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) start(event); });
+      button.addEventListener('keyup', (event) => { if (event.key === ' ' || event.key === 'Enter') end(); });
+      button.addEventListener('blur', end);
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') end(); });
+    }
+
+    _setFilter(value) {
+      this._filter = value;
+      try { localStorage.setItem('ogg-deck-filter', value); } catch (e) { /* private mode */ }
+      this._update();
+    }
+
+    async _groupAction(kind) {
+      // All devices: the hub buttons. His/hers: each visible device's button.
+      const hub = this._hub;
+      if (!this._filter || this._filter === 'all') {
+        await this._press(kind === 'pulse' ? hub.pulse_all : hub.stop_all);
+        return;
+      }
+      for (const device of this._visibleDevices || []) {
+        const target = kind === 'pulse' ? device.pulse : device.stop;
+        if (target && this._available(target)) await this._press(target);
+      }
+    }
     async _select(entityId, option) { await this._call('select', 'select_option', entityId, { option }); }
     async _setNumber(entityId, raw) {
       const value = Number(raw);

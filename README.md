@@ -343,4 +343,4 @@ The card otherwise auto-matches only when a name uniquely identifies an IntiHA d
 
 ### Card resource version (0.1.13)
 
-The dashboard footer should display `card v0.1.19`. If you still see the older tall server layout, Home Assistant may be using cached JavaScript. The automatically registered resource uses `/ogg/control-deck/ogg-control-deck-card.js?v=0.1.19`. Remove any obsolete duplicate resource such as `/local/ogg-control-deck-card.js` and refresh the dashboard.
+The dashboard footer should display `card v1.0.0`. If you still see the older tall server layout, Home Assistant may be using cached JavaScript. The automatically registered resource uses `/ogg/control-deck/ogg-control-deck-card.js?v=1.0.0`. Remove any obsolete duplicate resource such as `/local/ogg-control-deck-card.js` and refresh the dashboard.

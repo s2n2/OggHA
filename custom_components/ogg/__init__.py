@@ -10,8 +10,22 @@ from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import ConfigType
 
-from .const import PLATFORMS
+import voluptuous as vol
+from homeassistant.core import ServiceCall
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
+
+from .const import DOMAIN, PLATFORMS
 from .coordinator import OggHub
+
+HOLD_SCHEMA = vol.Schema(
+    {
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Optional("motor"): vol.All(vol.Coerce(int), vol.Range(min=1, max=2)),
+        vol.Optional("seconds", default=1.0): vol.All(vol.Coerce(float), vol.Range(min=0.3, max=3.0)),
+    }
+)
 from .dashboard_resource import async_register_control_deck
 
 type OggConfigEntry = ConfigEntry[OggHub]
@@ -25,6 +39,24 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         await async_register_control_deck(hass)
     except Exception:  # noqa: BLE001 - optional frontend must not break BLE control
         _LOGGER.exception("Could not register Ogg Control Deck; Ogg will remain available")
+
+    async def async_hold(call: ServiceCall) -> None:
+        """Hold-to-run for one device (any of its entities identifies it)."""
+        registry = er.async_get(hass)
+        entry = registry.async_get(call.data["entity_id"])
+        if entry is None or entry.platform != DOMAIN or entry.config_entry_id is None:
+            raise HomeAssistantError("Choose an Ogg device entity")
+        config_entry = hass.config_entries.async_get_entry(entry.config_entry_id)
+        hub = getattr(config_entry, "runtime_data", None)
+        parts = str(entry.unique_id).split(":")
+        if not isinstance(hub, OggHub) or len(parts) < 3:
+            raise HomeAssistantError("Choose an Ogg device entity")
+        key = parts[1]
+        motor = call.data.get("motor")
+        motors = frozenset({motor - 1}) if motor else None
+        await hub.async_hold(key, call.data["seconds"], motors)
+
+    hass.services.async_register(DOMAIN, "hold", async_hold, schema=HOLD_SCHEMA)
     return True
 
 
@@ -42,6 +74,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: OggConfigEntry) -> bool:
         await async_register_control_deck(hass)
     except Exception:  # noqa: BLE001
         _LOGGER.exception("Could not refresh Ogg Control Deck resource")
+    registry = er.async_get(hass)
+    for stale in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if stale.platform == DOMAIN and stale.unique_id.endswith((":pulse_in", ":pulse_out")):
+            registry.async_remove(stale.entity_id)
     hub = OggHub(hass, entry)
     entry.runtime_data = hub
     try:

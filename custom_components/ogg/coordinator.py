@@ -66,6 +66,11 @@ CONNECT_FEEDBACK_SECONDS = 0.2
 # Spread "all devices" commands so one Bluetooth proxy is not hit by a burst.
 ALL_DEVICES_STAGGER_SECONDS = 0.05
 IDENTITY_TIMEOUT_SECONDS = 3.0
+# Hold-to-run: the card refreshes a short deadline while the button is held.
+HOLD_MAX_SECONDS = 3.0
+# A search (StartScanning) stops by itself after this long.
+SEARCH_TIMEOUT_SECONDS = 300.0
+OWNERS = ("unassigned", "his", "hers")
 
 
 @dataclass
@@ -83,6 +88,8 @@ class DesiredOutput:
     command_serial: int = 0
     # Vibration-motor ordinals this output drives; None means all motors.
     motors: frozenset[int] | None = None
+    # Hold-to-run output: its deadline is extended while the button is held.
+    hold: bool = False
 
     def may_resume(self, now: float) -> bool:
         return (
@@ -118,6 +125,9 @@ class OggHub:
         self._command_serials: dict[str, int] = {}
         self._desired_outputs: dict[str, DesiredOutput] = {}
         self._random_programs: dict[str, RandomProgram] = {}
+        self._run_timeouts: dict[str, asyncio.Timeout] = {}
+        self.search_requested = False
+        self._search_started = 0.0
         self._locks: dict[str, asyncio.Lock] = {}
         self._listeners: set[Callable[[], None]] = set()
         self._event_tasks: set[asyncio.Task] = set()
@@ -262,12 +272,20 @@ class OggHub:
             self._notify()
 
     async def async_rescan(self) -> None:
-        """Refresh/search now, while respecting the master switch."""
-        if not self.enabled:
+        """Start a device search, while respecting the master switch."""
+        await self.async_set_search(True)
+
+    async def async_set_search(self, on: bool) -> None:
+        """Toggle a device search on the connected server."""
+        if on and not self.enabled:
             raise HomeAssistantError("Turn on Ogg before searching for devices")
-        self._force_scan = True
+        self.search_requested = bool(on)
+        if on:
+            self._search_started = time.monotonic()
         self._wake.set()
-        self._ensure_monitor()
+        if on:
+            self._ensure_monitor()
+        self._notify()
 
     def _new_client(self) -> ButtplugConnection:
         """Bind callbacks to one session without changing transport internals."""
@@ -448,13 +466,14 @@ class OggHub:
                 )
                 if current is not None and current.url != self._candidate.url:
                     return
-            if self._force_scan:
-                self._force_scan = False
-                if self._scan_active:
-                    with suppress(CommandError):
-                        await client.stop_scanning()
-                self._scan_active = False
-            if not self._scan_active:
+            if (
+                self.search_requested
+                and time.monotonic() - self._search_started > SEARCH_TIMEOUT_SECONDS
+            ):
+                self.search_requested = False
+            # Standard Buttplug client behaviour: scan only while a search is
+            # requested (StartScanning ... StopScanning / ScanningFinished).
+            if self.search_requested and not self._scan_active:
                 try:
                     # ScanningFinished can arrive before the acknowledgement.
                     # Set this before awaiting so that event remains authoritative.
@@ -462,9 +481,12 @@ class OggHub:
                     await client.start_scanning()
                 except CommandError:
                     self._scan_active = False
-                    # Some servers scan continuously or omit scan support. A
-                    # working connection is still useful for known devices.
-                    self.last_error = "Server did not start a new discovery scan"
+                    self.search_requested = False
+                    self.last_error = "Server did not start a device search"
+            elif not self.search_requested and self._scan_active:
+                with suppress(CommandError):
+                    await client.stop_scanning()
+                self._scan_active = False
             await client.request("RequestDeviceList")
             self._reconcile_devices(client)
             await self._refresh_addresses(client)
@@ -509,6 +531,7 @@ class OggHub:
                 self._spawn_event(self._refresh_addresses(client))
         elif kind == "ScanningFinished":
             self._scan_active = False
+            self.search_requested = False
         self._notify()
 
     def _reconcile_devices(self, client: ButtplugConnection) -> None:
@@ -1043,7 +1066,11 @@ class OggHub:
         return self._client
 
     async def async_start(
-        self, key: str, pulse: bool = False, motors: frozenset[int] | None = None
+        self,
+        key: str,
+        pulse: bool = False,
+        motors: frozenset[int] | None = None,
+        hold_seconds: float | None = None,
     ) -> None:
         """Replace an existing run; repeated pulses restart one timer.
 
@@ -1071,17 +1098,20 @@ class OggHub:
             device.last_error = None
             # The deadline starts with the original button press, not when
             # a later server or BLE session becomes available.
-            deadline = time.monotonic() + self.pulse_duration if pulse else None
+            hold = hold_seconds is not None
+            length = hold_seconds if hold else self.pulse_duration
+            deadline = time.monotonic() + length if (pulse or hold) else None
             intent = DesiredOutput(
-                "pulse" if pulse else "continuous", deadline,
+                "pulse" if (pulse or hold) else "continuous", deadline,
                 command_serial=self._command_serials.get(key, 0),
                 motors=motors,
+                hold=hold,
             )
             self._desired_outputs[key] = intent
             self._random_programs.pop(key, None)
             device.running = True
             device.mode = intent.mode
-            device.remaining = self.pulse_duration if pulse else None
+            device.remaining = length if (pulse or hold) else None
             task = self.entry.async_create_background_task(
                 self.hass,
                 self._run_device(device, client, intent),
@@ -1089,6 +1119,36 @@ class OggHub:
             )
             self._runs[key] = task
             self._notify()
+
+    async def async_hold(
+        self, key: str, seconds: float, motors: frozenset[int] | None = None
+    ) -> None:
+        """Run while held: start, or extend the running hold's deadline.
+
+        The card calls this repeatedly while the button is pressed. If calls
+        stop (released, card closed, network lost) the output ends by itself.
+        """
+        device = self._require_device(key)
+        seconds = min(HOLD_MAX_SECONDS, max(0.3, float(seconds)))
+        async with self._lock(key):
+            intent = self._desired_outputs.get(key)
+            task = self._runs.get(key)
+            timeout = self._run_timeouts.get(key)
+            if (
+                intent is not None and intent.hold and intent.motors == motors
+                and task is not None and not task.done() and timeout is not None
+                and intent.lost_at is None
+            ):
+                new_deadline = time.monotonic() + seconds
+                try:
+                    if not timeout.expired():
+                        timeout.reschedule(new_deadline)
+                        intent.deadline = new_deadline
+                        device.remaining = seconds
+                        return
+                except RuntimeError:
+                    pass  # The hold is already ending; start a new one below.
+        await self.async_start(key, pulse=True, motors=motors, hold_seconds=seconds)
 
     async def async_stop(self, key: str) -> None:
         device = self._require_device(key)
@@ -1226,7 +1286,8 @@ class OggHub:
             # The deadline also covers a slow output acknowledgement. Expiry
             # cancels that request locally and sends an explicit stop below,
             # without waiting up to the usual command timeout first.
-            async with asyncio.timeout_at(deadline):
+            async with asyncio.timeout_at(deadline) as run_timeout:
+                self._run_timeouts[device.key] = run_timeout
                 while (
                     self.enabled
                     and client is self._client
@@ -1240,6 +1301,7 @@ class OggHub:
                         device, client, now - started, last_frame, intent.motors
                     )
                     now = time.monotonic()
+                    deadline = intent.deadline
                     device.remaining = max(0.0, deadline - now) if deadline is not None else None
                     if now - last_notified >= 0.5:
                         self._notify()
@@ -1256,6 +1318,9 @@ class OggHub:
             device.last_error = "Output stopped after an unexpected error"
             _LOGGER.exception("Ogg stopped a device pattern after an error")
         finally:
+            if self._run_timeouts.get(device.key) is not None and self._runs.get(device.key) is asyncio.current_task():
+                self._run_timeouts.pop(device.key, None)
+            deadline = intent.deadline
             pulse_expired = (
                 deadline is not None
                 and time.monotonic() >= deadline
@@ -1415,6 +1480,9 @@ class OggHub:
                     "This server and device do not expose a supported native profile"
                 )
             device.native_failed = False
+        elif setting == "owner":
+            if value not in OWNERS:
+                raise HomeAssistantError("Choose unassigned, his or hers")
         elif setting == "motor_levels":
             if not isinstance(value, list) or len(value) != device.motor_count:
                 raise HomeAssistantError("Set one level for each supported motor")
@@ -1505,6 +1573,8 @@ class OggHub:
             or settings["motor_mode"] not in MOTOR_MODES
         ):
             settings["motor_mode"] = "together"
+        if settings.get("owner") not in OWNERS:
+            settings["owner"] = "unassigned"
         if (
             not isinstance(settings.get("native_profile"), str)
             or settings["native_profile"] not in {"disabled", "classic"}

@@ -67,6 +67,9 @@
       },
       "connect_this_device": {
         "name": "Connect this device"
+      },
+      "search": {
+        "name": "Search for devices"
       }
     },
     "button": {
@@ -81,12 +84,6 @@
       },
       "pulse": {
         "name": "Pulse"
-      },
-      "pulse_in": {
-        "name": "Pulse in"
-      },
-      "pulse_out": {
-        "name": "Pulse out"
       },
       "stop": {
         "name": "Stop"
@@ -179,6 +176,14 @@
           "silent": "Silent",
           "short_pulse": "Short pulse"
         }
+      },
+      "owner": {
+        "name": "Owner",
+        "state": {
+          "unassigned": "Unassigned",
+          "his": "His",
+          "hers": "Hers"
+        }
       }
     },
     "binary_sensor": {
@@ -227,6 +232,26 @@
       },
       "battery": {
         "name": "Battery"
+      }
+    }
+  },
+  "services": {
+    "hold": {
+      "name": "Hold to run",
+      "description": "Run a device while this is called repeatedly; it stops by itself shortly after the last call.",
+      "fields": {
+        "entity_id": {
+          "name": "Device entity",
+          "description": "Any Ogg entity of the device."
+        },
+        "motor": {
+          "name": "Motor",
+          "description": "1 or 2 for one motor of a two-motor device; omit for all motors."
+        },
+        "seconds": {
+          "name": "Seconds",
+          "description": "How long to keep running after this call (0.3-3 s)."
+        }
       }
     }
   }
