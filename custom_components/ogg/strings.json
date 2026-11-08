@@ -82,6 +82,12 @@
       "pulse": {
         "name": "Pulse"
       },
+      "pulse_in": {
+        "name": "Pulse in"
+      },
+      "pulse_out": {
+        "name": "Pulse out"
+      },
       "stop": {
         "name": "Stop"
       }
@@ -134,11 +140,21 @@
           "step": "Step",
           "tempo": "Tempo",
           "random": "Random",
-          "ping_pong": "Ping-pong (2 motors)",
-          "chase": "Chase (2 motors)",
-          "counter_wave": "Counter wave (2 motors)",
-          "tease_pulse": "Tease pulse (2 motors)",
-          "rumble_pulse": "Rumble pulse (2 motors)"
+          "dual_steady": "Steady (both)",
+          "dual_pulse": "Pulse (both)",
+          "dual_wave": "Wave (both)",
+          "ping_pong": "Ping-pong",
+          "chase": "Chase",
+          "counter_wave": "Counter wave",
+          "breath_offset": "Breath (offset)",
+          "heartbeat_split": "Heartbeat (in, then out)",
+          "double_pulse_split": "Double pulse (in, then out)",
+          "echo_bounce": "Echo bounce",
+          "ramp_swap": "Ramp swap",
+          "steps_cross": "Steps cross",
+          "tease_pulse": "Tease pulse",
+          "rumble_pulse": "Rumble pulse",
+          "surge_layer": "Surge layer"
         }
       },
       "motor_mode": {

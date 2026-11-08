@@ -34,11 +34,27 @@
       case 'tease': return position < 0.8 ? position * 1.25 : 0;
       case 'chachacha': return position < 0.14 || (position >= 0.25 && position < 0.39) || (position >= 0.5 && position < 0.64) ? 1 : 0;
       case 'tempo': return (position * 3) % 1 < 0.5 ? 1 : 0;
+      case 'dual_steady': return 1;
+      case 'dual_pulse': return position < 0.5 ? 1 : 0;
       case 'ping_pong': return position < 0.5 || position > 0.96 ? 1 : 0;
-      case 'chase': case 'counter_wave': case 'rumble_pulse': return wave;
+      case 'dual_wave': case 'chase': case 'counter_wave': case 'rumble_pulse': case 'surge_layer': return wave;
+      case 'breath_offset': return wave ** 1.5;
+      case 'heartbeat_split': return position < 0.13 ? 1 : 0;
+      case 'double_pulse_split': return position < 0.2 ? 1 : 0;
+      case 'echo_bounce': return [1, 0, 0.6, 0, 0.3, 0][Math.min(Math.floor(position * 6), 5)];
+      case 'ramp_swap': return position;
+      case 'steps_cross': return (Math.min(Math.floor(position * 4), 3) + 1) / 4;
       case 'tease_pulse': return 0.4;
       default: return 1; // Unknown pattern: show its intensity setpoint, not invented movement.
     }
+  };
+  const OGG_STATES = { searching: 'Searching', connecting: 'Connecting', reconnecting: 'Reconnecting', no_endpoints: 'No server set', error: 'Error', disabled: 'Disabled', connected: 'Connected' };
+  const PATTERN_LABELS = {
+    double_pulse: 'Double pulse', chachacha: 'Cha-cha-cha',
+    dual_steady: 'Steady (both)', dual_pulse: 'Pulse (both)', dual_wave: 'Wave (both)', ping_pong: 'Ping-pong',
+    counter_wave: 'Counter wave', breath_offset: 'Breath (offset)', heartbeat_split: 'Heartbeat (in, then out)',
+    double_pulse_split: 'Double pulse (in, then out)', echo_bounce: 'Echo bounce', ramp_swap: 'Ramp swap',
+    steps_cross: 'Steps cross', tease_pulse: 'Tease pulse', rumble_pulse: 'Rumble pulse', surge_layer: 'Surge layer',
   };
   const MOTOR_LABELS = { together: 'Together', alternating: 'Alternating', motor_1: 'Motor 1 only', motor_2: 'Motor 2 only' };
   const INTENSITY_OPTIONS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
@@ -85,6 +101,12 @@
     .subtitle{color:var(--muted);font-size:12px;margin-top:5px;line-height:1.35}
     .live-badge{flex:none;display:flex;align-items:center;gap:5px;border:1px solid rgba(100,218,189,.23);background:rgba(40,124,115,.17);padding:8px 10px;border-radius:30px;font-size:11px;color:#9adbd1;white-space:nowrap}
     .live-badge .dot{width:7px;height:7px;border-radius:50%;background:#58d6b2;box-shadow:0 0 0 4px rgba(64,194,164,.11)}
+    .hero-right{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+    .search-pill{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:30px;border:1px solid rgba(174,194,246,.2);background:rgba(255,255,255,.045);color:#c5d2f0;font:inherit;font-size:11px;font-weight:700;cursor:pointer}
+    .search-pill svg{width:13px;height:13px}
+    .search-pill:hover:not(:disabled){background:rgba(152,168,249,.14);color:#edf2ff}
+    .search-pill:disabled{opacity:.45;cursor:default}
+    .search-pill.busy svg{animation:ogg-spin 1.4s linear infinite}
     .live-badge.zero{border-color:rgba(174,194,246,.14);color:var(--muted);background:rgba(169,184,217,.08)}
     .live-badge.zero .dot{background:#72809f;box-shadow:none}
     .live-badge strong{font-variant-numeric:tabular-nums;font-weight:800;color:#e7fff9}
@@ -96,8 +118,7 @@
     .master-top,.master-bottom{display:contents}
     .master-label{grid-column:1;grid-row:1}
     .master-status{grid-column:1;grid-row:2}
-    .master .search-link{grid-column:2;grid-row:1/3}
-    .master .settings-link:not(.search-link){grid-column:3;grid-row:1/3}
+    .master .settings-link{grid-column:3;grid-row:1/3}
     .master .toggle{grid-column:4;grid-row:1/3}
     .search-link[hidden],.control-group[hidden]{display:none}
     .search-link{cursor:pointer;padding:0;font:inherit}
@@ -172,6 +193,9 @@
     .run-wrap span{font-size:12px;font-weight:720;color:#d2dcf3}
     .device-action{border:1px solid rgba(118,200,239,.35);background:#24395a;color:#bef2ff;border-radius:13px;display:flex;align-items:center;justify-content:center;gap:7px;min-height:45px;font-size:12px;font-weight:760;transition:.12s ease}
     .device-action.pulse svg{width:17px;height:17px}
+    .device-action[hidden],.pulse-split[hidden]{display:none}
+    .pulse-split{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;min-width:0}
+    .device-action.mini{min-height:45px;padding:0 4px;font-size:11.5px;border-radius:11px}
     .device-action.stop{color:#e9adb7;background:rgba(246,104,121,.08);border-color:rgba(246,104,121,.2)}
     .device-action.stop svg{width:17px;height:17px}
     .config-grid{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(0,.9fr) minmax(0,.77fr);gap:9px}
@@ -269,10 +293,10 @@
             <div class="hero-left"><div class="brand">${icon('pulse')}</div>
               <div><div class="eyebrow">INTIHA × OGG</div><h2 id="title">Control deck</h2><div class="subtitle">Your devices, all in one place</div></div>
             </div>
-            <div class="live-badge zero" id="live"><span class="dot"></span><strong id="count">0</strong> connected</div>
+            <div class="hero-right"><div class="live-badge zero" id="live"><span class="dot"></span><strong id="count">0</strong> connected</div><button id="search" class="search-pill" type="button" aria-label="Search for devices on the connected server" title="Search for devices on the connected server">${icon('search')}<span>Search</span></button></div>
           </header>
           <section class="masters" aria-label="Server controls">
-            <div class="master"><div class="master-top"><div class="master-label">${icon('server')}<span class="master-name">HA Server</span></div><button id="server-search" class="settings-link search-link" type="button" hidden aria-label="Search for devices" title="Search for devices">${icon('search')}</button><a id="server-settings" class="settings-link" href="/config/integrations/integration/intiha" aria-label="Open IntiHA settings" title="IntiHA settings">${icon('settings')}</a></div><div class="master-bottom"><span class="master-status" id="server-status">Loading</span><button id="server" class="toggle" type="button" role="switch" aria-label="HA Server" aria-checked="false"></button></div></div>
+            <div class="master"><div class="master-top"><div class="master-label">${icon('server')}<span class="master-name">HA Server</span></div><a id="server-settings" class="settings-link" href="/config/integrations/integration/intiha" aria-label="Open IntiHA settings" title="IntiHA settings">${icon('settings')}</a></div><div class="master-bottom"><span class="master-status" id="server-status">Loading</span><button id="server" class="toggle" type="button" role="switch" aria-label="HA Server" aria-checked="false"></button></div></div>
             <div class="master"><div class="master-top"><div class="master-label">${icon('nodes')}<span class="master-name">Ogg</span></div><a id="ogg-settings" class="settings-link" href="/config/integrations/integration/ogg" aria-label="Open Ogg settings" title="Ogg settings">${icon('settings')}</a></div><div class="master-bottom"><span class="master-status" id="ogg-status">Loading</span><button id="ogg" class="toggle" type="button" role="switch" aria-label="Ogg controller" aria-checked="false"></button></div></div>
           </section>
           <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -288,12 +312,12 @@
           <div class="section-head"><h3>Connected devices</h3><span id="list-subtitle">Live from Ogg</span></div>
           <div id="devices" class="device-list"></div>
           <div id="empty" class="empty">${icon('nodes')}<strong id="empty-title">No connected devices</strong><p id="empty-detail">Devices appear here when Ogg connects to them.</p></div>
-          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v0.1.17</span></div>
+          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v0.1.18</span></div>
         </div>`;
       this.shadowRoot.appendChild(root);
       this._shell = root;
       this._refs = {};
-      for (const id of ['title', 'live', 'count', 'server', 'ogg', 'server-settings', 'server-search', 'ogg-settings', 'server-status', 'ogg-status', 'duration', 'pulse-all', 'stop-all', 'devices', 'empty', 'empty-title', 'empty-detail', 'list-subtitle', 'toast']) {
+      for (const id of ['title', 'live', 'count', 'server', 'ogg', 'server-settings', 'search', 'ogg-settings', 'server-status', 'ogg-status', 'duration', 'pulse-all', 'stop-all', 'devices', 'empty', 'empty-title', 'empty-detail', 'list-subtitle', 'toast']) {
         this._refs[id] = root.querySelector(`#${id}`);
       }
       this._refs.title.textContent = this._config.title;
@@ -303,7 +327,7 @@
         this._refs[id].addEventListener('click', (event) => this._openSettings(event));
       }
       this._refs.duration.addEventListener('change', (e) => this._setNumber(this._hub.pulse_duration, e.target.value));
-      this._refs['server-search'].addEventListener('click', () => this._press(this._hub.inti_search));
+      this._refs.search.addEventListener('click', () => this._search());
       this._refs['pulse-all'].addEventListener('click', () => this._press(this._hub.pulse_all));
       this._refs['stop-all'].addEventListener('click', () => this._press(this._hub.stop_all));
     }
@@ -377,11 +401,12 @@
       const entityList = this._registryEntities || [];
       const knownKeys = {
         connected: ':connected', run: ':run', pulse: ':pulse', stop: ':stop',
-        pattern: ':pattern', motor_mode: ':motor_mode', period: ':period', intensity: ':intensity', commands: ':connect_this_device',
+        pattern: ':pattern', motor_mode: ':motor_mode', period: ':period', pulse_in: ':pulse_in', pulse_out: ':pulse_out', intensity: ':intensity', commands: ':connect_this_device',
         status: ':status', battery: ':battery', remaining: ':remaining',
       };
       const hubKeys = {
         enabled: ':enabled', connected: ':connected', pulse_duration: ':pulse_duration',
+        search_now: ':search_now', connection_status: ':connection_status',
         pulse_all: ':pulse_all', stop_all: ':stop_all',
       };
       const deviceNames = new Map((this._registryDevices || []).map((device) => [device.id, device.name_by_user || device.name || '']));
@@ -408,7 +433,8 @@
         if (entry.platform !== 'ogg') continue;
         const segments = uid.split(':');
         const key = segments[segments.length - 1];
-        if (segments.length === 2 && hubKeys[key] && (key !== 'connected' || prefix === 'binary_sensor')) {
+        if (segments.length === 2 && hubKeys[key] && (key !== 'connected' || prefix === 'binary_sensor')
+            && (key !== 'connection_status' || prefix === 'sensor')) {
           hub[key] = entry.entity_id;
           continue;
         }
@@ -449,6 +475,8 @@
         inti_server: c.inti_server || detected.hub.inti_server || 'switch.intiha_server_enabled',
         enabled: c.ogg_enabled || detected.hub.enabled || 'switch.ogg_enabled',
         ogg_connected: c.ogg_connected || detected.hub.connected || 'binary_sensor.ogg_connected',
+        ogg_status: c.ogg_status || detected.hub.connection_status || 'sensor.ogg_connection_status',
+        search_now: c.search_now || detected.hub.search_now || 'button.ogg_search_now',
         inti_search: c.inti_search || detected.hub.inti_search,
         inti_engine: c.inti_engine || detected.hub.inti_engine,
         inti_scanning: c.inti_scanning || detected.hub.inti_scanning,
@@ -494,12 +522,15 @@
       const engineUp = this._state(hub.inti_engine)?.state === 'on';
       const scanning = this._state(hub.inti_scanning)?.state === 'on';
       const oggUp = this._state(hub.ogg_connected)?.state === 'on';
-      this._setStatus(r['server-status'], server, scanning ? 'Searching…' : engineUp ? 'Connected' : hub.inti_engine ? 'Waiting for engine' : 'Enabled');
-      this._setStatus(r['ogg-status'], ogg, oggUp ? 'Connected' : 'Looking for server');
-      const canSearch = server?.state === 'on' && engineUp && this._available(hub.inti_search);
-      r['server-search'].hidden = !canSearch;
-      r['server-search'].disabled = scanning;
-      r['server-search'].classList.toggle('busy', scanning);
+      this._setStatus(r['server-status'], server,
+        !hub.inti_engine ? ['Enabled', 'ok'] : !engineUp ? ['Engine offline', 'warn']
+          : [scanning ? 'Connected · searching' : 'Connected', 'ok']);
+      const oggState = String(this._state(hub.ogg_status)?.state || '');
+      this._setStatus(r['ogg-status'], ogg,
+        oggUp ? ['Connected', 'ok'] : [OGG_STATES[oggState] || 'Looking for server', 'warn']);
+      const searchTarget = oggUp ? hub.search_now : (engineUp ? hub.inti_search : null);
+      r.search.disabled = !searchTarget || !this._available(searchTarget);
+      r.search.classList.toggle('busy', scanning);
 
       const duration = this._state(hub.pulse_duration);
       this._fillOptions(r.duration, PULSE_OPTIONS, Number(duration?.state), fmtSecs, 'Select duration');
@@ -537,11 +568,19 @@
       button.title = button.disabled ? `${label} entity unavailable` : `Turn ${label} ${on ? 'off' : 'on'}`;
     }
 
-    _setStatus(node, state, onText = 'Enabled') {
+    _setStatus(node, state, [onText, tone] = ['Enabled', 'ok']) {
       const on = state?.state === 'on';
-      node.textContent = !VALID(state) ? 'Unavailable' : on ? onText : 'Off';
-      node.classList.toggle('on', on && (onText === 'Connected' || onText === 'Searching…'));
-      node.classList.toggle('pending', on && (onText === 'Waiting for engine' || onText === 'Looking for server'));
+      node.textContent = !VALID(state) ? 'Unavailable' : on ? onText : 'Disabled';
+      node.classList.toggle('on', on && tone === 'ok');
+      node.classList.toggle('pending', on && tone === 'warn');
+    }
+
+    async _search() {
+      // Search on whichever server Ogg is connected to (IntiHA or another
+      // Intiface server); fall back to IntiHA's own search if Ogg is offline.
+      const hub = this._hub;
+      const target = this._state(hub.ogg_connected)?.state === 'on' ? hub.search_now : hub.inti_search;
+      if (target) await this._press(target);
     }
 
     _fillOptions(select, choices, value, formatter, placeholder) {
@@ -602,25 +641,31 @@
         <div class="device-main">
           <div class="run-wrap"><span>Run</span><button data-role="run" class="toggle small" type="button" role="switch" aria-label="Continuous run" aria-checked="false"></button></div>
           <button data-role="pulse" class="device-action pulse" type="button">${icon('pulse')}<span>Pulse</span></button>
+          <div data-role="pulse-split" class="pulse-split" hidden role="group" aria-label="Pulse motors">
+            <button data-role="pulse-in" class="device-action pulse mini" type="button" title="Pulse the inner motor">In</button>
+            <button data-role="pulse-out" class="device-action pulse mini" type="button" title="Pulse the outer motor">Out</button>
+            <button data-role="pulse-both" class="device-action pulse mini" type="button" title="Pulse both motors">Both</button>
+          </div>
           <button data-role="stop" class="device-action stop" type="button" title="Stop device" aria-label="Stop device">${icon('stop')}</button>
         </div>
         <div class="config-grid">
           <div class="control-group pattern-setting"><label>Pattern</label><div class="select-shell"><select data-role="pattern" aria-label="Device pattern"></select>${icon('chevron')}</div></div>
-          <div class="control-group motors-setting" data-role="motors-group" hidden><label>Motors</label><div class="select-shell"><select data-role="motors" aria-label="Motor mode"></select>${icon('chevron')}</div></div>
           <div class="control-group" data-role="cycle-group"><label>Cycle time</label><div class="select-shell"><select data-role="cycle" aria-label="Pattern cycle time"></select>${icon('chevron')}</div></div>
           <div class="control-group"><label data-role="intensity-label">Intensity</label><div class="select-shell"><select data-role="intensity" aria-label="Device intensity"></select>${icon('chevron')}</div></div>
         </div>`;
       const refs = {};
-      for (const part of ['name','caption','sparkline','spark-fill','spark-line','spark-actual','spark-dot','permission','permission-text','run','pulse','stop','pattern','cycle','intensity','motors','motors-group','cycle-group','intensity-label']) refs[part] = el.querySelector(`[data-role="${part}"]`);
+      for (const part of ['name','caption','sparkline','spark-fill','spark-line','spark-actual','spark-dot','permission','permission-text','run','pulse','pulse-split','pulse-in','pulse-out','pulse-both','stop','pattern','cycle','intensity','cycle-group','intensity-label']) refs[part] = el.querySelector(`[data-role="${part}"]`);
       const view = { root: el, refs, device, spark: { points: [], actualPoints: [], active: false, startedAt: 0, pattern: 'steady', period: 2, intensity: 0, reportedEntity: null, reportedLevel: null } };
       this._paintSpark(view);
       refs.permission.addEventListener('click', () => this._togglePermission(view.device));
       refs.run.addEventListener('click', () => this._toggleRun(view.device));
       refs.pulse.addEventListener('click', () => this._press(view.device.pulse));
+      refs['pulse-in'].addEventListener('click', () => this._press(view.device.pulse_in));
+      refs['pulse-out'].addEventListener('click', () => this._press(view.device.pulse_out));
+      refs['pulse-both'].addEventListener('click', () => this._press(view.device.pulse));
       refs.stop.addEventListener('click', () => this._press(view.device.stop));
       refs.pattern.addEventListener('change', (event) => this._select(view.device.pattern, event.target.value));
       refs.cycle.addEventListener('change', (event) => this._setNumber(view.device.period, event.target.value));
-      refs.motors.addEventListener('change', (event) => this._select(view.device.motor_mode, event.target.value));
       refs.intensity.addEventListener('change', (event) => this._setNumber(view.device.intensity, event.target.value));
       return view;
     }
@@ -677,6 +722,12 @@
       this._setSwitch(r.run, this._state(device.run), `${name} Run`);
       r.run.disabled = !permitted || !this._available(device.run);
       r.pulse.disabled = !permitted || !this._available(device.pulse);
+      const split = Boolean(device.pulse_in && device.pulse_out);
+      r['pulse-split'].hidden = !split;
+      r.pulse.hidden = split;
+      r['pulse-in'].disabled = !permitted || !this._available(device.pulse_in);
+      r['pulse-out'].disabled = !permitted || !this._available(device.pulse_out);
+      r['pulse-both'].disabled = r.pulse.disabled;
       r.stop.disabled = !this._available(device.stop);
       r.pulse.setAttribute('aria-label', `Pulse ${name}`);
       r.stop.setAttribute('aria-label', `Stop ${name}`);
@@ -688,7 +739,7 @@
         patternSelect.replaceChildren(...options.map((opt) => {
           const option = document.createElement('option');
           option.value = String(opt);
-          option.textContent = pretty(opt);
+          option.textContent = PATTERN_LABELS[opt] || pretty(opt);
           return option;
         }));
         patternSelect.dataset.key = optionsKey;
@@ -696,24 +747,6 @@
       if (this.shadowRoot.activeElement !== patternSelect) patternSelect.value = pattern?.state || '';
       patternSelect.disabled = !VALID(pattern) || !options.length;
       patternSelect.setAttribute('aria-label', `${name} pattern`);
-      const motorMode = this._state(device.motor_mode);
-      const motorOptions = Array.isArray(motorMode?.attributes?.options) ? motorMode.attributes.options : [];
-      r['motors-group'].hidden = !device.motor_mode || motorOptions.length < 2;
-      if (!r['motors-group'].hidden) {
-        const key = JSON.stringify(motorOptions);
-        if (r.motors.dataset.key !== key) {
-          r.motors.replaceChildren(...motorOptions.map((opt) => {
-            const option = document.createElement('option');
-            option.value = String(opt);
-            option.textContent = MOTOR_LABELS[opt] || pretty(opt);
-            return option;
-          }));
-          r.motors.dataset.key = key;
-        }
-        if (this.shadowRoot.activeElement !== r.motors) r.motors.value = motorMode?.state || '';
-        r.motors.disabled = !VALID(motorMode) || String(pattern?.state || '') === 'random';
-        r.motors.setAttribute('aria-label', `${name} motor mode`);
-      }
       const randomMode = String(pattern?.state || '') === 'random';
       r['cycle-group'].hidden = randomMode;
       r['intensity-label'].textContent = randomMode ? 'How often' : 'Intensity';

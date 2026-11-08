@@ -15,7 +15,8 @@ from .patterns import DUAL_PATTERNS, NATIVE_PATTERNS, RANDOM_PATTERN, SOFTWARE_P
 PARALLEL_UPDATES = 0
 
 PATTERN_OPTIONS = list(dict.fromkeys([*SOFTWARE_PATTERNS, *NATIVE_PATTERNS, RANDOM_PATTERN]))
-DUAL_PATTERN_OPTIONS = [*PATTERN_OPTIONS, *DUAL_PATTERNS]
+# Two-motor devices get the two-motor set instead of the single-motor list.
+DUAL_PATTERN_OPTIONS = [*DUAL_PATTERNS, RANDOM_PATTERN]
 MOTOR_OPTIONS = ["together", "alternating", "motor_1", "motor_2"]
 
 
