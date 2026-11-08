@@ -205,18 +205,32 @@
     .device.running .device-avatar{background:rgba(67,190,169,.16);border-color:rgba(67,190,169,.25)}
     .device.running .device-avatar svg{color:#80ebd6}
     .device-heading{min-width:0;flex:1}
-    .device-name-row{display:grid;grid-template-columns:minmax(0,1fr) 82px;align-items:center;gap:9px;min-width:0}
-    .sparkline{height:31px;width:82px;min-width:0;flex:none;display:flex;align-items:center;justify-content:center;padding:3px 5px;border:1px solid rgba(103,213,194,.16);border-radius:10px;background:linear-gradient(110deg,rgba(65,211,184,.07),rgba(109,128,238,.065));color:#79e4d3;overflow:hidden}
-    .sparkline svg{width:100%;height:100%;display:block;overflow:visible}
-    .sparkline .spark-fill{fill:rgba(79,219,189,.11)}
-    .sparkline .spark-line{stroke:rgba(147,183,209,.75);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;vector-effect:non-scaling-stroke}
-    .sparkline .spark-line2{stroke:rgba(183,166,255,.85);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;vector-effect:non-scaling-stroke}
-    .sparkline.dual .spark-line{stroke:rgba(110,226,205,.9)}
-    .sparkline.dual .spark-fill{fill:rgba(79,219,189,.07)}
-    .sparkline .spark-actual,.sparkline .spark-actual2{stroke:#c3fff1;stroke-width:2.2;stroke-dasharray:0.1 3.4;stroke-linecap:round;stroke-linejoin:round;fill:none;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 2px rgba(88,229,202,.5))}
-    .sparkline .spark-actual2{stroke:#e2d9ff;filter:drop-shadow(0 0 2px rgba(183,166,255,.55))}
-    .sparkline .spark-dot{fill:#c3fff1;stroke:#59d3b8;stroke-width:1.1}
-    .sparkline.idle{opacity:.48}
+    .device-name-row{display:block;min-width:0}
+    .spark{display:flex;flex-direction:column;gap:4px;margin:0 0 12px;padding:8px 10px 7px;border:1px solid rgba(143,163,200,.14);border-radius:13px;background:rgba(8,14,28,.32)}
+    .spark .lane{display:grid;grid-template-columns:minmax(0,1fr) 46px;align-items:center;gap:8px}
+    .spark.dual .lane{grid-template-columns:26px minmax(0,1fr) 46px}
+    .spark .lane[hidden]{display:none}
+    .spark .lane-name{display:none;color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.02em}
+    .spark.dual .lane-name{display:block}
+    .spark svg{width:100%;height:36px;display:block;overflow:visible}
+    .spark.dual svg{height:26px}
+    .spark .base{stroke:rgba(143,163,200,.18);stroke-width:1;vector-effect:non-scaling-stroke}
+    .spark .req{fill:rgba(79,219,189,.2)}
+    .spark .edge{fill:none;stroke:rgba(110,226,205,.75);stroke-width:1.25;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+    .spark .lane.out .req{fill:rgba(160,140,255,.2)}
+    .spark .lane.out .edge{stroke:rgba(183,166,255,.8)}
+    .spark .rep{fill:none;stroke:#eef3ff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+    .spark .lane-val{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;font-variant-numeric:tabular-nums}
+    .spark .lane-val b{color:#e9eefc;font-size:12px;font-weight:760}
+    .spark .lane-val small{color:var(--muted);font-size:10px}
+    .spark .lane-val small:empty{display:none}
+    .spark-key{display:flex;gap:12px;color:var(--muted);font-size:10px;padding-top:1px}
+    .spark-key[hidden]{display:none}
+    .spark-key span{display:inline-flex;align-items:center;gap:5px}
+    .spark-key i{display:inline-block;width:14px}
+    .spark-key .k-req{height:7px;border-radius:2px;background:rgba(79,219,189,.3);border-top:1.5px solid rgba(110,226,205,.8)}
+    .spark-key .k-rep{height:2px;border-radius:1px;background:#eef3ff}
+    .spark.idle{opacity:.55}
     .device-heading strong{display:-webkit-box;min-width:0;color:#f5f7ff;font-size:15px;line-height:1.25;overflow:hidden;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere;letter-spacing:-.013em}
     .device-caption{display:block;color:var(--muted);font-size:11px;margin-top:3px;font-variant-numeric:tabular-nums}
     .permission{border:1px solid rgba(143,163,200,.2);border-radius:20px;background:rgba(255,255,255,.045);color:#92a2be;font-size:10px;font-weight:800;letter-spacing:.01em;min-height:31px;padding:5px 10px;white-space:nowrap;display:flex;align-items:center;gap:5px;max-width:120px}
@@ -361,7 +375,7 @@
           <div class="section-head"><h3>Connected devices</h3><div class="head-right"><div class="filter-chips" role="group" aria-label="Show devices"><button data-filter="all" type="button">All</button><button data-filter="his" type="button">His</button><button data-filter="hers" type="button">Hers</button></div><span id="list-subtitle">Live from Ogg</span></div></div>
           <div id="devices" class="device-list"></div>
           <div id="empty" class="empty">${icon('nodes')}<strong id="empty-title">No connected devices</strong><p id="empty-detail">Devices appear here when Ogg connects to them.</p></div>
-          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v2.3.0</span></div>
+          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v2.4.0</span></div>
         </div>`;
       this.shadowRoot.appendChild(root);
       this._shell = root;
@@ -702,9 +716,10 @@
       el.innerHTML = `
         <div class="device-top">
           <div class="device-avatar">${icon('bolt')}</div>
-          <div class="device-heading"><div class="device-name-row"><strong data-role="name"></strong><div data-role="sparkline" class="sparkline idle" title="Solid: requested (two-motor devices: teal = in, violet = out). Dotted: what the device reports when available; not motor RPM." aria-hidden="true"><svg viewBox="0 0 96 30" preserveAspectRatio="none"><path data-role="spark-fill" class="spark-fill"></path><path data-role="spark-line" class="spark-line"></path><path data-role="spark-line2" class="spark-line2"></path><path data-role="spark-actual" class="spark-actual"></path><path data-role="spark-actual2" class="spark-actual2"></path><circle data-role="spark-dot" class="spark-dot" r="2.2" cx="95" cy="27"></circle></svg></div></div><span data-role="caption" class="device-caption">Connected · Ready</span></div>
+          <div class="device-heading"><div class="device-name-row"><strong data-role="name"></strong></div><span data-role="caption" class="device-caption">Connected · Ready</span></div>
           <div class="chips"><button data-role="permission" class="permission allowed" type="button" aria-label="Toggle command permission">${icon('shield')}<span data-role="permission-text">Allowed</span></button><button data-role="owner" class="owner-chip" type="button" title="Assign to his or hers">Unassigned</button></div>
         </div>
+        <div data-role="sparkline" class="spark idle" title="Shaded: requested level. Line: what the device reports (not motor RPM)."><div class="lane in" data-role="lane1"><span class="lane-name">In</span><svg viewBox="0 0 100 36" preserveAspectRatio="none"><path class="base" data-role="base1"></path><path class="req" data-role="req1"></path><path class="edge" data-role="edge1"></path><path class="rep" data-role="rep1"></path></svg><span class="lane-val"><b data-role="vreq1">0%</b><small data-role="vrep1"></small></span></div><div class="lane out" data-role="lane2"><span class="lane-name">Out</span><svg viewBox="0 0 100 36" preserveAspectRatio="none"><path class="base" data-role="base2"></path><path class="req" data-role="req2"></path><path class="edge" data-role="edge2"></path><path class="rep" data-role="rep2"></path></svg><span class="lane-val"><b data-role="vreq2">0%</b><small data-role="vrep2"></small></span></div><div class="spark-key" data-role="spark-key" hidden><span><i class="k-req"></i>Requested</span><span><i class="k-rep"></i>Device reports</span></div></div>
         <div class="device-main">
           <div class="run-wrap"><span>Run</span><button data-role="run" class="toggle small" type="button" role="switch" aria-label="Continuous run" aria-checked="false"></button></div>
           <button data-role="pulse" class="device-action pulse" type="button">${icon('pulse')}<span>Pulse</span></button>
@@ -720,7 +735,7 @@
           <div class="control-group"><label data-role="intensity-label">Intensity</label><div class="select-shell"><select data-role="intensity" aria-label="Device intensity"></select>${icon('chevron')}</div></div>
         </div>`;
       const refs = {};
-      for (const part of ['name','caption','sparkline','spark-fill','spark-line','spark-line2','spark-actual','spark-dot','permission','permission-text','run','pulse','stop','hold-row','hold-1','hold-2','owner','pattern','cycle','intensity','cycle-group','intensity-label']) refs[part] = el.querySelector(`[data-role="${part}"]`);
+      for (const part of ['name','caption','sparkline','spark-key','lane1','lane2','base1','base2','req1','req2','edge1','edge2','rep1','rep2','vreq1','vreq2','vrep1','vrep2','permission','permission-text','run','pulse','stop','hold-row','hold-1','hold-2','owner','pattern','cycle','intensity','cycle-group','intensity-label']) refs[part] = el.querySelector(`[data-role="${part}"]`);
       const view = { root: el, refs, device, spark: { points: [], points2: [], dual: false, actualPoints: [], actualPoints2: [], active: false, startedAt: 0, pattern: 'steady', period: 2, intensity: 0, reportedEntity: null, reportedLevel: null } };
       this._paintSpark(view);
       refs.permission.addEventListener('click', () => this._togglePermission(view.device));
@@ -774,8 +789,8 @@
       graph.reportedLevel = !fresh ? null : graph.dual ? pct(fa.internal_intensity ?? feedbackLevel) : pct(feedbackLevel);
       graph.reportedLevel2 = fresh && graph.dual ? pct(fa.external_intensity) : null;
       r.sparkline.title = graph.reportedLevel === null
-        ? 'Solid: requested. Device-reported feedback unavailable or unmapped.'
-        : `Solid: requested · dotted: device reports ${graph.reportedLevel}%${graph.reportedLevel2 === null ? '' : ` / ${graph.reportedLevel2}%`} (not motor RPM)`;
+        ? 'Shaded: requested level. Device reports unavailable for this device.'
+        : 'Shaded: requested level. Line: what the device reports (not motor RPM).';
       r.sparkline.classList.toggle('idle', !active && graph.reportedLevel === null);
       this._paintSpark(view);
       const remaining = Number(this._state(device.remaining)?.state);
@@ -891,41 +906,45 @@
     }
 
     _paintSpark(view) {
-      const values = view.spark.points;
-      // Right-align incoming samples: the line rolls left as fresh data arrives.
-      const y = (value) => (27 - Math.max(0, Math.min(100, value)) * 0.24).toFixed(2);
-      const coords = values.map((v, i) => {
-        const x = 95 - (values.length - 1 - i) * (95 / (SPARK_POINTS - 1));
-        return `${x.toFixed(2)},${y(v)}`;
-      });
-      const baseline = 'M0,27 L95,27';
-      const line = coords.length ? `M${coords.join(' L')}` : baseline;
-      view.refs['spark-line'].setAttribute('d', line);
-      if (view.refs['spark-line2']) {
-        const second = view.spark.dual ? (view.spark.points2 || []) : [];
-        const coords2 = second.map((v, i) => `${(95 - (second.length - 1 - i) * (95 / (SPARK_POINTS - 1))).toFixed(2)},${y(v)}`);
-        view.refs['spark-line2'].setAttribute('d', coords2.length ? `M${coords2.join(' L')}` : '');
-      }
-      view.refs['spark-fill'].setAttribute('d', coords.length ? `${line} L95,27 Z` : `${baseline} Z`);
-      const gappedPath = (reports) => {
+      const g = view.spark;
+      const r = view.refs;
+      const W = 100;
+      const H = g.dual ? 26 : 36;
+      const step = W / (SPARK_POINTS - 1);
+      const clamp = (v) => Math.max(0, Math.min(100, v));
+      const yv = (v) => (H - 1 - clamp(v) * (H - 4) / 100).toFixed(2);
+      // Right-align incoming samples: the trace rolls left as fresh data arrives.
+      const xAt = (n, i) => (W - (n - 1 - i) * step).toFixed(2);
+      const pts = (vals) => vals.map((v, i) => `${xAt(vals.length, i)},${yv(v)}`);
+      const valid = (v) => v !== null && v !== undefined && Number.isFinite(v);
+      const gapped = (vals) => {
         let path = '';
-        for (let i = 0; i < reports.length; i++) {
-          const val = reports[i];
-          if (val === null || !Number.isFinite(val)) continue;
-          const x = 95 - (reports.length - 1 - i) * (95 / (SPARK_POINTS - 1));
-          const previous = i > 0 ? reports[i - 1] : null;
-          path += `${previous === null || !Number.isFinite(previous) ? 'M' : ' L'}${x.toFixed(2)},${y(val)}`;
+        for (let i = 0; i < vals.length; i++) {
+          if (!valid(vals[i])) continue;
+          path += `${i > 0 && valid(vals[i - 1]) ? ' L' : 'M'}${xAt(vals.length, i)},${yv(vals[i])}`;
         }
         return path;
       };
-      const reports = view.spark.actualPoints || [];
-      if (view.refs['spark-actual']) view.refs['spark-actual'].setAttribute('d', gappedPath(reports));
-      if (view.refs['spark-actual2']) {
-        view.refs['spark-actual2'].setAttribute('d', view.spark.dual ? gappedPath(view.spark.actualPoints2 || []) : '');
+      const set = (role, attr, value) => { if (r[role]) r[role].setAttribute(attr, value); };
+      const text = (role, value) => { if (r[role] && r[role].textContent !== value) r[role].textContent = value; };
+      const lanes = [[1, g.points || [], g.actualPoints || []], [2, g.dual ? g.points2 || [] : [], g.dual ? g.actualPoints2 || [] : []]];
+      for (const [n, req, rep] of lanes) {
+        const svg = r[`lane${n}`]?.querySelector?.('svg');
+        if (svg) svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+        const line = pts(req);
+        set(`base${n}`, 'd', `M0,${H - 0.5} L${W},${H - 0.5}`);
+        set(`req${n}`, 'd', line.length ? `M${line[0].split(',')[0]},${H} L${line.join(' L')} L${W},${H} Z` : '');
+        set(`edge${n}`, 'd', line.length ? `M${line.join(' L')}` : '');
+        set(`rep${n}`, 'd', gapped(rep));
+        const lastReq = req.length ? req[req.length - 1] : 0;
+        const lastRep = rep.length ? rep[rep.length - 1] : null;
+        text(`vreq${n}`, `${Math.round(clamp(lastReq))}%`);
+        text(`vrep${n}`, valid(lastRep) ? `dev ${Math.round(clamp(lastRep))}%` : '');
       }
-      const latest = reports.length ? reports[reports.length - 1] : null;
-      view.refs['spark-dot'].setAttribute('cy', y(latest === null ? 0 : latest));
-      view.refs['spark-dot'].style.opacity = latest !== null && Number.isFinite(latest) ? '1' : '0';
+      if (r.lane2) r.lane2.hidden = !g.dual;
+      if (r.sparkline) r.sparkline.classList.toggle('dual', Boolean(g.dual));
+      const reported = (g.actualPoints || []).some(valid) || (g.dual && (g.actualPoints2 || []).some(valid));
+      if (r['spark-key']) r['spark-key'].hidden = !reported;
     }
 
     _openSettings(event) {
