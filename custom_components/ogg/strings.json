@@ -132,7 +132,13 @@
           "crest": "Crest",
           "chachacha": "Cha-cha-cha",
           "step": "Step",
-          "tempo": "Tempo"
+          "tempo": "Tempo",
+          "random": "Random",
+          "ping_pong": "Ping-pong (2 motors)",
+          "chase": "Chase (2 motors)",
+          "counter_wave": "Counter wave (2 motors)",
+          "tease_pulse": "Tease pulse (2 motors)",
+          "rumble_pulse": "Rumble pulse (2 motors)"
         }
       },
       "motor_mode": {

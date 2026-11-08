@@ -9,6 +9,7 @@ for the separate 8-bit and Chorus families.
 from __future__ import annotations
 
 import math
+import random
 
 SOFTWARE_PATTERNS: tuple[str, ...] = (
     "steady",
@@ -41,6 +42,18 @@ NATIVE_PATTERNS: dict[str, int] = {
     "tempo": 0x16,
     "heartbeat": 0x17,
 }
+
+# Patterns that only make sense with two motors; each motor gets its own curve.
+DUAL_PATTERNS: tuple[str, ...] = (
+    "ping_pong",     # motors take turns
+    "chase",         # one wave follows the other a quarter-cycle behind
+    "counter_wave",  # as one rises the other falls
+    "tease_pulse",   # one motor holds a low hum while the other pulses
+    "rumble_pulse",  # one slow swell, the other quick taps
+)
+
+# Intensity-driven random program (see RandomProgram).
+RANDOM_PATTERN = "random"
 
 MOTOR_MODES: tuple[str, ...] = ("together", "alternating", "motor_1", "motor_2")
 CLASSIC_MODELS: frozenset[str] = frozenset(
@@ -94,7 +107,11 @@ def sample(
     """
     if not isinstance(phase, (int, float)) or not math.isfinite(phase):
         raise ValueError("Pattern phase must be finite")
-    if pattern not in SOFTWARE_PATTERNS and pattern not in NATIVE_PATTERNS:
+    if (
+        pattern not in SOFTWARE_PATTERNS
+        and pattern not in NATIVE_PATTERNS
+        and pattern not in DUAL_PATTERNS
+    ):
         raise ValueError("Unknown pattern")
     if motor_mode == "alternate":
         motor_mode = "alternating"
@@ -107,6 +124,8 @@ def sample(
     if motor_mode == "motor_2" and motor_index != 1:
         return 0.0
     position = float(phase) % 1.0
+    if pattern in DUAL_PATTERNS:
+        return _dual(pattern, position, motor_index % 2)
     if motor_mode == "alternating":
         position = (position + (motor_index % 2) * 0.5) % 1.0
         if pattern == "steady":
@@ -180,3 +199,112 @@ def build_classic_packet(pattern: str, levels: list[float]) -> bytes:
 
     packed = (quantise(internal) << 4) | quantise(external)
     return bytes((0x0F, NATIVE_PATTERNS[pattern], 0, packed, 0, mask, 0, 0))
+
+
+def _dual(pattern: str, position: float, motor: int) -> float:
+    """Per-motor envelopes for the two-motor patterns (motor 0 or 1)."""
+    wave = (1 - math.cos(2 * math.pi * position)) / 2
+    if pattern == "ping_pong":
+        # Hard hand-over with a short overlap so it never feels dead.
+        first = position < 0.5 or position > 0.96
+        second = 0.46 < position < 1.0
+        value = 1.0 if (first if motor == 0 else second) else 0.0
+    elif pattern == "chase":
+        shifted = (position - 0.25 * motor) % 1.0
+        value = (1 - math.cos(2 * math.pi * shifted)) / 2
+    elif pattern == "counter_wave":
+        value = wave if motor == 0 else 1 - wave
+    elif pattern == "tease_pulse":
+        value = 0.4 if motor == 0 else (1.0 if (position * 2) % 1 < 0.35 else 0.0)
+    else:  # rumble_pulse
+        value = wave if motor == 0 else (1.0 if (position * 4) % 1 < 0.3 else 0.0)
+    return min(1.0, max(0.0, float(value)))
+
+
+class RandomProgram:
+    """Random bursts whose frequency follows the intensity setting.
+
+    ``intensity`` (0..1) sets the share of time spent running: roughly
+    intensity squared, so 100% runs almost continuously (with brief silent
+    gaps for suspense), 50% about a quarter of the time and 10% only about
+    1% of the time. Each burst picks a random pattern or step sequence,
+    random speed, cycle time and length; two-motor devices also get the
+    dual-motor patterns. Speeds are absolute (not scaled by intensity).
+    """
+
+    BURST_SECONDS = (3.0, 25.0)
+    MAX_REST_SECONDS = 3600.0
+    MAX_FIRST_REST_SECONDS = 300.0
+
+    def __init__(self, rng: random.Random | None = None) -> None:
+        self._rng = rng or random.Random()
+        self._segment: dict | None = None
+        self._end = 0.0
+        self._started = False
+
+    @staticmethod
+    def duty(intensity: float) -> float:
+        intensity = min(1.0, max(0.0, float(intensity)))
+        return min(0.96, intensity**2)
+
+    def levels(self, now: float, intensity: float, motors: int) -> list[float]:
+        motors = max(1, int(motors))
+        if self._segment is None or now >= self._end:
+            self._next(now, intensity, motors)
+        segment = self._segment
+        assert segment is not None
+        if segment["kind"] == "rest":
+            return [0.0] * motors
+        elapsed = now - segment["start"]
+        if segment["kind"] == "steps":
+            step = int(elapsed / segment["step_seconds"])
+            value = segment["values"][step % len(segment["values"])]
+            return [value] * motors
+        phase = elapsed / segment["period"]
+        return [
+            segment["level"] * sample(segment["pattern"], phase, index, segment["mode"])
+            for index in range(motors)
+        ]
+
+    def _next(self, now: float, intensity: float, motors: int) -> None:
+        rng = self._rng
+        duty = self.duty(intensity)
+        burst_mean = sum(self.BURST_SECONDS) / 2
+        resting = self._segment is not None and self._segment["kind"] == "rest"
+        if duty <= 0.0:
+            self._segment, self._end = {"kind": "rest", "start": now}, now + 60.0
+            return
+        if not resting:
+            # Rest after a burst (and before the very first one).
+            rest_mean = burst_mean * (1 - duty) / duty
+            length = rng.expovariate(1 / rest_mean) if rest_mean > 0 else 0.0
+            cap = self.MAX_FIRST_REST_SECONDS if not self._started else self.MAX_REST_SECONDS
+            length = min(cap, max(0.4, length))
+            self._started = True
+            self._segment, self._end = {"kind": "rest", "start": now}, now + length
+            return
+        length = rng.uniform(*self.BURST_SECONDS)
+        if rng.random() < 0.3:
+            values = [
+                0.0 if rng.random() < 0.2 else round(rng.uniform(0.25, 1.0), 2)
+                for _ in range(rng.randint(3, 8))
+            ]
+            if not any(values):
+                values[0] = 0.6
+            self._segment = {
+                "kind": "steps", "start": now, "values": values,
+                "step_seconds": rng.uniform(0.4, 2.5),
+            }
+        else:
+            choices = [p for p in SOFTWARE_PATTERNS if p != "steady"]
+            if motors > 1:
+                choices += list(DUAL_PATTERNS)
+            pattern = rng.choice(choices)
+            mode = "together"
+            if motors > 1 and pattern not in DUAL_PATTERNS:
+                mode = rng.choice(MOTOR_MODES)
+            self._segment = {
+                "kind": "pattern", "start": now, "pattern": pattern, "mode": mode,
+                "level": rng.uniform(0.3, 1.0), "period": rng.uniform(0.6, 6.0),
+            }
+        self._end = now + length

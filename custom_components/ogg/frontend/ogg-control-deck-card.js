@@ -34,9 +34,13 @@
       case 'tease': return position < 0.8 ? position * 1.25 : 0;
       case 'chachacha': return position < 0.14 || (position >= 0.25 && position < 0.39) || (position >= 0.5 && position < 0.64) ? 1 : 0;
       case 'tempo': return (position * 3) % 1 < 0.5 ? 1 : 0;
+      case 'ping_pong': return position < 0.5 || position > 0.96 ? 1 : 0;
+      case 'chase': case 'counter_wave': case 'rumble_pulse': return wave;
+      case 'tease_pulse': return 0.4;
       default: return 1; // Unknown pattern: show its intensity setpoint, not invented movement.
     }
   };
+  const MOTOR_LABELS = { together: 'Together', alternating: 'Alternating', motor_1: 'Motor 1 only', motor_2: 'Motor 2 only' };
   const INTENSITY_OPTIONS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
   const fmtPercent = (v) => `${Number(v)}%`;
   const PULSE_OPTIONS = [0.5, 1, 2, 3, 5, 10, 15, 30, 60];
@@ -95,7 +99,7 @@
     .master .search-link{grid-column:2;grid-row:1/3}
     .master .settings-link:not(.search-link){grid-column:3;grid-row:1/3}
     .master .toggle{grid-column:4;grid-row:1/3}
-    .search-link[hidden]{display:none}
+    .search-link[hidden],.control-group[hidden]{display:none}
     .search-link{cursor:pointer;padding:0;font:inherit}
     .search-link:disabled{opacity:.55;cursor:default}
     .search-link.busy svg{animation:ogg-spin 1.4s linear infinite}
@@ -284,7 +288,7 @@
           <div class="section-head"><h3>Connected devices</h3><span id="list-subtitle">Live from Ogg</span></div>
           <div id="devices" class="device-list"></div>
           <div id="empty" class="empty">${icon('nodes')}<strong id="empty-title">No connected devices</strong><p id="empty-detail">Devices appear here when Ogg connects to them.</p></div>
-          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v0.1.16</span></div>
+          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v0.1.17</span></div>
         </div>`;
       this.shadowRoot.appendChild(root);
       this._shell = root;
@@ -373,7 +377,7 @@
       const entityList = this._registryEntities || [];
       const knownKeys = {
         connected: ':connected', run: ':run', pulse: ':pulse', stop: ':stop',
-        pattern: ':pattern', period: ':period', intensity: ':intensity', commands: ':connect_this_device',
+        pattern: ':pattern', motor_mode: ':motor_mode', period: ':period', intensity: ':intensity', commands: ':connect_this_device',
         status: ':status', battery: ':battery', remaining: ':remaining',
       };
       const hubKeys = {
@@ -537,7 +541,7 @@
       const on = state?.state === 'on';
       node.textContent = !VALID(state) ? 'Unavailable' : on ? onText : 'Off';
       node.classList.toggle('on', on && (onText === 'Connected' || onText === 'Searching…'));
-      node.classList.toggle('pending', on && onText !== 'Connected' && onText !== 'Searching…');
+      node.classList.toggle('pending', on && (onText === 'Waiting for engine' || onText === 'Looking for server'));
     }
 
     _fillOptions(select, choices, value, formatter, placeholder) {
@@ -602,11 +606,12 @@
         </div>
         <div class="config-grid">
           <div class="control-group pattern-setting"><label>Pattern</label><div class="select-shell"><select data-role="pattern" aria-label="Device pattern"></select>${icon('chevron')}</div></div>
-          <div class="control-group"><label>Cycle time</label><div class="select-shell"><select data-role="cycle" aria-label="Pattern cycle time"></select>${icon('chevron')}</div></div>
-          <div class="control-group"><label>Intensity</label><div class="select-shell"><select data-role="intensity" aria-label="Device intensity"></select>${icon('chevron')}</div></div>
+          <div class="control-group motors-setting" data-role="motors-group" hidden><label>Motors</label><div class="select-shell"><select data-role="motors" aria-label="Motor mode"></select>${icon('chevron')}</div></div>
+          <div class="control-group" data-role="cycle-group"><label>Cycle time</label><div class="select-shell"><select data-role="cycle" aria-label="Pattern cycle time"></select>${icon('chevron')}</div></div>
+          <div class="control-group"><label data-role="intensity-label">Intensity</label><div class="select-shell"><select data-role="intensity" aria-label="Device intensity"></select>${icon('chevron')}</div></div>
         </div>`;
       const refs = {};
-      for (const part of ['name','caption','sparkline','spark-fill','spark-line','spark-actual','spark-dot','permission','permission-text','run','pulse','stop','pattern','cycle','intensity']) refs[part] = el.querySelector(`[data-role="${part}"]`);
+      for (const part of ['name','caption','sparkline','spark-fill','spark-line','spark-actual','spark-dot','permission','permission-text','run','pulse','stop','pattern','cycle','intensity','motors','motors-group','cycle-group','intensity-label']) refs[part] = el.querySelector(`[data-role="${part}"]`);
       const view = { root: el, refs, device, spark: { points: [], actualPoints: [], active: false, startedAt: 0, pattern: 'steady', period: 2, intensity: 0, reportedEntity: null, reportedLevel: null } };
       this._paintSpark(view);
       refs.permission.addEventListener('click', () => this._togglePermission(view.device));
@@ -615,6 +620,7 @@
       refs.stop.addEventListener('click', () => this._press(view.device.stop));
       refs.pattern.addEventListener('change', (event) => this._select(view.device.pattern, event.target.value));
       refs.cycle.addEventListener('change', (event) => this._setNumber(view.device.period, event.target.value));
+      refs.motors.addEventListener('change', (event) => this._select(view.device.motor_mode, event.target.value));
       refs.intensity.addEventListener('change', (event) => this._setNumber(view.device.intensity, event.target.value));
       return view;
     }
@@ -690,6 +696,28 @@
       if (this.shadowRoot.activeElement !== patternSelect) patternSelect.value = pattern?.state || '';
       patternSelect.disabled = !VALID(pattern) || !options.length;
       patternSelect.setAttribute('aria-label', `${name} pattern`);
+      const motorMode = this._state(device.motor_mode);
+      const motorOptions = Array.isArray(motorMode?.attributes?.options) ? motorMode.attributes.options : [];
+      r['motors-group'].hidden = !device.motor_mode || motorOptions.length < 2;
+      if (!r['motors-group'].hidden) {
+        const key = JSON.stringify(motorOptions);
+        if (r.motors.dataset.key !== key) {
+          r.motors.replaceChildren(...motorOptions.map((opt) => {
+            const option = document.createElement('option');
+            option.value = String(opt);
+            option.textContent = MOTOR_LABELS[opt] || pretty(opt);
+            return option;
+          }));
+          r.motors.dataset.key = key;
+        }
+        if (this.shadowRoot.activeElement !== r.motors) r.motors.value = motorMode?.state || '';
+        r.motors.disabled = !VALID(motorMode) || String(pattern?.state || '') === 'random';
+        r.motors.setAttribute('aria-label', `${name} motor mode`);
+      }
+      const randomMode = String(pattern?.state || '') === 'random';
+      r['cycle-group'].hidden = randomMode;
+      r['intensity-label'].textContent = randomMode ? 'How often' : 'Intensity';
+      r.intensity.title = randomMode ? 'Random mode: higher runs more often (100% almost continuously, 10% very rarely)' : '';
       const period = this._state(device.period);
       this._fillOptions(r.cycle, CYCLE_OPTIONS, Number(period?.state), fmtSecs, `${name} cycle time`);
       r.cycle.disabled = !VALID(period);
