@@ -74,6 +74,10 @@ HOLD_MAX_SECONDS = 3.0
 # A search (StartScanning) stops by itself after this long.
 SEARCH_TIMEOUT_SECONDS = 300.0
 OWNERS = ("unassigned", "his", "hers")
+# Automatic, short IntiHA-only search: when Ogg connects and when a device
+# that was connected has been offline for this long.
+AUTO_SEARCH_SECONDS = 45.0
+AUTO_SEARCH_OFFLINE_SECONDS = 30.0
 
 
 @dataclass
@@ -131,6 +135,9 @@ class OggHub:
         self._run_timeouts: dict[str, asyncio.Timeout] = {}
         self.search_requested = False
         self._search_started = 0.0
+        self._auto_search_until = 0.0
+        self._offline_since: dict[str, float] = {}
+        self._offline_searched: set[str] = set()
         self._locks: dict[str, asyncio.Lock] = {}
         self._listeners: set[Callable[[], None]] = set()
         self._event_tasks: set[asyncio.Task] = set()
@@ -278,6 +285,33 @@ class OggHub:
         """Start a device search, while respecting the master switch."""
         await self.async_set_search(True)
 
+    @staticmethod
+    def _is_intiha(client: Any) -> bool:
+        name = str(getattr(client, "server_info", {}).get("ServerName", ""))
+        return name.strip().lower().startswith("intiha")
+
+    async def _auto_search(self, client: Any, reason: str) -> None:
+        """Short search on the local IntiHA server only (never the phone).
+
+        A search makes IntiHA retry its known devices immediately. It ends by
+        itself after AUTO_SEARCH_SECONDS unless the user's Search is on.
+        """
+        if self.search_requested or self._auto_search_until or not client.connected:
+            return
+        try:
+            if isinstance(client, MultiServerConnection):
+                if not await client.start_scanning_on(0):
+                    return
+            elif self._is_intiha(client):
+                await client.start_scanning()
+            else:
+                return
+        except (CommandError, ProtocolError):
+            return
+        _LOGGER.debug("Ogg started an automatic IntiHA search (%s)", reason)
+        self._auto_search_until = time.monotonic() + AUTO_SEARCH_SECONDS
+        self.hass.loop.call_later(AUTO_SEARCH_SECONDS + 0.5, self._wake.set)
+
     async def async_set_search(self, on: bool) -> None:
         """Toggle a device search on the connected server."""
         if on and not self.enabled:
@@ -367,6 +401,7 @@ class OggHub:
                     self._last_battery_poll = 0
                     self._addresses = {}
                     self._address_client = None
+                    self._auto_search_until = 0.0
                     self._reconcile_devices(client)
                     await self._refresh_addresses(client)
                     try:
@@ -380,6 +415,7 @@ class OggHub:
                         if not client.connected:
                             raise ProtocolError("Recovery stop was not acknowledged")
                         self._ready = True
+                        await self._auto_search(client, "connected")
                         self.status = "connected"
                         self._save_later()
                         self._notify()
@@ -495,6 +531,22 @@ class OggHub:
                 )
                 if current is not None and current.url != self._candidate.url:
                     return
+            now = time.monotonic()
+            overdue = [
+                key for key, since in self._offline_since.items()
+                if now - since >= AUTO_SEARCH_OFFLINE_SECONDS and key not in self._offline_searched
+            ]
+            if overdue:
+                self._offline_searched.update(overdue)
+                await self._auto_search(client, "device offline")
+            if self._auto_search_until and now >= self._auto_search_until:
+                self._auto_search_until = 0.0
+                if not self.search_requested:
+                    with suppress(CommandError, ProtocolError):
+                        if isinstance(client, MultiServerConnection):
+                            await client.stop_scanning_on(0)
+                        else:
+                            await client.stop_scanning()
             if (
                 self.search_requested
                 and time.monotonic() - self._search_started > SEARCH_TIMEOUT_SECONDS
@@ -618,6 +670,8 @@ class OggHub:
                 changed = True
             device.update_binding(source, raw)
             device.connected = True
+            self._offline_since.pop(key, None)
+            self._offline_searched.discard(key)
             if not device.battery_supported:
                 device.battery = None
             if newly_connected and self._ready:
@@ -626,6 +680,9 @@ class OggHub:
                 self._spawn_event(self._recover_native_outputs(client, [(key, device.generation)]))
         for key, device in tuple(self.devices.items()):
             if key not in current_keys and device.connected:
+                self._offline_since[key] = time.monotonic()
+                self._offline_searched.discard(key)
+                self.hass.loop.call_later(AUTO_SEARCH_OFFLINE_SECONDS + 0.5, self._wake.set)
                 self._cancel_stop_backups(key)
                 self._mark_intention_lost(key)
                 device.connected = False

@@ -155,3 +155,19 @@ def test_slots_follow_server_identity_not_address_order():
         await multi.close()
 
     asyncio.run(run())
+
+
+def test_automatic_search_scans_only_the_intiha_server():
+    async def run():
+        urls = ["ws://phone:12345/", "ws://ha:12345/"]
+        multi, _ = _setup(urls, {u: True for u in urls})
+        await multi.connect_any()
+        assert await multi.start_scanning_on(0)
+        ha = next(s for s in FakeServer.instances if s.url == "ws://ha:12345/")
+        phone = next(s for s in FakeServer.instances if s.url == "ws://phone:12345/")
+        assert ("scan",) in ha.sent and ("scan",) not in phone.sent
+        await multi.stop_scanning_on(0)
+        assert ("unscan",) in ha.sent
+        await multi.close()
+
+    asyncio.run(run())

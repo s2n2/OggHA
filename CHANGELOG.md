@@ -1,3 +1,8 @@
+## 1.1.0b3 - Auto search, tidier blocked devices (beta)
+- **Automatic IntiHA search:** when Ogg connects, and when a device that was connected has been offline for 30 seconds, Ogg starts a short search (45 s) on the local IntiHA server only, never on the phone. IntiHA then retries its known devices immediately. The user Search toggle is unchanged.
+- **Blocked devices** show only their name, status and chips on the card; tap Blocked to allow the device and bring its controls back.
+- **Pulse duration** gains a 7 s option on the card.
+
 ## 1.1.0b2 - Two servers at once (beta)
 - Servers are now told apart by the name they report when connecting: the local **IntiHA** server always takes the "house" slot and any other server (for example your phone's Intiface app) the second slot, whatever order the addresses are listed in. The same phone reachable at two addresses (VPN and Wi-Fi) is only connected once.
 
