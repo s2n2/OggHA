@@ -10,11 +10,12 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import CONNECT_FEEDBACK_OPTIONS, OggHub
 from .entity import OggEntity, async_register_device_entities
-from .patterns import NATIVE_PATTERNS, SOFTWARE_PATTERNS
+from .patterns import DUAL_PATTERNS, NATIVE_PATTERNS, RANDOM_PATTERN, SOFTWARE_PATTERNS
 
 PARALLEL_UPDATES = 0
 
-PATTERN_OPTIONS = list(dict.fromkeys([*SOFTWARE_PATTERNS, *NATIVE_PATTERNS]))
+PATTERN_OPTIONS = list(dict.fromkeys([*SOFTWARE_PATTERNS, *NATIVE_PATTERNS, RANDOM_PATTERN]))
+DUAL_PATTERN_OPTIONS = [*PATTERN_OPTIONS, *DUAL_PATTERNS]
 MOTOR_OPTIONS = ["together", "alternating", "motor_1", "motor_2"]
 
 
@@ -51,7 +52,8 @@ def _device_selects(hub: OggHub, key: str) -> list[OggSelect]:
     device = hub.devices[key]
     if not device.motor_count:
         return []
-    entities = [OggSelect(hub, key, "pattern", PATTERN_OPTIONS)]
+    options = DUAL_PATTERN_OPTIONS if device.motor_count > 1 else PATTERN_OPTIONS
+    entities = [OggSelect(hub, key, "pattern", options)]
     if device.motor_count > 1:
         entities.append(OggSelect(hub, key, "motor_mode", MOTOR_OPTIONS))
     if device.native_available:

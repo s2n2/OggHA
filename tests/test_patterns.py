@@ -73,3 +73,31 @@ def test_classic_gate_requires_exact_model_and_feature_resolution():
     assert is_classic_candidate("WeVibe Jive", [15])
     assert not is_classic_candidate("WeVibe Nova", [255, 255])
     assert not is_classic_candidate("WeVibe Nova", [])
+
+
+def test_dual_patterns_drive_each_motor_differently():
+    from custom_components.ogg.patterns import DUAL_PATTERNS, sample
+
+    for pattern in DUAL_PATTERNS:
+        curves = [[sample(pattern, step / 16, motor) for step in range(16)] for motor in (0, 1)]
+        assert curves[0] != curves[1], pattern
+        assert all(0 <= v <= 1 for curve in curves for v in curve)
+
+
+def test_random_program_frequency_follows_intensity():
+    import random
+
+    from custom_components.ogg.patterns import RandomProgram
+
+    def running_share(intensity: float) -> float:
+        program, on, total, now = RandomProgram(random.Random(7)), 0, 0, 0.0
+        while now < 24 * 3600:
+            on += any(program.levels(now, intensity, 2))
+            total += 1
+            now += 0.5
+        return on / total
+
+    assert running_share(0.0) == 0
+    assert running_share(0.1) < 0.03
+    assert 0.1 < running_share(0.5) < 0.35
+    assert running_share(1.0) > 0.6

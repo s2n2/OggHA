@@ -30,11 +30,20 @@ from .endpoints import Candidate, resolve_candidates, validate_config
 from .identity import load_devices, match_device, new_device_key
 from .migration import async_migrate_device_registry
 from .models import OggDevice, physical_address, useful_label
-from .patterns import MOTOR_MODES, NATIVE_PATTERNS, SOFTWARE_PATTERNS, build_classic_packet, sample
+from .patterns import (
+    DUAL_PATTERNS,
+    MOTOR_MODES,
+    NATIVE_PATTERNS,
+    RANDOM_PATTERN,
+    SOFTWARE_PATTERNS,
+    RandomProgram,
+    build_classic_packet,
+    sample,
+)
 from .protocol import ButtplugConnection, CommandError, ProtocolError
 
 _LOGGER = logging.getLogger(__name__)
-_PATTERNS = set(SOFTWARE_PATTERNS) | set(NATIVE_PATTERNS)
+_PATTERNS = set(SOFTWARE_PATTERNS) | set(NATIVE_PATTERNS) | set(DUAL_PATTERNS) | {RANDOM_PATTERN}
 RECONNECT_GRACE_SECONDS = 30.0
 # After a completed pulse, repeat STOP even when the server acknowledged it:
 # a queued intensity update or a device-specific BLE write may arrive late.
@@ -97,6 +106,7 @@ class OggHub:
         self._stop_backups: dict[str, asyncio.Task] = {}
         self._command_serials: dict[str, int] = {}
         self._desired_outputs: dict[str, DesiredOutput] = {}
+        self._random_programs: dict[str, RandomProgram] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._listeners: set[Callable[[], None]] = set()
         self._event_tasks: set[asyncio.Task] = set()
@@ -1046,6 +1056,7 @@ class OggHub:
                 command_serial=self._command_serials.get(key, 0),
             )
             self._desired_outputs[key] = intent
+            self._random_programs.pop(key, None)
             device.running = True
             device.mode = intent.mode
             device.remaining = self.pulse_duration if pulse else None
@@ -1320,13 +1331,21 @@ class OggHub:
         scalars: list[dict[str, Any]] = []
         levels = []
         phase = elapsed / settings["period"]
+        random_levels: list[float] | None = None
+        if pattern == RANDOM_PATTERN:
+            # Intensity sets how often it runs; burst speeds are random.
+            program = self._random_programs.setdefault(device.key, RandomProgram())
+            random_levels = program.levels(time.monotonic(), intensity, device.motor_count)
         for ordinal, (index, feature) in enumerate(device.vibration_features):
-            value = (
-                intensity
-                * settings["motor_levels"][ordinal]
-                / 100
-                * sample(pattern, phase, ordinal, mode)
-            )
+            if random_levels is not None:
+                value = random_levels[ordinal] * settings["motor_levels"][ordinal] / 100
+            else:
+                value = (
+                    intensity
+                    * settings["motor_levels"][ordinal]
+                    / 100
+                    * sample(pattern, phase, ordinal, mode)
+                )
             steps = feature.get("StepCount", 100)
             steps = steps if isinstance(steps, int) and steps > 0 else 100
             value = math.floor(value * steps + 0.5) / steps
@@ -1349,6 +1368,9 @@ class OggHub:
         elif setting == "pattern":
             if value not in _PATTERNS:
                 raise HomeAssistantError("Unknown pattern")
+            if value in DUAL_PATTERNS and device.motor_count < 2:
+                raise HomeAssistantError("This pattern needs a device with two motors")
+            self._random_programs.pop(key, None)
         elif setting == "motor_mode":
             if value not in MOTOR_MODES or (value != "together" and device.motor_count < 2):
                 raise HomeAssistantError("This motor mode is not supported by the device")
@@ -1441,7 +1463,11 @@ class OggHub:
     @staticmethod
     def _sanitise_settings(device: OggDevice) -> None:
         settings = device.settings
-        if not isinstance(settings.get("pattern"), str) or settings["pattern"] not in _PATTERNS:
+        if (
+            not isinstance(settings.get("pattern"), str)
+            or settings["pattern"] not in _PATTERNS
+            or (settings["pattern"] in DUAL_PATTERNS and device.motor_count < 2)
+        ):
             settings["pattern"] = "steady"
         if (
             not isinstance(settings.get("motor_mode"), str)

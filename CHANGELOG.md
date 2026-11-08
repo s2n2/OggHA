@@ -1,3 +1,8 @@
+## 0.1.17 - Two-motor patterns, Random mode
+- **Two-motor patterns** (shown only for two-motor devices such as Sync 2): Ping-pong, Chase, Counter wave, Tease pulse and Rumble pulse, each driving the two motors differently.
+- **Random mode** for every device: intensity sets how often it runs (about intensity squared: 100% almost continuously with brief silent gaps, 50% about a quarter of the time, 10% about 1%). Each burst has a random pattern or step sequence (including silent steps), speed, cycle time and length; two-motor devices also get random motor combinations.
+- **Card:** a **Motors** selector (Together / Alternating / Motor 1 only / Motor 2 only) appears for two-motor devices. In Random mode the card shows **How often** instead of Intensity and hides Cycle time. Status colour fix for the server tiles.
+
 ## 0.1.16 - Compact server tiles
 - HA Server and Ogg tiles are a single compact row (about half the previous height).
 - Status reads **Connected** when Ogg is connected to a server (otherwise "Looking for server"), and for IntiHA when its engine is connected ("Searching…" while a scan runs, "Waiting for engine" otherwise).
