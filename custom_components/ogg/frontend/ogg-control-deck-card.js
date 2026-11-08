@@ -360,7 +360,7 @@
           <div class="section-head"><h3>Connected devices</h3><div class="head-right"><div class="filter-chips" role="group" aria-label="Show devices"><button data-filter="all" type="button">All</button><button data-filter="his" type="button">His</button><button data-filter="hers" type="button">Hers</button></div><span id="list-subtitle">Live from Ogg</span></div></div>
           <div id="devices" class="device-list"></div>
           <div id="empty" class="empty">${icon('nodes')}<strong id="empty-title">No connected devices</strong><p id="empty-detail">Devices appear here when Ogg connects to them.</p></div>
-          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v2.0.0</span></div>
+          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v2.1.1</span></div>
         </div>`;
       this.shadowRoot.appendChild(root);
       this._shell = root;

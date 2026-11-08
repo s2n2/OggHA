@@ -7,6 +7,6 @@ def test_compact_master_layout_preserved():
     assert "grid-template-columns:repeat(2,minmax(0,1fr))" in source
     assert "master-bottom" in source
     assert "master-label" in source
-    assert 'card v2.0.0' in source
+    assert 'card v2.1.1' in source
     assert 'id="server"' in source and 'id="ogg"' in source
     assert "server-settings" in source and "ogg-settings" in source
