@@ -1,3 +1,6 @@
+## 2.1.1 - Pulse option
+- The card's 7 s pulse duration option is now 6 s.
+
 ## 2.1.0 - Script playback API (for OggStudio)
 - New `ogg.play_script` service plays a funscript timeline (`pos` 0-100 as intensity) on a device, with speed (0.25-4x) and loop; a second motor can be given as `channels.V1`. A one-channel script drives every motor. Playback runs inside Ogg's own frame loop for accurate timing and ends with a stop.
 - New `ogg.live` service sets live motor levels (sliders) and stops by itself shortly after the last call, like Hold.
