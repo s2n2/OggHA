@@ -1,3 +1,7 @@
+## 2.2.0 - Chart shows actual output
+- In **Random** mode, during **OggStudio** script playback and with OggStudio's live pads, the card's chart now plots the levels Ogg actually sends (both lines on two-motor devices) instead of the pattern's theoretical shape.
+- Each device's Status sensor carries the current `output` levels and `output_source` while running; these attributes are excluded from history so the database is not filled.
+
 ## 2.1.1 - Pulse option
 - The card's 7 s pulse duration option is now 6 s.
 

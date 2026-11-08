@@ -1311,6 +1311,8 @@ class OggHub:
         device.running = False
         device.mode = "idle"
         device.remaining = None
+        device.output_levels = []
+        device.output_source = "idle"
         for key in device.aux_values:
             if key.startswith("rotate_"):
                 device.aux_values[key] = 0.0
@@ -1440,7 +1442,8 @@ class OggHub:
                     now = time.monotonic()
                     deadline = intent.deadline
                     device.remaining = max(0.0, deadline - now) if deadline is not None else None
-                    if now - last_notified >= 0.5:
+                    follow = device.output_source in ("random", "script", "live")
+                    if now - last_notified >= (0.25 if follow else 0.5):
                         self._notify()
                         last_notified = now
                     await asyncio.sleep(device.message_interval)
@@ -1592,6 +1595,13 @@ class OggHub:
             levels.append(value)
             scalars.append({"Index": index, "Scalar": value, "ActuatorType": "Vibrate"})
         frame = ("software", *levels)
+        device.output_levels = list(levels)
+        device.output_source = (
+            "live" if intent is not None and intent.live is not None
+            else "script" if intent is not None and intent.script is not None
+            else "random" if pattern == RANDOM_PATTERN
+            else "pattern"
+        )
         if frame != last_frame:
             if not any(levels):
                 await client.stop_device(device.index)

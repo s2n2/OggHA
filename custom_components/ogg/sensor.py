@@ -119,8 +119,17 @@ class OggDeviceSensor(OggEntity, SensorEntity):
             return round(max(0.0, self.device.remaining or 0.0), 1)
         return self.device.battery
 
+    # Live output changes several times a second: keep it out of history.
+    _unrecorded_attributes = frozenset({"output", "output_source"})
+
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        if self.kind == "status" and self.device.last_error:
-            return {"last_error": self.device.last_error}
-        return None
+        if self.kind != "status":
+            return None
+        attrs: dict[str, Any] = {}
+        if self.device.last_error:
+            attrs["last_error"] = self.device.last_error
+        if self.device.running and self.device.output_levels:
+            attrs["output"] = [round(level * 100) for level in self.device.output_levels]
+            attrs["output_source"] = self.device.output_source
+        return attrs or None
