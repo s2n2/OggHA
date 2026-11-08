@@ -41,7 +41,7 @@ assert.equal(card._nameKey('We-Vibe'), '');
 // Report absent: bright line is blank; target graph continues.
 let paths={};
 const el=(k)=>({setAttribute:(a,v)=>{paths[k+':'+a]=v},style:{opacity:''}});
-const view={spark:{points:[0,20,30,60],actualPoints:[null,20,null,60],active:true},refs:{'spark-line':el('target'),'spark-fill':el('fill'),'spark-actual':el('actual'),'spark-dot':el('dot')}};
+const view={spark:{points:[0,20,30,60],actualPoints:[null,20,null,60],active:true},refs:{edge1:el('target'),req1:el('fill'),rep1:el('actual')}};
 card._paintSpark(view);
 assert.match(paths['target:d'],/^M/);
 assert.match(paths['actual:d'],/^M/);
@@ -52,5 +52,11 @@ assert.equal(paths['actual:d'],'');
 // Final zero must remain a genuine zero, not be mistaken for missing feedback.
 view.spark.actualPoints=[50,50,25,0];
 card._paintSpark(view);
-assert.match(paths['actual:d'],/27\.00$/);
+assert.match(paths['actual:d'],/35\.00$/);
+// Two motors: second lane gets its own requested area and reported line.
+view.spark={points:[10,20],points2:[30,40],actualPoints:[10,20],actualPoints2:[null,40],dual:true};
+view.refs.req2=el('fill2');view.refs.rep2=el('actual2');
+card._paintSpark(view);
+assert.match(paths['fill2:d'],/L100,26 Z$/);
+assert.equal((paths['actual2:d'].match(/M/g)||[]).length,1);
 console.log('Dual-wave frontend tests passed: matching, alias override, ambiguity, telemetry gaps, zero.');
