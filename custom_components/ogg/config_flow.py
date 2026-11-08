@@ -35,6 +35,9 @@ def _schema(values: Mapping[str, Any] | None = None) -> vol.Schema:
             ),
             vol.Required("ssl", default=data.get("ssl", False)): selector.BooleanSelector(),
             vol.Required(
+                "multi_server", default=data.get("multi_server", False)
+            ): selector.BooleanSelector(),
+            vol.Required(
                 "scan_interval", default=data.get("scan_interval", 15)
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
