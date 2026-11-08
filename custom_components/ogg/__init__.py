@@ -26,6 +26,24 @@ HOLD_SCHEMA = vol.Schema(
         vol.Optional("seconds", default=1.0): vol.All(vol.Coerce(float), vol.Range(min=0.3, max=3.0)),
     }
 )
+LIVE_SCHEMA = vol.Schema(
+    {
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Required("levels"): vol.All(
+            [vol.All(vol.Coerce(float), vol.Range(min=0, max=1))], vol.Length(min=1, max=2)
+        ),
+        vol.Optional("seconds", default=1.0): vol.All(vol.Coerce(float), vol.Range(min=0.3, max=3.0)),
+    }
+)
+PLAY_SCHEMA = vol.Schema(
+    {
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Required("script"): dict,
+        vol.Optional("speed", default=1.0): vol.All(vol.Coerce(float), vol.Range(min=0.25, max=4.0)),
+        vol.Optional("loop", default=False): cv.boolean,
+    }
+)
+STOP_SCHEMA = vol.Schema({vol.Required("entity_id"): cv.entity_id})
 from .dashboard_resource import async_register_control_deck
 
 type OggConfigEntry = ConfigEntry[OggHub]
@@ -57,6 +75,34 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         await hub.async_hold(key, call.data["seconds"], motors)
 
     hass.services.async_register(DOMAIN, "hold", async_hold, schema=HOLD_SCHEMA)
+
+    def _hub_and_key(entity_id: str) -> tuple[OggHub, str]:
+        registry = er.async_get(hass)
+        entry = registry.async_get(entity_id)
+        if entry is None or entry.platform != DOMAIN or entry.config_entry_id is None:
+            raise HomeAssistantError("Choose an Ogg device entity")
+        config_entry = hass.config_entries.async_get_entry(entry.config_entry_id)
+        hub = getattr(config_entry, "runtime_data", None)
+        parts = str(entry.unique_id).split(":")
+        if not isinstance(hub, OggHub) or len(parts) < 3:
+            raise HomeAssistantError("Choose an Ogg device entity")
+        return hub, parts[1]
+
+    async def async_live(call: ServiceCall) -> None:
+        hub, key = _hub_and_key(call.data["entity_id"])
+        await hub.async_live(key, call.data["levels"], call.data["seconds"])
+
+    async def async_play_script(call: ServiceCall) -> None:
+        hub, key = _hub_and_key(call.data["entity_id"])
+        await hub.async_play_script(key, call.data["script"], call.data["speed"], call.data["loop"])
+
+    async def async_stop_script(call: ServiceCall) -> None:
+        hub, key = _hub_and_key(call.data["entity_id"])
+        await hub.async_stop(key)
+
+    hass.services.async_register(DOMAIN, "live", async_live, schema=LIVE_SCHEMA)
+    hass.services.async_register(DOMAIN, "play_script", async_play_script, schema=PLAY_SCHEMA)
+    hass.services.async_register(DOMAIN, "stop_script", async_stop_script, schema=STOP_SCHEMA)
     return True
 
 

@@ -102,3 +102,36 @@ def test_random_program_frequency_follows_intensity():
     assert running_share(0.1) < 0.03
     assert 0.1 < running_share(0.5) < 0.35
     assert running_share(1.0) > 0.6
+
+
+def test_funscript_parsing_and_playback():
+    from custom_components.ogg.patterns import ScriptProgram, parse_script
+
+    script = {
+        "version": "1.0", "inverted": False, "range": 100,
+        "actions": [{"at": 0, "pos": 0}, {"at": 1000, "pos": 100}, {"at": 2000, "pos": 0}],
+        "channels": {"V1": {"actions": [{"at": 0, "pos": 50}, {"at": 2000, "pos": 50}]}},
+    }
+    channels = parse_script(script)
+    assert len(channels) == 2 and channels[0][1] == (1000, 1.0)
+    program = ScriptProgram(channels, speed=1.0)
+    assert program.levels(10.0, 2) == [0.0, 0.5]
+    assert abs(program.levels(10.5, 2)[0] - 0.5) < 1e-9
+    assert program.levels(11.0, 2)[0] == 1.0
+    assert not program.finished(11.9) and program.finished(12.1)
+    fast = ScriptProgram(channels, speed=2.0)
+    fast.levels(0.0, 1)
+    assert fast.levels(0.5, 1)[0] == 1.0 and fast.finished(1.1)
+    looped = ScriptProgram(channels, loop=True)
+    looped.levels(0.0, 1)
+    assert abs(looped.levels(2.5, 1)[0] - 0.5) < 1e-9 and not looped.finished(99)
+    # one-channel scripts drive both motors; inverted flips; junk is rejected
+    single = ScriptProgram(parse_script({"actions": [{"at": 0, "pos": 30}]}))
+    assert single.levels(0.0, 2) == [0.3, 0.3]
+    assert parse_script({"inverted": True, "actions": [{"at": 0, "pos": 20}]})[0][0][1] == 0.8
+    for bad in ({}, {"actions": "x"}, {"actions": [{"at": -1, "pos": 1}]}, {"actions": []}):
+        try:
+            parse_script(bad)
+        except ValueError:
+            continue
+        raise AssertionError(bad)

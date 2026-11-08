@@ -31,6 +31,7 @@ from .identity import load_devices, match_device, new_device_key
 from .migration import async_migrate_device_registry
 from .models import OggDevice, physical_address, useful_label
 from .multi import SLOT_STRIDE, MultiServerConnection
+from .patterns import parse_script
 from .patterns import (
     DUAL_PATTERNS,
     MOTOR_MODES,
@@ -38,6 +39,7 @@ from .patterns import (
     RANDOM_PATTERN,
     SOFTWARE_PATTERNS,
     RandomProgram,
+    ScriptProgram,
     build_classic_packet,
     sample,
 )
@@ -97,6 +99,9 @@ class DesiredOutput:
     motors: frozenset[int] | None = None
     # Hold-to-run output: its deadline is extended while the button is held.
     hold: bool = False
+    # Live slider levels (one per motor) or a script timeline, if any.
+    live: list[float] | None = None
+    script: ScriptProgram | None = None
 
     def may_resume(self, now: float) -> bool:
         return (
@@ -1157,6 +1162,8 @@ class OggHub:
         pulse: bool = False,
         motors: frozenset[int] | None = None,
         hold_seconds: float | None = None,
+        live: list[float] | None = None,
+        script: ScriptProgram | None = None,
     ) -> None:
         """Replace an existing run; repeated pulses restart one timer.
 
@@ -1192,6 +1199,8 @@ class OggHub:
                 command_serial=self._command_serials.get(key, 0),
                 motors=motors,
                 hold=hold,
+                live=live,
+                script=script,
             )
             self._desired_outputs[key] = intent
             self._random_programs.pop(key, None)
@@ -1235,6 +1244,44 @@ class OggHub:
                 except RuntimeError:
                     pass  # The hold is already ending; start a new one below.
         await self.async_start(key, pulse=True, motors=motors, hold_seconds=seconds)
+
+    async def async_live(self, key: str, levels: list[float], seconds: float) -> None:
+        """Live sliders: set levels now; stops by itself unless refreshed."""
+        device = self._require_device(key)
+        levels = [min(1.0, max(0.0, float(v))) for v in levels][: max(1, device.motor_count)]
+        if not levels:
+            raise HomeAssistantError("Give at least one level")
+        seconds = min(HOLD_MAX_SECONDS, max(0.3, float(seconds)))
+        async with self._lock(key):
+            intent = self._desired_outputs.get(key)
+            task = self._runs.get(key)
+            timeout = self._run_timeouts.get(key)
+            if (
+                intent is not None and intent.live is not None
+                and task is not None and not task.done() and timeout is not None
+                and intent.lost_at is None
+            ):
+                try:
+                    if not timeout.expired():
+                        new_deadline = time.monotonic() + seconds
+                        timeout.reschedule(new_deadline)
+                        intent.deadline = new_deadline
+                        intent.live = levels
+                        device.remaining = seconds
+                        return
+                except RuntimeError:
+                    pass
+        await self.async_start(key, pulse=True, hold_seconds=seconds, live=levels)
+
+    async def async_play_script(
+        self, key: str, script: Any, speed: float = 1.0, loop: bool = False
+    ) -> None:
+        """Play a funscript timeline on one device (Ogg Studio, automations)."""
+        try:
+            channels = parse_script(script)
+        except ValueError as err:
+            raise HomeAssistantError(str(err)) from err
+        await self.async_start(key, script=ScriptProgram(channels, speed, loop))
 
     async def async_stop(self, key: str) -> None:
         device = self._require_device(key)
@@ -1384,8 +1431,12 @@ class OggHub:
                 ):
                     now = time.monotonic()
                     last_frame = await self._send_frame(
-                        device, client, now - started, last_frame, intent.motors
+                        device, client, now - started, last_frame, intent.motors, intent
                     )
+                    if intent.script is not None and intent.script.finished(time.monotonic()):
+                        if self._desired_outputs.get(device.key) is intent:
+                            self._desired_outputs.pop(device.key, None)
+                        break  # Script played to the end; the finally block stops.
                     now = time.monotonic()
                     deadline = intent.deadline
                     device.remaining = max(0.0, deadline - now) if deadline is not None else None
@@ -1457,8 +1508,10 @@ class OggHub:
         elapsed: float,
         last_frame: tuple[Any, ...] | None,
         motors: frozenset[int] | None = None,
+        intent: DesiredOutput | None = None,
     ) -> tuple[Any, ...]:
         settings = device.settings
+        override = intent is not None and (intent.live is not None or intent.script is not None)
         intensity = settings["intensity"] / 100
         pattern = settings["pattern"]
         mode = settings["motor_mode"]
@@ -1468,6 +1521,7 @@ class OggHub:
             and not device.native_failed
             and pattern in NATIVE_PATTERNS
             and mode != "alternating"
+            and not override
         )
         if native:
             levels = [intensity * value / 100 for value in settings["motor_levels"]]
@@ -1510,7 +1564,13 @@ class OggHub:
         levels = []
         phase = elapsed / settings["period"]
         random_levels: list[float] | None = None
-        if pattern == RANDOM_PATTERN:
+        if intent is not None and intent.live is not None:
+            # Live sliders: absolute levels, one per motor (or one for all).
+            live = intent.live
+            random_levels = [live[i] if i < len(live) else live[0] for i in range(device.motor_count)]
+        elif intent is not None and intent.script is not None:
+            random_levels = intent.script.levels(time.monotonic(), device.motor_count)
+        elif pattern == RANDOM_PATTERN:
             # Intensity sets how often it runs; burst speeds are random.
             program = self._random_programs.setdefault(device.key, RandomProgram())
             random_levels = program.levels(time.monotonic(), intensity, device.motor_count)

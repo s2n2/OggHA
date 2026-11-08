@@ -8,8 +8,10 @@ for the separate 8-bit and Chorus families.
 
 from __future__ import annotations
 
+import bisect
 import math
 import random
+from typing import Any
 
 SOFTWARE_PATTERNS: tuple[str, ...] = (
     "steady",
@@ -342,3 +344,101 @@ class RandomProgram:
                 "level": rng.uniform(0.3, 1.0), "period": rng.uniform(0.6, 6.0),
             }
         self._end = now + length
+
+
+# ---------------------------------------------------------------------------
+# Scripts (funscript timelines) for recorded and imported patterns.
+MAX_SCRIPT_ACTIONS = 200_000
+MAX_SCRIPT_MS = 6 * 60 * 60 * 1000
+
+
+def _actions(raw: Any, inverted: bool) -> list[tuple[int, float]]:
+    if not isinstance(raw, list) or len(raw) > MAX_SCRIPT_ACTIONS:
+        raise ValueError("A script needs a list of actions")
+    out: list[tuple[int, float]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError("Invalid script action")
+        at, pos = item.get("at"), item.get("pos")
+        if isinstance(at, bool) or not isinstance(at, (int, float)) or not 0 <= at <= MAX_SCRIPT_MS:
+            raise ValueError("Invalid action time")
+        if isinstance(pos, bool) or not isinstance(pos, (int, float)) or not math.isfinite(pos):
+            raise ValueError("Invalid action position")
+        level = min(100.0, max(0.0, float(pos))) / 100
+        out.append((int(at), 1 - level if inverted else level))
+    out.sort(key=lambda action: action[0])
+    return out
+
+
+def parse_script(data: Any) -> list[list[tuple[int, float]]]:
+    """Funscript (plus optional second motor) -> per-motor (ms, level) lists.
+
+    Accepts a standard funscript ``{"actions": [{"at": ms, "pos": 0-100}]}``.
+    A second motor may be given as ``"channels": {"V1": {"actions": [...]}}``
+    (OggStudio's extension, TCode channel names) or ``"channels": [ {...} ]``.
+    ``pos`` is used directly as intensity; stroke-to-vibration conversion is
+    done when importing (OggStudio), so stored scripts are plain intensity.
+    """
+    if not isinstance(data, dict):
+        raise ValueError("A script must be a funscript object")
+    inverted = bool(data.get("inverted", False))
+    channels = [_actions(data.get("actions"), inverted)]
+    extra = data.get("channels")
+    if isinstance(extra, dict):
+        for name in ("V1", "v1", "L1"):
+            if isinstance(extra.get(name), dict):
+                channels.append(_actions(extra[name].get("actions"), inverted))
+                break
+    elif isinstance(extra, list) and extra and isinstance(extra[0], dict):
+        channels.append(_actions(extra[0].get("actions"), inverted))
+    if not any(channels):
+        raise ValueError("The script has no actions")
+    return channels
+
+
+def _level_at(actions: list[tuple[int, float]], at_ms: float, times: list[int]) -> float:
+    if not actions:
+        return 0.0
+    i = bisect.bisect_right(times, at_ms)
+    if i == 0:
+        return actions[0][1]
+    if i >= len(actions):
+        return actions[-1][1]
+    (t0, v0), (t1, v1) = actions[i - 1], actions[i]
+    return v0 if t1 == t0 else v0 + (v1 - v0) * (at_ms - t0) / (t1 - t0)
+
+
+class ScriptProgram:
+    """Plays per-motor timelines with linear interpolation, speed and loop."""
+
+    def __init__(
+        self, channels: list[list[tuple[int, float]]], speed: float = 1.0, loop: bool = False
+    ) -> None:
+        self.channels = [c for c in channels]
+        self._times = [[at for at, _ in c] for c in self.channels]
+        self.speed = min(4.0, max(0.25, float(speed)))
+        self.loop = bool(loop)
+        self.duration_ms = max((c[-1][0] for c in self.channels if c), default=0)
+        self.start: float | None = None
+
+    def position_ms(self, now: float) -> float:
+        if self.start is None:
+            self.start = now
+        position = (now - self.start) * 1000 * self.speed
+        if self.loop and self.duration_ms > 0:
+            position %= self.duration_ms
+        return position
+
+    def levels(self, now: float, motors: int) -> list[float]:
+        position = self.position_ms(now)
+        out = []
+        for motor in range(max(1, motors)):
+            # A one-channel script drives every motor.
+            channel = motor if motor < len(self.channels) else 0
+            out.append(_level_at(self.channels[channel], position, self._times[channel]))
+        return out
+
+    def finished(self, now: float) -> bool:
+        if self.loop or self.start is None:
+            return False
+        return (now - self.start) * 1000 * self.speed > self.duration_ms
