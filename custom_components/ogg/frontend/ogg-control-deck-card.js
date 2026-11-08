@@ -248,6 +248,9 @@
     .hold-row{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;min-width:0}
     .hold-row.dual{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
     .hold-btn{border:1px dashed rgba(183,166,255,.45);background:rgba(120,104,220,.1);color:#d9d0ff;border-radius:13px;min-height:45px;min-width:0;padding:0 4px;font:inherit;font-size:12px;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:.12s ease}
+    .hold-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.1}
+    .hold-btn small{font-size:9px;font-weight:600;opacity:.75;letter-spacing:.01em;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+    .hold-btn b{font-size:12.5px;font-weight:780}
     .hold-btn[hidden]{display:none}
     .hold-btn:disabled{opacity:.4;cursor:default}
     .hold-btn.holding{border-style:solid;background:linear-gradient(110deg,#8f7dff,#b49cff);color:#140c3a;box-shadow:0 0 0 3px rgba(160,140,255,.18)}
@@ -276,7 +279,7 @@
     .toast{display:none;position:relative;background:#51273a;color:#ffe1e7;border:1px solid #a95974;border-radius:12px;padding:10px 12px;font-size:12px;margin-bottom:12px;line-height:1.35}
     /* All size rules follow the actual card container, not browser width. */
     @container (max-width:520px){.deck{padding:15px}.hero{margin-bottom:16px}.brand{width:42px;height:42px;border-radius:13px}h2{font-size:22px}.master{padding:7px 8px 7px 9px}.master-name{font-size:11.5px}.pulse-zone{padding:12px}.device{padding:12px}.device-main{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr) 43px;gap:7px}.device-main.dual{grid-template-columns:minmax(0,1fr) 46px minmax(0,1.7fr) 43px}.device-main.dual .device-action.pulse span{display:none}.hold-btn{font-size:11px}.device-action{gap:5px}.run-wrap{padding:5px 7px 5px 9px}.run-wrap span{font-size:11px}.live-badge{padding:7px 8px;font-size:10px}.permission{font-size:9px;padding:5px 7px}.pulse-actions{grid-template-columns:minmax(0,1fr) 95px}.config-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.control-group.pattern-setting{grid-column:1/-1}}
-    @container (max-width:355px){.hero{flex-wrap:wrap}.live-badge{margin-left:54px}.global-select{width:100px}.pulse-top{gap:8px}.small-label{font-size:12px;gap:5px}.master{padding:6px 7px;column-gap:4px}.master-label svg{width:12px;height:12px}.master-name{font-size:11px}.settings-link{width:24px;height:24px}.settings-link svg{width:14px;height:14px}.device-main{grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(0,.8fr) 40px;gap:6px}.device-main.dual{grid-template-columns:minmax(0,1fr) 42px minmax(0,1.6fr) 40px}.device-action.pulse span{display:none}.device-name-row{grid-template-columns:minmax(0,1fr) 72px;gap:6px}}
+    @container (max-width:355px){.hero{flex-wrap:wrap}.live-badge{margin-left:54px}.global-select{width:100px}.pulse-top{gap:8px}.small-label{font-size:12px;gap:5px}.master{padding:6px 7px;column-gap:4px}.master-label svg{width:12px;height:12px}.master-name{font-size:11px}.settings-link{width:24px;height:24px}.settings-link svg{width:14px;height:14px}.device-main{grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(0,.8fr) 40px;gap:6px}.device-main.dual{grid-template-columns:minmax(0,1fr) 38px minmax(0,1.9fr) 38px}.device-main.dual .hold-row{gap:4px}.device-main.dual .hold-btn{padding:0 2px}.device-action.pulse span{display:none}.device-name-row{grid-template-columns:minmax(0,1fr) 72px;gap:6px}}
     @container (max-width:285px){.master-label svg{display:none}.master-name{font-size:10.5px}.master{padding:6px 6px}.masters{gap:6px}.master-status{font-size:9px}}
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;animation:none!important}}
   `;
@@ -376,7 +379,7 @@
           <div class="section-head"><h3>Connected devices</h3><div class="head-right"><div class="filter-chips" role="group" aria-label="Show devices"><button data-filter="all" type="button">All</button><button data-filter="his" type="button">His</button><button data-filter="hers" type="button">Hers</button></div><span id="list-subtitle">Live from Ogg</span></div></div>
           <div id="devices" class="device-list"></div>
           <div id="empty" class="empty">${icon('nodes')}<strong id="empty-title">No connected devices</strong><p id="empty-detail">Devices appear here when Ogg connects to them.</p></div>
-          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v2.4.1</span></div>
+          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v2.4.2</span></div>
         </div>`;
       this.shadowRoot.appendChild(root);
       this._shell = root;
@@ -724,7 +727,7 @@
         <div class="device-main">
           <div class="run-wrap"><span>Run</span><button data-role="run" class="toggle small" type="button" role="switch" aria-label="Continuous run" aria-checked="false"></button></div>
           <button data-role="pulse" class="device-action pulse" type="button" title="Pulse" aria-label="Pulse">${icon('pulse')}<span>Pulse</span></button>
-          <div data-role="hold-row" class="hold-row"><button data-role="hold-1" class="hold-btn" type="button">Hold</button><button data-role="hold-2" class="hold-btn" type="button" hidden>Hold 2</button></div>
+          <div data-role="hold-row" class="hold-row"><button data-role="hold-1" class="hold-btn" type="button"><small>press &amp; hold</small><b data-role="hold-1-label">Run</b></button><button data-role="hold-2" class="hold-btn" type="button" hidden><small>press &amp; hold</small><b>Out</b></button></div>
           <button data-role="stop" class="device-action stop" type="button" title="Stop device" aria-label="Stop device">${icon('stop')}</button>
         </div>
         <div class="config-grid">
@@ -815,11 +818,12 @@
       r['hold-row'].classList.toggle('dual', dual);
       r['hold-row'].parentElement?.classList.toggle('dual', dual);
       r['hold-2'].hidden = !dual;
-      r['hold-1'].textContent = dual ? 'Hold 1' : 'Hold';
+      const holdLabel = r['hold-1'].querySelector('b');
+      if (holdLabel) holdLabel.textContent = dual ? 'In' : 'Run';
       const holdable = permitted && this._available(device.run);
       for (const b of [r['hold-1'], r['hold-2']]) { if (!b.classList.contains('holding')) b.disabled = !holdable; }
-      r['hold-1'].title = dual ? 'Hold to run motor 1' : 'Hold to run; release to stop';
-      r['hold-2'].title = 'Hold to run motor 2';
+      r['hold-1'].title = dual ? 'Press and hold to run the inside motor; release to stop' : 'Press and hold to run; release to stop';
+      r['hold-2'].title = 'Press and hold to run the outside motor; release to stop';
       const owner = String(this._state(device.owner)?.state || 'unassigned');
       r.owner.hidden = !device.owner;
       r.owner.textContent = OWNER_LABELS[owner] || 'Unassigned';
