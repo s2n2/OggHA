@@ -1,3 +1,9 @@
+## 2.0.0 - Two servers at once
+- **Two servers at once:** turn on "Connect to two servers at once" in Ogg's settings to keep the local IntiHA server and one other server (for example your phone's Intiface app) connected together. Devices from both appear as one list and commands go to the right server automatically. With IntiHA off, Ogg simply runs on the other server; it picks IntiHA up again within seconds when it is switched back on.
+- **Automatic IntiHA search** when Ogg connects and when a connected device has been offline for 30 seconds (45 s, IntiHA only).
+- **Card:** blocked devices show only their name, status and chips; 7 s pulse option.
+- Includes the 1.1.0 betas (b1-b3) below.
+
 ## 1.1.0b3 - Auto search, tidier blocked devices (beta)
 - **Automatic IntiHA search:** when Ogg connects, and when a device that was connected has been offline for 30 seconds, Ogg starts a short search (45 s) on the local IntiHA server only, never on the phone. IntiHA then retries its known devices immediately. The user Search toggle is unchanged.
 - **Blocked devices** show only their name, status and chips on the card; tap Blocked to allow the device and bring its controls back.
