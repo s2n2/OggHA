@@ -1,6 +1,6 @@
 [project]
 name = "ogg-ha"
-version = "1.1.0b1"
+version = "1.1.0b2"
 description = "Discreet local device control for Home Assistant"
 requires-python = ">=3.13"
 license = "GPL-3.0-only"

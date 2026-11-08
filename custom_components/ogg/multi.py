@@ -1,8 +1,10 @@
 """Two Buttplug servers presented to Ogg as one connection.
 
-With "Connect to two servers at once" enabled, Ogg keeps the first configured
-location (normally the local IntiHA server) in slot 0 and the first other
-reachable location (for example a phone running Intiface) in slot 1. Devices
+With "Connect to two servers at once" enabled, Ogg keeps the local IntiHA
+server in slot 0 and one other server (for example a phone running Intiface)
+in slot 1. Servers are told apart by the name they report in the Buttplug
+handshake, so the order of the configured addresses does not matter and the
+same phone reachable at two addresses is only connected once. Devices
 from both are merged into one list. Each device gets a stable virtual index
 ``slot * SLOT_STRIDE + server_index`` so commands are routed to the server that
 owns it, invisibly to the rest of Ogg. One server dropping removes only its
@@ -49,6 +51,8 @@ class MultiServerConnection:
         self._retry_seconds = max(1.0, float(retry_seconds))
         self._subs: dict[int, Any] = {}
         self._urls: dict[int, str] = {}
+        # url -> slot it belongs to, learned from each server's handshake name.
+        self._kinds: dict[str, int] = {}
         self._scanning: set[int] = set()
         self._closed = asyncio.Event()
         self._closed.set()
@@ -186,38 +190,50 @@ class MultiServerConnection:
             out[name] = body
         return out
 
-    def _wanted(self) -> dict[int, list[str]]:
-        """Slot 0: the first location only. Slot 1: any other location."""
-        urls = list(dict.fromkeys(self._resolve_urls()))
-        if not urls:
-            return {}
-        return {0: urls[:1], 1: urls[1:]}
+    @staticmethod
+    def _slot_for(sub: Any) -> int:
+        """Slot 0 for the local IntiHA engine, slot 1 for any other server."""
+        name = str(getattr(sub, "server_info", {}).get("ServerName", ""))
+        return 0 if name.strip().lower().startswith("intiha") else 1
 
     async def _fill_slots(self) -> None:
-        for slot, urls in self._wanted().items():
-            if slot in self._subs or slot >= MAX_SERVERS:
+        taken = {u for s, u in self._urls.items() if s in self._subs}
+        for url in dict.fromkeys(self._resolve_urls()):
+            missing = {0, 1} - set(self._subs)
+            if not missing:
+                return
+            known = self._kinds.get(url)
+            if url in taken or (known is not None and known not in missing):
                 continue
-            taken = {u for s, u in self._urls.items() if s in self._subs}
-            for url in urls:
-                if url in taken:
-                    continue
-                sub = self._factory(lambda kind, payload, slot=slot: self._on_sub_event(slot, kind, payload))
-                try:
-                    await sub.connect(url)
-                except ProtocolError:
-                    with contextlib.suppress(Exception):
-                        await sub.close(reason="setup_failed")
-                    continue
-                self._subs[slot] = sub
-                self._urls[slot] = url
-                self._watchers[slot] = asyncio.get_running_loop().create_task(self._watch(slot, sub))
-                if self._scanning:
-                    with contextlib.suppress(ProtocolError):
-                        await sub.start_scanning()
-                        self._scanning.add(slot)
-                _LOGGER.info("Ogg connected server slot %s", slot + 1)
-                self._emit("DeviceList", {})
-                break
+            holder: dict[str, int] = {"slot": -1}
+            sub = self._factory(
+                lambda kind, payload, holder=holder: self._on_sub_event(holder["slot"], kind, payload)
+            )
+            try:
+                await sub.connect(url)
+            except ProtocolError:
+                with contextlib.suppress(Exception):
+                    await sub.close(reason="setup_failed")
+                continue
+            slot = self._slot_for(sub)
+            self._kinds[url] = slot
+            if slot not in missing:
+                # Same kind of server as one already connected (for example the
+                # phone again at another address): do not connect it twice.
+                with contextlib.suppress(Exception):
+                    await sub.close(reason="duplicate_server")
+                continue
+            holder["slot"] = slot
+            self._subs[slot] = sub
+            self._urls[slot] = url
+            taken.add(url)
+            self._watchers[slot] = asyncio.get_running_loop().create_task(self._watch(slot, sub))
+            if self._scanning:
+                with contextlib.suppress(ProtocolError):
+                    await sub.start_scanning()
+                    self._scanning.add(slot)
+            _LOGGER.info("Ogg connected server slot %s", slot + 1)
+            self._emit("DeviceList", {})
 
     async def _watch(self, slot: int, sub: Any) -> None:
         await sub.await_closed()
@@ -241,6 +257,8 @@ class MultiServerConnection:
                     _LOGGER.debug("Ogg could not reconnect a server slot", exc_info=True)
 
     def _on_sub_event(self, slot: int, kind: str, payload: dict[str, Any]) -> None:
+        if slot < 0:
+            return  # Still identifying this server.
         if kind == "ScanningFinished":
             self._scanning.discard(slot)
             if self._scanning:

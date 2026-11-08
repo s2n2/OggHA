@@ -22,6 +22,7 @@ class FakeServer:
         self._closed = asyncio.Event()
         self.connected = False
         self.peer_ip = None
+        self.server_info = {}
         FakeServer.instances.append(self)
 
     async def connect(self, url: str) -> None:
@@ -30,6 +31,7 @@ class FakeServer:
 
             raise ProtocolError("unreachable")
         self.url = url
+        self.server_info = {"ServerName": "IntiHA" if "ha" in url else "Intiface Server"}
         self.connected = True
         self.peer_ip = url.split("//")[1].split(":")[0]
         name = "WeVibe Bond" if "ha" in url else "WeVibe Sync 2"
@@ -134,5 +136,22 @@ def test_starts_with_only_the_other_server_and_fails_with_none():
         except ConnectionLost:
             return
         raise AssertionError("no reachable server must raise")
+
+    asyncio.run(run())
+
+
+def test_slots_follow_server_identity_not_address_order():
+    async def run():
+        # Phone first (two addresses for the same phone), IntiHA last.
+        urls = ["ws://phone-vpn:12345/", "ws://phone-wifi:12345/", "ws://ha:12345/"]
+        multi, _ = _setup(urls, {u: True for u in urls})
+        await multi.connect_any()
+        names = {i: d["DeviceName"] for i, d in multi.devices.items()}
+        assert names == {0: "WeVibe Bond", SLOT_STRIDE: "WeVibe Sync 2"}
+        assert dict(multi.endpoints) == {0: "ws://ha:12345/", 1: "ws://phone-vpn:12345/"}
+        # The phone's second address was identified and not kept connected.
+        wifi = [s for s in FakeServer.instances if s.url == "ws://phone-wifi:12345/"]
+        assert all(not s.connected for s in wifi)
+        await multi.close()
 
     asyncio.run(run())

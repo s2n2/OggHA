@@ -1,3 +1,6 @@
+## 1.1.0b2 - Two servers at once (beta)
+- Servers are now told apart by the name they report when connecting: the local **IntiHA** server always takes the "house" slot and any other server (for example your phone's Intiface app) the second slot, whatever order the addresses are listed in. The same phone reachable at two addresses (VPN and Wi-Fi) is only connected once.
+
 ## 1.1.0b1 - Two servers at once (beta)
 - New option **Connect to two servers at once (beta)** in Ogg's settings (off by default). Ogg keeps the first configured address (normally this Home Assistant's IntiHA) and one other reachable address (for example your phone running Intiface) connected together, so house devices and phone devices can be played simultaneously.
 - Devices from both servers appear as one list; which server a device is on is invisible. Commands are routed to the device's own server automatically.
