@@ -1,3 +1,8 @@
+## 2.1.0 - Script playback API (for OggStudio)
+- New `ogg.play_script` service plays a funscript timeline (`pos` 0-100 as intensity) on a device, with speed (0.25-4x) and loop; a second motor can be given as `channels.V1`. A one-channel script drives every motor. Playback runs inside Ogg's own frame loop for accurate timing and ends with a stop.
+- New `ogg.live` service sets live motor levels (sliders) and stops by itself shortly after the last call, like Hold.
+- New `ogg.stop_script` service.
+
 ## 2.0.0 - Two servers at once
 - **Two servers at once:** turn on "Connect to two servers at once" in Ogg's settings to keep the local IntiHA server and one other server (for example your phone's Intiface app) connected together. Devices from both appear as one list and commands go to the right server automatically. With IntiHA off, Ogg simply runs on the other server; it picks IntiHA up again within seconds when it is switched back on.
 - **Automatic IntiHA search** when Ogg connects and when a connected device has been offline for 30 seconds (45 s, IntiHA only).

@@ -257,6 +257,56 @@
           "description": "How long to keep running after this call (0.3-3 s)."
         }
       }
+    },
+    "live": {
+      "name": "Live levels",
+      "description": "Set live motor levels (sliders); stops by itself shortly after the last call.",
+      "fields": {
+        "entity_id": {
+          "name": "Device entity",
+          "description": "Any Ogg entity of the device."
+        },
+        "levels": {
+          "name": "Levels",
+          "description": "One level 0-1 per motor, e.g. [0.5] or [0.3, 0.8]."
+        },
+        "seconds": {
+          "name": "Seconds",
+          "description": "How long to keep these levels after this call (0.3-3 s)."
+        }
+      }
+    },
+    "play_script": {
+      "name": "Play script",
+      "description": "Play a funscript timeline (pos 0-100 = intensity) on a device.",
+      "fields": {
+        "entity_id": {
+          "name": "Device entity",
+          "description": "Any Ogg entity of the device."
+        },
+        "script": {
+          "name": "Script",
+          "description": "Funscript object; optional second motor in channels.V1."
+        },
+        "speed": {
+          "name": "Speed",
+          "description": "Playback speed (0.25-4x)."
+        },
+        "loop": {
+          "name": "Loop",
+          "description": "Repeat until stopped."
+        }
+      }
+    },
+    "stop_script": {
+      "name": "Stop script",
+      "description": "Stop script playback (or any output) on a device.",
+      "fields": {
+        "entity_id": {
+          "name": "Device entity",
+          "description": "Any Ogg entity of the device."
+        }
+      }
     }
   }
 }
