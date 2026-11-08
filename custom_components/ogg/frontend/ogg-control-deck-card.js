@@ -360,7 +360,7 @@
           <div class="section-head"><h3>Connected devices</h3><div class="head-right"><div class="filter-chips" role="group" aria-label="Show devices"><button data-filter="all" type="button">All</button><button data-filter="his" type="button">His</button><button data-filter="hers" type="button">Hers</button></div><span id="list-subtitle">Live from Ogg</span></div></div>
           <div id="devices" class="device-list"></div>
           <div id="empty" class="empty">${icon('nodes')}<strong id="empty-title">No connected devices</strong><p id="empty-detail">Devices appear here when Ogg connects to them.</p></div>
-          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v2.1.1</span></div>
+          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v2.2.0</span></div>
         </div>`;
       this.shadowRoot.appendChild(root);
       this._shell = root;
@@ -755,6 +755,10 @@
       graph.period = Number.isFinite(cycleSeconds) && cycleSeconds > 0 ? cycleSeconds : 2;
       const power = Number(this._state(device.intensity)?.state);
       graph.intensity = Number.isFinite(power) ? Math.min(100, Math.max(0, power)) : 0;
+      // Random, OggStudio scripts and live pads: plot what is actually sent.
+      const statusAttrs = this._state(device.status)?.attributes || {};
+      graph.source = statusAttrs.output_source || null;
+      graph.output = Array.isArray(statusAttrs.output) ? statusAttrs.output : null;
       graph.reportedEntity = device.reported_intensity || null;
       const feedback = this._state(graph.reportedEntity);
       const feedbackLevel = Number(feedback?.state);
@@ -857,12 +861,15 @@
       for (const view of this._elementMap.values()) {
         const graph = view.spark;
         const phase = (now - graph.startedAt) / (graph.period * 1000);
+        const actual = graph.active && graph.output && ['random', 'script', 'live'].includes(graph.source);
         const envelope = graph.active ? (graph.dual ? sampleMotor(graph.pattern, phase, 0) : sampleEnvelope(graph.pattern, phase)) : 0;
-        const level = Math.max(0, Math.min(100, envelope * graph.intensity));
+        const level = actual ? Math.max(0, Math.min(100, Number(graph.output[0]) || 0))
+          : Math.max(0, Math.min(100, envelope * graph.intensity));
         graph.points.push(level);
         if (!graph.points2) graph.points2 = [];
         const outer = graph.active && graph.dual ? sampleMotor(graph.pattern, phase, 1) : 0;
-        graph.points2.push(graph.dual ? Math.max(0, Math.min(100, outer * graph.intensity)) : 0);
+        const outerLevel = actual ? (Number(graph.output[1] ?? graph.output[0]) || 0) : outer * graph.intensity;
+        graph.points2.push(graph.dual ? Math.max(0, Math.min(100, outerLevel)) : 0);
         if (graph.points2.length > SPARK_POINTS) graph.points2.shift();
         if (!graph.actualPoints) graph.actualPoints = [];
         const reportIsFresh = Number.isFinite(graph.reportedAt) && Date.now() - graph.reportedAt < 5000;

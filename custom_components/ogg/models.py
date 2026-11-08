@@ -130,6 +130,9 @@ class OggDevice:
     identity_display_name: str = ""
     motor_level_memory: list[float] = field(default_factory=list)
     feedback_generation: int = -1
+    # Levels actually sent last frame (0-1 per motor) and what produced them.
+    output_levels: list[float] = field(default_factory=list)
+    output_source: str = "idle"
 
     def __post_init__(self) -> None:
         supplied_levels = self.settings.get("motor_levels")
