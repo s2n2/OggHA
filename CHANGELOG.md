@@ -1,3 +1,8 @@
+## 0.1.16 - Compact server tiles
+- HA Server and Ogg tiles are a single compact row (about half the previous height).
+- Status reads **Connected** when Ogg is connected to a server (otherwise "Looking for server"), and for IntiHA when its engine is connected ("Searching…" while a scan runs, "Waiting for engine" otherwise).
+- IntiHA's tile shows a **Search devices** button while IntiHA is on and connected to its engine.
+
 ## 0.1.15 - Duplicate cleanup
 - On load, a device identified by Bluetooth address absorbs older name-only records of the same model; the oldest record keeps its entity IDs and settings and takes the current route. Different explicit display names are never merged.
 - Offline Ogg devices can now be deleted from their Home Assistant device page (live devices and the Ogg hub cannot).

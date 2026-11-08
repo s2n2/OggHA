@@ -56,6 +56,7 @@
       play: '<path d="m8 5 12 7-12 7z"/>',
       shield: '<path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/>',
       settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06-1.91 1.91-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.5V20h-2.7v-.1a1.65 1.65 0 0 0-1-1.5 1.65 1.65 0 0 0-1.82.33l-.06.06-1.91-1.91.06-.06A1.65 1.65 0 0 0 7.9 15a1.65 1.65 0 0 0-1.5-1H6v-2.7h.4a1.65 1.65 0 0 0 1.5-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06 1.91-1.91.06.06a1.65 1.65 0 0 0 1.82.33 1.65 1.65 0 0 0 1-1.5V5h2.7v.4a1.65 1.65 0 0 0 1 1.5 1.65 1.65 0 0 0 1.82-.33l.06-.06 1.91 1.91-.06.06a1.65 1.65 0 0 0-.33 1.82 1.65 1.65 0 0 0 1.5 1h.1V14h-.1a1.65 1.65 0 0 0-1.5 1Z"/>',
+      search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
       lock: '<rect x="4" y="10" width="16" height="12" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
     };
     return `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.pulse}</svg>`;
@@ -87,15 +88,26 @@
        section. Split each tile into a title/gear row and a status/switch row:
        this avoids horizontal collisions without doubling the card height. */
     .masters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
-    .master{display:grid;grid-template-rows:auto auto;align-content:space-between;min-width:0;min-height:67px;gap:6px;padding:9px 11px;border-radius:16px;border:1px solid var(--border);background:rgba(255,255,255,.045)}
-    .master-top,.master-bottom{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0}
+    .master{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;grid-template-rows:auto auto;align-items:center;column-gap:6px;row-gap:1px;min-width:0;padding:7px 8px 7px 10px;border-radius:14px;border:1px solid var(--border);background:rgba(255,255,255,.045)}
+    .master-top,.master-bottom{display:contents}
+    .master-label{grid-column:1;grid-row:1}
+    .master-status{grid-column:1;grid-row:2}
+    .master .search-link{grid-column:2;grid-row:1/3}
+    .master .settings-link:not(.search-link){grid-column:3;grid-row:1/3}
+    .master .toggle{grid-column:4;grid-row:1/3}
+    .search-link[hidden]{display:none}
+    .search-link{cursor:pointer;padding:0;font:inherit}
+    .search-link:disabled{opacity:.55;cursor:default}
+    .search-link.busy svg{animation:ogg-spin 1.4s linear infinite}
+    @keyframes ogg-spin{to{transform:rotate(360deg)}}
+    .master-status.pending{color:#e8c77c}
     .master-label{display:flex;align-items:center;gap:5px;min-width:0}
     .master-label svg{width:14px;height:14px;color:#a9a0ff;flex:none}
     .master-name{font-size:12px;line-height:1.1;font-weight:720;letter-spacing:-.01em;white-space:nowrap;min-width:0}
     .master-status{font-size:10px;line-height:1.15;color:var(--muted);white-space:nowrap;min-width:0}
     .master-status.on{color:#83e1cd}
-    .settings-link{display:grid;place-items:center;flex:none;width:27px;height:27px;color:#a8b8da;border:1px solid rgba(174,194,246,.18);border-radius:9px;background:rgba(255,255,255,.035);text-decoration:none;transition:color .15s ease,background .15s ease}
-    .settings-link svg{width:16px;height:16px}
+    .settings-link{display:grid;place-items:center;flex:none;width:25px;height:25px;color:#a8b8da;border:1px solid rgba(174,194,246,.18);border-radius:9px;background:rgba(255,255,255,.035);text-decoration:none;transition:color .15s ease,background .15s ease}
+    .settings-link svg{width:14px;height:14px}
     .settings-link:hover{background:rgba(152,168,249,.14);color:#edf2ff}
     .settings-link:focus-visible{outline:3px solid #8ee3ee;outline-offset:2px}
     .toggle{position:relative;flex:none;width:46px;height:28px;border:1px solid #505e76;background:#2a3550;border-radius:99px;padding:0;transition:.18s ease;box-shadow:none}
@@ -171,9 +183,9 @@
     .foot svg{height:12px;width:12px}
     .toast{display:none;position:relative;background:#51273a;color:#ffe1e7;border:1px solid #a95974;border-radius:12px;padding:10px 12px;font-size:12px;margin-bottom:12px;line-height:1.35}
     /* All size rules follow the actual card container, not browser width. */
-    @container (max-width:520px){.deck{padding:15px}.hero{margin-bottom:16px}.brand{width:42px;height:42px;border-radius:13px}h2{font-size:22px}.master{padding:9px 10px;min-height:65px}.master-name{font-size:11.5px}.pulse-zone{padding:12px}.device{padding:12px}.device-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 43px;gap:7px}.run-wrap{padding:5px 7px 5px 9px}.run-wrap span{font-size:11px}.live-badge{padding:7px 8px;font-size:10px}.permission{font-size:9px;padding:5px 7px}.pulse-actions{grid-template-columns:minmax(0,1fr) 95px}.config-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.control-group.pattern-setting{grid-column:1/-1}}
-    @container (max-width:355px){.hero{flex-wrap:wrap}.live-badge{margin-left:54px}.global-select{width:100px}.pulse-top{gap:8px}.small-label{font-size:12px;gap:5px}.master{padding:8px 8px}.master-label svg{width:12px;height:12px}.master-name{font-size:11px}.settings-link{width:24px;height:24px}.settings-link svg{width:14px;height:14px}.device-main{grid-template-columns:minmax(0,1fr) 80px 42px}.device-name-row{grid-template-columns:minmax(0,1fr) 72px;gap:6px}}
-    @container (max-width:285px){.master-label svg{display:none}.master-name{font-size:10.5px}.master{padding:8px 7px}.masters{gap:6px}.master-status{font-size:9px}}
+    @container (max-width:520px){.deck{padding:15px}.hero{margin-bottom:16px}.brand{width:42px;height:42px;border-radius:13px}h2{font-size:22px}.master{padding:7px 8px 7px 9px}.master-name{font-size:11.5px}.pulse-zone{padding:12px}.device{padding:12px}.device-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 43px;gap:7px}.run-wrap{padding:5px 7px 5px 9px}.run-wrap span{font-size:11px}.live-badge{padding:7px 8px;font-size:10px}.permission{font-size:9px;padding:5px 7px}.pulse-actions{grid-template-columns:minmax(0,1fr) 95px}.config-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.control-group.pattern-setting{grid-column:1/-1}}
+    @container (max-width:355px){.hero{flex-wrap:wrap}.live-badge{margin-left:54px}.global-select{width:100px}.pulse-top{gap:8px}.small-label{font-size:12px;gap:5px}.master{padding:6px 7px;column-gap:4px}.master-label svg{width:12px;height:12px}.master-name{font-size:11px}.settings-link{width:24px;height:24px}.settings-link svg{width:14px;height:14px}.device-main{grid-template-columns:minmax(0,1fr) 80px 42px}.device-name-row{grid-template-columns:minmax(0,1fr) 72px;gap:6px}}
+    @container (max-width:285px){.master-label svg{display:none}.master-name{font-size:10.5px}.master{padding:6px 6px}.masters{gap:6px}.master-status{font-size:9px}}
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;animation:none!important}}
   `;
 
@@ -256,7 +268,7 @@
             <div class="live-badge zero" id="live"><span class="dot"></span><strong id="count">0</strong> connected</div>
           </header>
           <section class="masters" aria-label="Server controls">
-            <div class="master"><div class="master-top"><div class="master-label">${icon('server')}<span class="master-name">HA Server</span></div><a id="server-settings" class="settings-link" href="/config/integrations/integration/intiha" aria-label="Open IntiHA settings" title="IntiHA settings">${icon('settings')}</a></div><div class="master-bottom"><span class="master-status" id="server-status">Loading</span><button id="server" class="toggle" type="button" role="switch" aria-label="HA Server" aria-checked="false"></button></div></div>
+            <div class="master"><div class="master-top"><div class="master-label">${icon('server')}<span class="master-name">HA Server</span></div><button id="server-search" class="settings-link search-link" type="button" hidden aria-label="Search for devices" title="Search for devices">${icon('search')}</button><a id="server-settings" class="settings-link" href="/config/integrations/integration/intiha" aria-label="Open IntiHA settings" title="IntiHA settings">${icon('settings')}</a></div><div class="master-bottom"><span class="master-status" id="server-status">Loading</span><button id="server" class="toggle" type="button" role="switch" aria-label="HA Server" aria-checked="false"></button></div></div>
             <div class="master"><div class="master-top"><div class="master-label">${icon('nodes')}<span class="master-name">Ogg</span></div><a id="ogg-settings" class="settings-link" href="/config/integrations/integration/ogg" aria-label="Open Ogg settings" title="Ogg settings">${icon('settings')}</a></div><div class="master-bottom"><span class="master-status" id="ogg-status">Loading</span><button id="ogg" class="toggle" type="button" role="switch" aria-label="Ogg controller" aria-checked="false"></button></div></div>
           </section>
           <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -272,12 +284,12 @@
           <div class="section-head"><h3>Connected devices</h3><span id="list-subtitle">Live from Ogg</span></div>
           <div id="devices" class="device-list"></div>
           <div id="empty" class="empty">${icon('nodes')}<strong id="empty-title">No connected devices</strong><p id="empty-detail">Devices appear here when Ogg connects to them.</p></div>
-          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v0.1.14</span></div>
+          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v0.1.16</span></div>
         </div>`;
       this.shadowRoot.appendChild(root);
       this._shell = root;
       this._refs = {};
-      for (const id of ['title', 'live', 'count', 'server', 'ogg', 'server-settings', 'ogg-settings', 'server-status', 'ogg-status', 'duration', 'pulse-all', 'stop-all', 'devices', 'empty', 'empty-title', 'empty-detail', 'list-subtitle', 'toast']) {
+      for (const id of ['title', 'live', 'count', 'server', 'ogg', 'server-settings', 'server-search', 'ogg-settings', 'server-status', 'ogg-status', 'duration', 'pulse-all', 'stop-all', 'devices', 'empty', 'empty-title', 'empty-detail', 'list-subtitle', 'toast']) {
         this._refs[id] = root.querySelector(`#${id}`);
       }
       this._refs.title.textContent = this._config.title;
@@ -287,6 +299,7 @@
         this._refs[id].addEventListener('click', (event) => this._openSettings(event));
       }
       this._refs.duration.addEventListener('change', (e) => this._setNumber(this._hub.pulse_duration, e.target.value));
+      this._refs['server-search'].addEventListener('click', () => this._press(this._hub.inti_search));
       this._refs['pulse-all'].addEventListener('click', () => this._press(this._hub.pulse_all));
       this._refs['stop-all'].addEventListener('click', () => this._press(this._hub.stop_all));
     }
@@ -364,7 +377,7 @@
         status: ':status', battery: ':battery', remaining: ':remaining',
       };
       const hubKeys = {
-        enabled: ':enabled', pulse_duration: ':pulse_duration',
+        enabled: ':enabled', connected: ':connected', pulse_duration: ':pulse_duration',
         pulse_all: ':pulse_all', stop_all: ':stop_all',
       };
       const deviceNames = new Map((this._registryDevices || []).map((device) => [device.id, device.name_by_user || device.name || '']));
@@ -376,10 +389,22 @@
           hub.inti_server = entry.entity_id;
           continue;
         }
+        if (entry.platform === 'intiha' && prefix === 'button' && uid.endsWith('_server_search')) {
+          hub.inti_search = entry.entity_id;
+          continue;
+        }
+        if (entry.platform === 'intiha' && prefix === 'binary_sensor' && uid.endsWith('_server_engine_connected')) {
+          hub.inti_engine = entry.entity_id;
+          continue;
+        }
+        if (entry.platform === 'intiha' && prefix === 'binary_sensor' && uid.endsWith('_server_scanning')) {
+          hub.inti_scanning = entry.entity_id;
+          continue;
+        }
         if (entry.platform !== 'ogg') continue;
         const segments = uid.split(':');
         const key = segments[segments.length - 1];
-        if (segments.length === 2 && hubKeys[key]) {
+        if (segments.length === 2 && hubKeys[key] && (key !== 'connected' || prefix === 'binary_sensor')) {
           hub[key] = entry.entity_id;
           continue;
         }
@@ -419,6 +444,10 @@
       const hub = {
         inti_server: c.inti_server || detected.hub.inti_server || 'switch.intiha_server_enabled',
         enabled: c.ogg_enabled || detected.hub.enabled || 'switch.ogg_enabled',
+        ogg_connected: c.ogg_connected || detected.hub.connected || 'binary_sensor.ogg_connected',
+        inti_search: c.inti_search || detected.hub.inti_search,
+        inti_engine: c.inti_engine || detected.hub.inti_engine,
+        inti_scanning: c.inti_scanning || detected.hub.inti_scanning,
         pulse_duration: c.pulse_duration || detected.hub.pulse_duration || 'number.ogg_pulse_duration',
         pulse_all: c.pulse_all || detected.hub.pulse_all || 'button.ogg_pulse_all',
         stop_all: c.stop_all || detected.hub.stop_all || 'button.ogg_stop_all',
@@ -458,8 +487,15 @@
       const ogg = this._state(hub.enabled);
       this._setSwitch(r.server, server, 'HA Server');
       this._setSwitch(r.ogg, ogg, 'Ogg controller');
-      this._setStatus(r['server-status'], server);
-      this._setStatus(r['ogg-status'], ogg);
+      const engineUp = this._state(hub.inti_engine)?.state === 'on';
+      const scanning = this._state(hub.inti_scanning)?.state === 'on';
+      const oggUp = this._state(hub.ogg_connected)?.state === 'on';
+      this._setStatus(r['server-status'], server, scanning ? 'Searching…' : engineUp ? 'Connected' : hub.inti_engine ? 'Waiting for engine' : 'Enabled');
+      this._setStatus(r['ogg-status'], ogg, oggUp ? 'Connected' : 'Looking for server');
+      const canSearch = server?.state === 'on' && engineUp && this._available(hub.inti_search);
+      r['server-search'].hidden = !canSearch;
+      r['server-search'].disabled = scanning;
+      r['server-search'].classList.toggle('busy', scanning);
 
       const duration = this._state(hub.pulse_duration);
       this._fillOptions(r.duration, PULSE_OPTIONS, Number(duration?.state), fmtSecs, 'Select duration');
@@ -497,10 +533,11 @@
       button.title = button.disabled ? `${label} entity unavailable` : `Turn ${label} ${on ? 'off' : 'on'}`;
     }
 
-    _setStatus(node, state) {
+    _setStatus(node, state, onText = 'Enabled') {
       const on = state?.state === 'on';
-      node.textContent = !VALID(state) ? 'Unavailable' : on ? 'Enabled' : 'Off';
-      node.classList.toggle('on', on);
+      node.textContent = !VALID(state) ? 'Unavailable' : on ? onText : 'Off';
+      node.classList.toggle('on', on && (onText === 'Connected' || onText === 'Searching…'));
+      node.classList.toggle('pending', on && onText !== 'Connected' && onText !== 'Searching…');
     }
 
     _fillOptions(select, choices, value, formatter, placeholder) {
