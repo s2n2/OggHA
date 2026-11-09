@@ -43,6 +43,14 @@ PLAY_SCHEMA = vol.Schema(
         vol.Optional("loop", default=False): cv.boolean,
     }
 )
+LINEAR_SCHEMA = vol.Schema(
+    {
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Required("position"): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+        vol.Required("duration"): vol.All(vol.Coerce(int), vol.Range(min=20, max=10000)),
+        vol.Optional("index", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=7)),
+    }
+)
 STOP_SCHEMA = vol.Schema({vol.Required("entity_id"): cv.entity_id})
 from .dashboard_resource import async_register_control_deck
 
@@ -92,6 +100,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         hub, key = _hub_and_key(call.data["entity_id"])
         await hub.async_live(key, call.data["levels"], call.data["seconds"])
 
+    async def async_linear(call: ServiceCall) -> None:
+        hub, key = _hub_and_key(call.data["entity_id"])
+        await hub.async_linear(
+            key, call.data["position"], call.data["duration"], call.data["index"]
+        )
+
     async def async_play_script(call: ServiceCall) -> None:
         hub, key = _hub_and_key(call.data["entity_id"])
         await hub.async_play_script(key, call.data["script"], call.data["speed"], call.data["loop"])
@@ -101,6 +115,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         await hub.async_stop(key)
 
     hass.services.async_register(DOMAIN, "live", async_live, schema=LIVE_SCHEMA)
+    hass.services.async_register(DOMAIN, "linear", async_linear, schema=LINEAR_SCHEMA)
     hass.services.async_register(DOMAIN, "play_script", async_play_script, schema=PLAY_SCHEMA)
     hass.services.async_register(DOMAIN, "stop_script", async_stop_script, schema=STOP_SCHEMA)
     return True

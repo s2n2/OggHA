@@ -8,6 +8,8 @@ from collections.abc import Callable
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ogg.diagnostics import async_get_config_entry_diagnostics
@@ -643,3 +645,70 @@ async def test_pulse_all_has_independent_stop_backup_per_device(
     ))
     await until(lambda: not hub._stop_backups)
     assert all(not device.running for device in hub.devices.values())
+
+
+def stroker_device(index: int = 0) -> dict:
+    return {
+        "DeviceIndex": index,
+        "DeviceName": "Test stroker",
+        "DeviceMessageTimingGap": 0,
+        "DeviceMessages": {
+            "StopDeviceCmd": {},
+            "LinearCmd": [{"FeatureDescriptor": "Stroke", "ActuatorType": "Position", "StepCount": 100}],
+        },
+    }
+
+
+async def test_live_linear_sends_one_vector_without_stop(hass, fake_server, hub_factory):
+    fake_server.devices = [stroker_device()]
+    hub = await hub_factory(fake_server)
+    key = next(iter(hub.devices))
+    before = len(fake_server.requests)
+    await hub.async_linear(key, 80, 120)
+    commands = await fake_server.wait_for("LinearCmd")
+    assert commands[-1]["Vectors"] == [{"Index": 0, "Duration": 120, "Position": 0.8}]
+    sent = [name for name, _ in fake_server.requests[before:]]
+    assert "StopDeviceCmd" not in sent
+    assert hub.devices[key].aux_values["linear_0"] == 80
+
+    # Through the registered service, any Ogg entity of the device works.
+    registry = er.async_get(hass)
+    entity_id = next(
+        e.entity_id
+        for e in registry.entities.values()
+        if e.platform == "ogg" and str(e.unique_id).split(":")[1:2] == [key]
+    )
+    await hass.services.async_call(
+        "ogg", "linear", {"entity_id": entity_id, "position": 10, "duration": 300}, blocking=True
+    )
+    commands = await fake_server.wait_for("LinearCmd", count=2)
+    assert commands[-1]["Vectors"] == [{"Index": 0, "Duration": 300, "Position": 0.1}]
+    assert "StopDeviceCmd" not in [name for name, _ in fake_server.requests[before:]]
+
+
+async def test_live_linear_newest_call_wins(fake_server, hub_factory):
+    fake_server.devices = [stroker_device()]
+    hub = await hub_factory(fake_server)
+    key = next(iter(hub.devices))
+    fake_server.withhold.add("LinearCmd")
+    first = asyncio.create_task(hub.async_linear(key, 10, 100))
+    await fake_server.wait_for("LinearCmd")
+    # These wait behind the in-flight command; only the newest may be sent.
+    queued = [asyncio.create_task(hub.async_linear(key, p, 100)) for p in (20, 30, 40)]
+    await asyncio.sleep(0.05)
+    fake_server.withhold.discard("LinearCmd")
+    first.cancel()
+    await asyncio.gather(first, return_exceptions=True)
+    await asyncio.gather(*queued)
+    positions = [body["Vectors"][0]["Position"] for name, body in fake_server.requests
+                 if name == "LinearCmd"]
+    assert positions == [0.1, 0.4]
+    assert hub.devices[key].aux_values["linear_0"] == 40
+
+
+async def test_live_linear_rejects_device_without_linear(fake_server, hub_factory):
+    hub = await hub_factory(fake_server)
+    key = next(iter(hub.devices))
+    with pytest.raises(HomeAssistantError):
+        await hub.async_linear(key, 50, 100)
+    assert not [name for name, _ in fake_server.requests if name == "LinearCmd"]
