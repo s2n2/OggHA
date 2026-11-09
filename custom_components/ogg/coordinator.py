@@ -46,6 +46,10 @@ from .patterns import (
 from .protocol import ButtplugConnection, CommandError, ProtocolError
 
 _LOGGER = logging.getLogger(__name__)
+
+# Live linear (stroker) move duration bounds, in milliseconds.
+LINEAR_MIN_MS = 20
+LINEAR_MAX_MS = 10000
 _PATTERNS = set(SOFTWARE_PATTERNS) | set(NATIVE_PATTERNS) | set(DUAL_PATTERNS) | {RANDOM_PATTERN}
 
 
@@ -144,6 +148,8 @@ class OggHub:
         self._offline_since: dict[str, float] = {}
         self._offline_searched: set[str] = set()
         self._locks: dict[str, asyncio.Lock] = {}
+        # Live linear following: newest call per device wins (see async_linear).
+        self._linear_serials: dict[str, int] = {}
         self._listeners: set[Callable[[], None]] = set()
         self._event_tasks: set[asyncio.Task] = set()
         self._wake = asyncio.Event()
@@ -1005,6 +1011,7 @@ class OggHub:
                 if target == key or old_key == key:
                     self._identity_aliases.pop(old_key, None)
         self._locks.pop(key, None)
+        self._linear_serials.pop(key, None)
         self._save_later()
         self._notify()
         return True
@@ -1704,6 +1711,45 @@ class OggHub:
             if kind == "rotate":
                 device.running = any(values)
                 device.mode = "continuous" if device.running else "idle"
+            self._notify()
+
+    async def async_linear(
+        self, key: str, position: float, duration: float, index: int = 0
+    ) -> None:
+        """Live stroker following: one LinearCmd, no stop-first.
+
+        Called up to ~10 times a second (one per stroke turn). Calls never
+        queue up: a call still waiting for the device lock when a newer one
+        arrives is dropped, so only the newest target is ever sent.
+        """
+        epoch = self._operation_epoch
+        device = self._require_device(key)
+        if not 0 <= index < device.linear_count:
+            raise HomeAssistantError("This device does not support that control")
+        position = min(100.0, max(0.0, float(position)))
+        duration = int(min(LINEAR_MAX_MS, max(LINEAR_MIN_MS, float(duration))))
+        serial = self._linear_serials.get(key, 0) + 1
+        self._linear_serials[key] = serial
+        async with self._lock(key):
+            if serial != self._linear_serials.get(key) or epoch != self._operation_epoch:
+                return  # Superseded by a newer target or an all-off.
+            client = self._require_online(device)
+            payload = {
+                "DeviceIndex": device.index,
+                "Vectors": [
+                    {"Index": index, "Duration": duration, "Position": position / 100},
+                ],
+            }
+            try:
+                response = await client.request("LinearCmd", payload)
+                if "Ok" not in response:
+                    raise ProtocolError("Unexpected acknowledgement")
+            except ProtocolError as err:
+                # Quiet: live following retries on the next stroke turn, so
+                # do not latch a device error or log at warning level.
+                _LOGGER.debug("Live linear command was not acknowledged: %s", err)
+                raise HomeAssistantError("Linear command could not be completed") from err
+            device.aux_values[f"linear_{index}"] = position
             self._notify()
 
     @staticmethod

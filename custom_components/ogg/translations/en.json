@@ -276,6 +276,28 @@
         }
       }
     },
+    "linear": {
+      "name": "Live linear move",
+      "description": "Move a stroker (e.g. The Handy, Launch, Keon) to a position over a duration, without stopping first. For live following; a newer call replaces one still waiting.",
+      "fields": {
+        "entity_id": {
+          "name": "Device entity",
+          "description": "Any Ogg entity of the device."
+        },
+        "position": {
+          "name": "Position",
+          "description": "Target position 0-100 (0 = bottom, 100 = top)."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Milliseconds to reach the position (20-10000)."
+        },
+        "index": {
+          "name": "Linear feature",
+          "description": "Which linear feature to move (default 0)."
+        }
+      }
+    },
     "play_script": {
       "name": "Play script",
       "description": "Play a funscript timeline (pos 0-100 = intensity) on a device.",
