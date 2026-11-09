@@ -33,6 +33,7 @@ An offline server is a connection state, rather than a failed integration setup.
 | **Motor mode and motor levels** | Controls multiple vibration motors together, alternately or individually when available. |
 | **Native protocol** | Enables the guarded classic We-Vibe path when the server and exact model qualify. |
 | **Rotation / Position** | Retains manual controls for advertised rotary or linear features. These are separate from vibration patterns. |
+| **`ogg.linear` service** | Live stroker following (The Handy, Launch, Keon): `position` 0-100 over `duration` ms, sent as one LinearCmd without stopping first; the newest call wins. Used by OggStudio's Stroker mode. |
 
 Ogg sends no motor-start commands during discovery. A brief disconnect can
 preserve a **transient desired Run/Pulse intention for up to 30 seconds**.
