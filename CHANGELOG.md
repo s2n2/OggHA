@@ -1,4 +1,4 @@
-## Unreleased - Live linear for strokers
+## 2.5.0 - Live linear for strokers
 - New `ogg.linear` service moves a stroker (The Handy, Launch, Keon) to `position` 0-100 over `duration` ms with a single LinearCmd and no stop first, for live following such as OggStudio's Stroker mode. Calls never queue: the newest target wins. The device's Position entity shows the last target. Existing services are unchanged.
 
 ## 2.2.0 - Chart shows actual output
