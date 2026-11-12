@@ -157,6 +157,7 @@ async def test_same_device_keeps_registry_ids_settings_and_routes_current_index(
     expected_settings = deepcopy(hub.devices[key].settings)
     await hub.async_start(key)
     assert (await first.wait_for("ScalarCmd"))[-1]["DeviceIndex"] == 0
+    await hub.async_stop(key)
 
     second.accepting = True
     await first.go_offline()
