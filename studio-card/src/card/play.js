@@ -870,7 +870,7 @@ export class PlayPart {
     const src = { mic: 'microphone', file: 'music', tab: 'tab', video: 'from the video' };
     // Together, the script tools, the lock.
     const tg = this._tg;
-    badge('tgbadge', Boolean(tg && tg.joined), tg && tg.joined ? 'connected' : 'off');
+    badge('tgbadge', Boolean(tg && tg.joined), !tg ? 'off' : !tg.joined ? 'waiting' : tg.rec ? '● recording' : tg.sync ? 'synced' : 'connected');
     const rpn = this._rp && this._rp.raw ? this._rp.name || 'script' : '';
     badge('toolbadge', Boolean(rpn), rpn ? rpn.slice(0, 18) : 'no script');
     const tinfo = rpn ? `Editing "${rpn}": drag the Library's bar to a spot, then cut. Changes become the current take.` : 'Choose a script in the Library first.';

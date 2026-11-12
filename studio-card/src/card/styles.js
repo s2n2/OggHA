@@ -359,5 +359,16 @@ ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d
 .outrow .outm{grid-column:3/5;grid-row:2;min-height:34px;font-size:12px;font-weight:600;color:#c5d2f0}
 .outrow .outai,.outrow .outtake{grid-column:3/5}
 .outrow + .outrow{margin-top:6px;padding-top:8px;border-top:1px solid rgba(174,194,246,.08)}
+.tgtoys{display:flex;flex-direction:column;gap:6px;margin:10px 0 4px}
+.tgrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.tglab{flex:0 0 78px;font-size:11px;font-weight:700;color:#99a9c5}
+.tgtoy{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.045);font-size:12px;font-weight:700}
+.tgnone{font-size:11.5px;color:var(--muted)}
+.tgchip{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:20px;border:1px solid rgba(143,163,200,.25);color:#92a2be}
+.tgchip.his{color:#9fd3ff;border-color:rgba(110,180,255,.4);background:rgba(70,140,230,.12)}
+.tgchip.hers{color:#ffb3d9;border-color:rgba(255,130,190,.4);background:rgba(230,90,160,.12)}
+.tgopts{margin-top:8px;align-items:center}
+.tgopts > label.check{flex:1 1 auto}
+.tgopts > button.rec{flex:0 0 auto;width:auto;min-height:40px;padding:0 14px;font-size:12.5px}
 [hidden],.off{display:none!important}
 `;

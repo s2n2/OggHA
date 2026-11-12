@@ -1678,6 +1678,17 @@ ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d
 .outrow .outm{grid-column:3/5;grid-row:2;min-height:34px;font-size:12px;font-weight:600;color:#c5d2f0}
 .outrow .outai,.outrow .outtake{grid-column:3/5}
 .outrow + .outrow{margin-top:6px;padding-top:8px;border-top:1px solid rgba(174,194,246,.08)}
+.tgtoys{display:flex;flex-direction:column;gap:6px;margin:10px 0 4px}
+.tgrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.tglab{flex:0 0 78px;font-size:11px;font-weight:700;color:#99a9c5}
+.tgtoy{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.045);font-size:12px;font-weight:700}
+.tgnone{font-size:11.5px;color:var(--muted)}
+.tgchip{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:20px;border:1px solid rgba(143,163,200,.25);color:#92a2be}
+.tgchip.his{color:#9fd3ff;border-color:rgba(110,180,255,.4);background:rgba(70,140,230,.12)}
+.tgchip.hers{color:#ffb3d9;border-color:rgba(255,130,190,.4);background:rgba(230,90,160,.12)}
+.tgopts{margin-top:8px;align-items:center}
+.tgopts > label.check{flex:1 1 auto}
+.tgopts > button.rec{flex:0 0 auto;width:auto;min-height:40px;padding:0 14px;font-size:12.5px}
 [hidden],.off{display:none!important}
 `;
 
@@ -1851,6 +1862,7 @@ ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d
           if (e.platform !== "ogg" || !e.device_id || uid.split(":").length < 3) continue;
           const d = byDevice.get(e.device_id) || { id: e.device_id, name: names.get(e.device_id) };
           if (uid.endsWith(":stop")) d.stop = e.entity_id;
+          if (uid.endsWith(":owner")) d.owner = e.entity_id;
           if (uid.endsWith(":connected")) d.connected = e.entity_id;
           if (uid.endsWith(":motor_level_1")) d.dual = true;
           if (uid.endsWith(":linear_0")) d.linear = e.entity_id;
@@ -1990,7 +2002,9 @@ ${STYLES}
                 <div class="rpinfo" id="tgstat"></div>
                 <label class="check"><input id="tgaccept" type="checkbox"> Let my partner control my devices</label>
                 <label>From my partner</label><div class="meter"><i id="tgin"></i></div>
-                <label>To my partner <b id="tgsendv">0%</b></label><input id="tgsend" type="range" min="0" max="100" step="1" value="0">
+                <div id="tgtoys" class="tgtoys"></div>
+                <div class="row tgopts"><label class="check"><input id="tgsync" type="checkbox"> ⇄ Sync both</label><button id="tgrec" type="button" class="rec">● Record partner</button></div>
+                <div id="tgsendbox"><label>To my partner <b id="tgsendv">0%</b></label><input id="tgsend" type="range" min="0" max="100" step="1" value="0"></div>
                 <div class="row" style="margin-top:8px"><button id="tgstop" type="button" class="stop">■ Stop both</button><button id="tgend" type="button">End session</button></div>
               </div>
             </div>
@@ -4974,12 +4988,39 @@ ${STYLES}
       this._outRender();
     }
     // Send output values (0-100; a stroker may get {goal, dur}) to the devices.
-    _outApply(values, seconds) {
+    // `path` 'partner': what a Together partner sends, for my own toys.
+    _outApply(values, seconds, path) {
       if (!this._hass || !this._outs) return;
       const now = performance.now();
       if (now < (this._holdUntil || 0)) return;
-      const targets = this._outs.map((o, i) => this._outTargetValue(i));
+      let targets = this._outs.map((o, i) => this._outTargetValue(i));
       values = values.map((v, i) => this._outs[i] && this._outs[i].on === false ? null : v);
+      const tg = this._tg;
+      const partner = tg && tg.joined && tg.partner && tg.partner.length ? tg.partner : null;
+      if (partner) {
+        const pv = partner.map((t, j) => {
+          const v = values[j % 2];
+          return v === void 0 || v === null ? values[0] ?? null : v;
+        });
+        if (path !== "partner") {
+          const first = pv.find((v) => v !== null && v !== void 0);
+          tg.outLevel = typeof first === "object" && first ? first.goal : first || 0;
+        }
+        if (tg.sync) {
+          targets = [...targets, ...partner];
+          values = [...values, ...pv];
+        } else if (path !== "partner") {
+          targets = partner.slice();
+          values = pv;
+        }
+      } else if (tg && path !== "partner") {
+        const first = values.find((v) => v !== null && v !== void 0);
+        tg.outLevel = typeof first === "object" && first ? first.goal : first || 0;
+      }
+      values = values.map((v, i) => {
+        const p = parseTarget(targets[i]);
+        return v && typeof v === "object" && p && p.motor !== "l" ? v.goal : v;
+      });
       let blocked = false;
       for (const e of outLevels(targets, values, this._devices)) {
         if (!this._outClaim(e.dev)) {
@@ -6490,11 +6531,38 @@ ${STYLES}
         this._toast("Stopped both sides.");
       });
       $("tgend").addEventListener("click", () => this._tgEnd());
+      $("tgsync").addEventListener("change", () => {
+        if (this._tg) {
+          this._tg.sync = $("tgsync").checked;
+          this._tgSend({ sync: this._tg.sync });
+        }
+        this._tgShow();
+      });
+      $("tgrec").addEventListener("click", () => this._tgRecToggle());
       this._tgShow();
     }
     _tgNew(role) {
       if (this._tg) this._tgEnd();
-      const tg = { role, joined: false, theirs: false, name: "", in: null, link: "", token: null, sentAccept: null, lastOut: 0, outAt: 0, pingAt: 0, driving: false };
+      const tg = {
+        role,
+        joined: false,
+        theirs: false,
+        name: "",
+        in: null,
+        link: "",
+        token: null,
+        sentAccept: null,
+        lastOut: 0,
+        outAt: 0,
+        pingAt: 0,
+        driving: false,
+        offer: {},
+        offerKey: "",
+        partner: [],
+        sync: false,
+        rec: null,
+        outLevel: 0
+      };
       this._tg = tg;
       clearInterval(this._tgTimer);
       this._tgTimer = setInterval(() => this._tgTick(), 100);
@@ -6531,6 +6599,10 @@ ${STYLES}
         tg.theirs = false;
         tg.in = null;
         tg.sentAccept = null;
+        tg.partner = [];
+        tg.offerKey = "";
+        if (tg.rec) this._tgRecToggle();
+        this._outStop();
         this._toast("Your partner left. The link still works if they come back.");
       } else if (ev.event === "msg") this._tgMsg(tg, ev.data || {});
       this._tgShow();
@@ -6541,6 +6613,59 @@ ${STYLES}
       const discreet = this._privacy && this._privacy.discreet;
       const name = !discreet && this._hass && this._hass.user && String(this._hass.user.name || "").trim();
       if (name) this._tgSend({ name: name.slice(0, 30) });
+      tg.offerKey = "";
+      if (tg.sync) this._tgSend({ sync: true });
+    }
+    // Toys I am not using, offered to my partner as theirs to pick (his/hers shown).
+    _tgOffer() {
+      const used = new Set((this._outs || []).map((o, i) => (this._outDevice(i) || {}).id));
+      const list = this._devices.filter((d) => !used.has(d.id) && this._online(d)).slice(0, 8);
+      const offer = {};
+      const items = list.map((d, n) => {
+        const k = `d${n}`;
+        offer[k] = `${d.id}|${d.linear && !d.vibe ? "l" : "b"}`;
+        return { k, name: String(d.name || "Toy").slice(0, 30), owner: this._whose(d), kind: d.linear && !d.vibe ? "stroke" : d.dual ? "dual" : "vibe" };
+      });
+      return { offer, items };
+    }
+    _whose(d) {
+      const st = d && d.owner && this._hass && this._hass.states[d.owner];
+      return st && ["his", "hers"].includes(st.state) ? st.state : "unassigned";
+    }
+    // Record what my partner sends, to play again later (they are told).
+    _tgRecToggle() {
+      const tg = this._tg;
+      if (!tg) return;
+      if (tg.rec) {
+        const rec = tg.rec;
+        tg.rec = null;
+        this._tgSend({ rec: false });
+        const t = Math.round(performance.now() - rec.t0);
+        const acts = rec.acts;
+        if (acts.length) acts.push({ at: t, pos: acts[acts.length - 1].pos }, { at: t + 1, pos: 0 });
+        if (acts.length > 2) {
+          this._take = {
+            version: "1.0",
+            inverted: false,
+            range: 100,
+            actions: acts,
+            metadata: { creator: "Ogg", type: "vibration", title: `From ${tg.name || "my partner"}` }
+          };
+          this._libPick = "take";
+          if (this._simple && this._ctl !== "library") this._setCtl("library");
+          if (this._rp && !this._rp.playing) this._rpLoad(this._take, "Current take", null);
+          this._update();
+          this._toast("Recorded: it is the current take in the Library, to play or save.");
+        } else this._toast("Nothing came from your partner while recording.");
+      } else {
+        if (!tg.joined) {
+          this._toast("Your partner has not joined yet.");
+          return;
+        }
+        tg.rec = { t0: performance.now(), acts: [], last: null, seen: null };
+        this._tgSend({ rec: true });
+      }
+      this._tgShow();
     }
     _tgJoin() {
       const $ = this._el;
@@ -6600,6 +6725,16 @@ ${STYLES}
       if (Array.isArray(d.v) && d.v.length && d.v.every((x) => Number.isFinite(x))) tg.in = { v: d.v.slice(0, 2).map((x) => Math.min(100, Math.max(0, x))), at: performance.now() };
       if (typeof d.accept === "boolean") tg.theirs = d.accept;
       if (typeof d.name === "string") tg.name = d.name.slice(0, 30);
+      if (Array.isArray(d.mine) && tg.role === "host") {
+        const before = tg.partner.join();
+        tg.partner = d.mine.map((k) => tg.offer[k]).filter(Boolean).slice(0, 4);
+        if (tg.partner.join() !== before) {
+          this._outStop();
+          this._toast(tg.partner.length ? "Your partner picked their toys: your controls now play them." : "Your partner put their toys back.");
+        }
+      }
+      if (typeof d.sync === "boolean" && tg.role === "guest") tg.sync = d.sync;
+      if (typeof d.rec === "boolean" && tg.role === "guest") this._toast(d.rec ? "Your partner is recording what you send." : "Your partner stopped recording.");
       if (d.stop === true) {
         this._tgStopLocal(false);
         this._toast("Your partner stopped both sides.");
@@ -6621,7 +6756,16 @@ ${STYLES}
           tg.sentAccept = accept;
           this._tgSend({ accept });
         }
-        const out = Number($("tgsend").value) || 0;
+        if (tg.role === "host") {
+          const { offer, items } = this._tgOffer();
+          const key = JSON.stringify(items);
+          if (key !== tg.offerKey) {
+            tg.offerKey = key;
+            tg.offer = offer;
+            this._tgSend({ devices: items });
+          }
+        }
+        const out = this._simple ? Math.round(tg.outLevel || 0) : Number($("tgsend").value) || 0;
         if (out !== tg.lastOut || out > 0 && now - tg.outAt >= 500) {
           tg.lastOut = out;
           tg.outAt = now;
@@ -6634,10 +6778,22 @@ ${STYLES}
       }
       const fresh = Boolean(tg.in && now - tg.in.at < TG_FRESH_MS);
       $("tgin").style.width = `${fresh ? Math.max(...tg.in.v) : 0}%`;
+      if (tg.rec) {
+        const t = Math.round(now - tg.rec.t0);
+        const pos = Math.round(fresh ? Math.max(...tg.in.v) : 0);
+        const acts = tg.rec.acts;
+        if (pos !== tg.rec.last) {
+          const prev = acts[acts.length - 1];
+          if (prev && tg.rec.seen !== null && tg.rec.seen > prev.at && tg.rec.seen < t) acts.push({ at: tg.rec.seen, pos: prev.pos });
+          acts.push({ at: t, pos });
+          tg.rec.last = pos;
+        }
+        tg.rec.seen = t;
+      }
       if (accept && fresh) {
         tg.driving = true;
         const v = tg.in.v;
-        this._outApply(this._outIdx.map((i) => this._mapLevel(i, v[i % 2] ?? v[0])), 0.6);
+        this._outApply(this._outIdx.map((i) => this._mapLevel(i, v[i % 2] ?? v[0])), 0.6, "partner");
       } else if (tg.driving) {
         tg.driving = false;
         this._outStop();
@@ -6665,6 +6821,8 @@ ${STYLES}
       this._tg = null;
       clearInterval(this._tgTimer);
       this._tgTimer = null;
+      if (tg.rec) this._tgRecToggle();
+      tg.partner = [];
       if (tg.unsub) {
         try {
           Promise.resolve(tg.unsub()).catch(() => {
@@ -6690,6 +6848,7 @@ ${STYLES}
     }
     _tgShow() {
       if (!this._el) return;
+      if (this._mediaShow) this._mediaShow();
       const $ = this._el;
       const tg = this._tg;
       $("tgidle").hidden = Boolean(tg);
@@ -6702,8 +6861,25 @@ ${STYLES}
       const who = tg.name || "Your partner";
       let text;
       if (!tg.joined) text = tg.role === "host" ? "Waiting for your partner to open the link…" : "Connecting…";
+      else if (this._simple) text = `${who} is here · ${tg.sync ? "synced: you both feel the same" : $("tgaccept").checked ? "they play your toys" : "they cannot play your toys yet"}`;
       else text = `${who} is here · ${tg.theirs ? "your slider drives their devices" : "they have not let you control yet"} · ${$("tgaccept").checked ? "they drive your devices" : "your devices do not follow them"}`;
       if ($("tgstat").textContent !== text) $("tgstat").textContent = text;
+      const chip = (d) => {
+        const o = this._whose(d);
+        return o === "unassigned" ? "" : `<span class="tgchip ${o}">${o === "his" ? "His" : "Hers"}</span>`;
+      };
+      const esc2 = (t) => String(t).replace(/[&<>"]/g, "");
+      const mineList = (this._outs || []).map((o, i) => this._outDevice(i)).filter(Boolean);
+      const theirs = tg.partner.map((t) => this._devices.find((d) => d.id === t.split("|")[0])).filter(Boolean);
+      const row = (label, list, empty) => `<div class="tgrow"><span class="tglab">${label}</span>${list.length ? list.map((d) => `<span class="tgtoy">${esc2(d.name)}${chip(d)}</span>`).join("") : `<span class="tgnone">${empty}</span>`}</div>`;
+      const html = tg.role !== "host" ? "" : row("Your toys", mineList, "none chosen under Devices") + row("Their toys", theirs, tg.joined ? "they can pick theirs on their page" : "when they join");
+      if ($("tgtoys").innerHTML !== html) $("tgtoys").innerHTML = html;
+      $("tgsync").checked = tg.sync;
+      $("tgsync").disabled = !tg.joined;
+      $("tgrec").textContent = tg.rec ? "■ Stop recording" : "● Record partner";
+      $("tgrec").classList.toggle("on", Boolean(tg.rec));
+      $("tgrec").disabled = !tg.joined || tg.role !== "host";
+      $("tgsendbox").hidden = this._simple;
     }
   };
 
@@ -7727,7 +7903,7 @@ ${STYLES}
       const au = this._au;
       const src = { mic: "microphone", file: "music", tab: "tab", video: "from the video" };
       const tg = this._tg;
-      badge("tgbadge", Boolean(tg && tg.joined), tg && tg.joined ? "connected" : "off");
+      badge("tgbadge", Boolean(tg && tg.joined), !tg ? "off" : !tg.joined ? "waiting" : tg.rec ? "● recording" : tg.sync ? "synced" : "connected");
       const rpn = this._rp && this._rp.raw ? this._rp.name || "script" : "";
       badge("toolbadge", Boolean(rpn), rpn ? rpn.slice(0, 18) : "no script");
       const tinfo = rpn ? `Editing "${rpn}": drag the Library's bar to a spot, then cut. Changes become the current take.` : "Choose a script in the Library first.";
