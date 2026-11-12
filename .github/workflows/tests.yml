@@ -1,0 +1,40 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install Home Assistant's test harness
+        run: pip install "pytest-homeassistant-custom-component==0.13.375" ruff==0.17.3
+      - name: Lint the studio (Play card) code
+        run: ruff check custom_components/ogg/studio custom_components/ogg/config_flow.py custom_components/ogg/dashboard_resource.py tests/test_studio.py
+      - name: Ogg and studio tests (real Home Assistant)
+        run: pytest -q
+      - name: Studio backend checks (stubbed Home Assistant)
+        run: |
+          python studio-card/tests/backend_test.py
+          python studio-card/tests/video_test.py
+
+  card:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: npm ci
+      - name: The committed card is the built one
+        run: npm run build && git diff --exit-code -- custom_components/ogg/frontend/oggstudio-card.js
+      - name: Card tests
+        run: npm test

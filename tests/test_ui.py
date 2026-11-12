@@ -178,6 +178,10 @@ async def test_config_flow_rejects_invalid_limits_and_addresses(hass, invalid):
 async def test_options_can_replace_addresses_without_a_running_server(hass):
     entry = await setup_entry(hass)
     result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.MENU     # Connection, or the studio's privacy
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "connection"}
+    )
     assert result["type"] is FlowResultType.FORM
     changed = {**config(), "manual_hosts": [], "sensor_entities": ["sensor.phone_ip"]}
     selected = result["data_schema"](changed)

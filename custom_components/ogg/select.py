@@ -11,6 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .coordinator import CONNECT_FEEDBACK_OPTIONS, OggHub
 from .entity import OggEntity, async_register_device_entities
 from .patterns import DUAL_PATTERNS, NATIVE_PATTERNS, RANDOM_PATTERN, SOFTWARE_PATTERNS
+from .studio.entities import studio_selects
 
 PARALLEL_UPDATES = 0
 
@@ -23,7 +24,7 @@ MOTOR_OPTIONS = ["together", "alternating", "motor_1", "motor_2"]
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    async_add_entities([OggConnectFeedback(entry.runtime_data)])
+    async_add_entities([OggConnectFeedback(entry.runtime_data), *studio_selects(hass, entry)])
     async_register_device_entities(entry, async_add_entities, _device_selects)
 
 
