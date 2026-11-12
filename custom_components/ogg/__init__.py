@@ -41,6 +41,11 @@ PLAY_SCHEMA = vol.Schema(
         vol.Required("script"): dict,
         vol.Optional("speed", default=1.0): vol.All(vol.Coerce(float), vol.Range(min=0.25, max=4.0)),
         vol.Optional("loop", default=False): cv.boolean,
+        # "vibrate" (motors), "linear" (stroker) or "auto": the stroker on a
+        # device without vibration motors, else the motors.
+        vol.Optional("output", default="auto"): vol.In(("auto", "vibrate", "linear")),
+        # Stop after this long, even when looping (6 h at most).
+        vol.Optional("max_seconds"): vol.All(vol.Coerce(float), vol.Range(min=1, max=21600)),
     }
 )
 LINEAR_SCHEMA = vol.Schema(
@@ -114,7 +119,20 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async def async_play_script(call: ServiceCall) -> None:
         hub, key = _hub_and_key(call.data["entity_id"])
-        await hub.async_play_script(key, call.data["script"], call.data["speed"], call.data["loop"])
+        output = call.data["output"]
+        device = hub.devices.get(key)
+        if output == "auto" and device is not None:
+            output = "linear" if not device.motor_count and device.linear_count else "vibrate"
+        if output == "linear":
+            await hub.async_play_linear(
+                key, call.data["script"], call.data["speed"], call.data["loop"],
+                call.data.get("max_seconds"),
+            )
+        else:
+            await hub.async_play_script(
+                key, call.data["script"], call.data["speed"], call.data["loop"],
+                call.data.get("max_seconds"),
+            )
 
     async def async_stop_script(call: ServiceCall) -> None:
         hub, key = _hub_and_key(call.data["entity_id"])

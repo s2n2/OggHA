@@ -24,9 +24,15 @@ export class SafetyPart {
     this.shadowRoot.addEventListener('pointerdown', () => this._touched(), true);
     if (!this._pageHide) {
       // The page is going (closed, or navigated away): leave nothing running.
-      this._pageHide = () => { if (this._claimed.size) this._outStop(); };
+      // (Not when the screen just turns off: then Ogg carries on, screenoff.js.)
+      this._pageHide = (e) => {
+        if (this._so && e && e.persisted) return;
+        this._soEnd();
+        if (this._claimed.size) this._outStop();
+      };
       window.addEventListener('pagehide', this._pageHide);
     }
+    this._soBind();
     try { this._privacy = JSON.parse(localStorage.getItem(PRIVACY_KEY) || 'null') || {}; } catch (_) { this._privacy = {}; }
     this._privacyShow();
   }
@@ -41,6 +47,7 @@ export class SafetyPart {
   _haltAll() {
     if (!this._el) return;
     const $ = this._el;
+    this._soEnd();
     this._holdUntil = performance.now() + PANIC_HOLD_MS;
     if (this._recording) this._stopRecording();
     if (this._stRecording) this._stStop();

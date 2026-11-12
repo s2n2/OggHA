@@ -93,6 +93,22 @@ play_script:
       default: false
       selector:
         boolean:
+    output:
+      required: false
+      default: auto
+      selector:
+        select:
+          options:
+            - auto
+            - vibrate
+            - linear
+    max_seconds:
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 21600
+          unit_of_measurement: s
 stop_script:
   fields:
     entity_id:

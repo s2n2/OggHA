@@ -412,9 +412,14 @@ class ScriptProgram:
     """Plays per-motor timelines with linear interpolation, speed and loop."""
 
     def __init__(
-        self, channels: list[list[tuple[int, float]]], speed: float = 1.0, loop: bool = False
+        self,
+        channels: list[list[tuple[int, float]]],
+        speed: float = 1.0,
+        loop: bool = False,
+        max_seconds: float | None = None,
     ) -> None:
         self.channels = [c for c in channels]
+        self.max_seconds = max_seconds
         self._times = [[at for at, _ in c] for c in self.channels]
         self.speed = min(4.0, max(0.25, float(speed)))
         self.loop = bool(loop)
@@ -439,6 +444,10 @@ class ScriptProgram:
         return out
 
     def finished(self, now: float) -> bool:
-        if self.loop or self.start is None:
+        if self.start is None:
+            return False
+        if self.max_seconds is not None and now - self.start >= self.max_seconds:
+            return True
+        if self.loop:
             return False
         return (now - self.start) * 1000 * self.speed > self.duration_ms

@@ -181,6 +181,16 @@ export class ToolsPart {
     this._plShow();
   }
 
+  // The queue's scripts, fetched ahead so the whole queue can be handed to
+  // Ogg when the screen turns off (screenoff.js).
+  _plFetch() {
+    this._plCache = this._plCache || new Map();
+    for (const it of this._pl.items) {
+      if (!it.script || this._plCache.has(it.script)) continue;
+      this._getSaved(it.script).then((s) => { if (s) this._plCache.set(it.script, s); }).catch(() => {});
+    }
+  }
+
   _plNext() {
     const pl = this._pl;
     if (pl.busy) return;
@@ -191,6 +201,7 @@ export class ToolsPart {
   async _plPlay(start) {
     const pl = this._pl;
     if (!pl.items.length) { this._toast('The queue is empty.'); return; }
+    this._plFetch();
     const run = (pl.run += 1);
     let i = start, done = false;
     for (let tried = 0; tried < pl.items.length; tried++, i++) {
