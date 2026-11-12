@@ -1,3 +1,11 @@
+## 3.0.0 - OggStudio is part of Ogg
+- **The Play card is built in.** OggStudio's card and services now ship inside Ogg: add the card with `type: custom:oggstudio-play-card` (the old OggStudio card types still work and show the Play card). Ogg registers it as a dashboard resource, like the control deck.
+- **One card for everything:** up to four devices (1 and 3 follow pad 1, 2 and 4 pad 2), manual, Ogg's patterns, moods and the Library; recording with Save/Download; video with a matching script picked automatically and an overlay for fullscreen; sound; Script editing; Queue; Lock & PIN; Extras.
+- **Together:** share a link and your partner gets a full remote (pad, patterns, moods). Toys you are not using are offered with their his/hers tag and your partner picks theirs; your controls then play their toys and theirs play yours. **Sync** makes both play both, and **Record partner** keeps what they send as a take to play again.
+- **Privacy:** videos are never stored on Home Assistant; casting streams through the card. Discreet mode, PIN and auto-lock are in Ogg's options (Configure → Studio), and changing them no longer reconnects Ogg.
+- **Moving from OggStudio:** on first start Ogg takes over OggStudio's saved scripts, queues and settings, and shows a repair until the OggStudio integration is removed. Remove it (and its HACS download) afterwards; Ogg then drops its old card resource. Services are now `ogg.studio_*`.
+- New entities on an "Ogg Studio" device: saved script, replay speed and Stop everything.
+
 ## 2.5.0 - Live linear for strokers
 - New `ogg.linear` service moves a stroker (The Handy, Launch, Keon) to `position` 0-100 over `duration` ms with a single LinearCmd and no stop first, for live following such as OggStudio's Stroker mode. Calls never queue: the newest target wins. The device's Position entity shows the last target. Existing services are unchanged.
 
