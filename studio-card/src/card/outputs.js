@@ -172,6 +172,7 @@ export class OutputsPart {
   // `path` 'partner': what a Together partner sends, for my own toys.
   _outApply(values, seconds, path) {
     if (!this._hass || !this._outs) return;
+    if (this._so && path !== 'partner') return;      // screen off: Ogg plays it (screenoff.js)
     const now = performance.now();
     if (now < (this._holdUntil || 0)) return;       // Stop all was just pressed
     let targets = this._outs.map((o, i) => this._outTargetValue(i));
@@ -235,6 +236,7 @@ export class OutputsPart {
   // Stop and release every device this card was driving (not ones another
   // controller has since taken over).
   _outStop() {
+    if (this._so) return;                            // screen off: Ogg is playing the timelines
     for (const [stop, dev] of this._claimed) {
       if (this._claimedBy(dev)) continue;
       this._quietStop(dev);

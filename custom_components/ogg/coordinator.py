@@ -150,6 +150,8 @@ class OggHub:
         self._locks: dict[str, asyncio.Lock] = {}
         # Live linear following: newest call per device wins (see async_linear).
         self._linear_serials: dict[str, int] = {}
+        # Stroker timelines played here (Ogg Studio with the phone's screen off).
+        self._linear_runs: dict[str, asyncio.Task] = {}
         self._listeners: set[Callable[[], None]] = set()
         self._event_tasks: set[asyncio.Task] = set()
         self._wake = asyncio.Event()
@@ -1012,6 +1014,7 @@ class OggHub:
                     self._identity_aliases.pop(old_key, None)
         self._locks.pop(key, None)
         self._linear_serials.pop(key, None)
+        self._cancel_linear(key)
         self._save_later()
         self._notify()
         return True
@@ -1281,16 +1284,22 @@ class OggHub:
         await self.async_start(key, pulse=True, hold_seconds=seconds, live=levels)
 
     async def async_play_script(
-        self, key: str, script: Any, speed: float = 1.0, loop: bool = False
+        self,
+        key: str,
+        script: Any,
+        speed: float = 1.0,
+        loop: bool = False,
+        max_seconds: float | None = None,
     ) -> None:
         """Play a funscript timeline on one device (Ogg Studio, automations)."""
         try:
             channels = parse_script(script)
         except ValueError as err:
             raise HomeAssistantError(str(err)) from err
-        await self.async_start(key, script=ScriptProgram(channels, speed, loop))
+        await self.async_start(key, script=ScriptProgram(channels, speed, loop, max_seconds))
 
     async def async_stop(self, key: str) -> None:
+        self._cancel_linear(key)
         device = self._require_device(key)
         async with self._lock(key):
             await self._stop_locked(device)
@@ -1404,6 +1413,8 @@ class OggHub:
     async def async_all_stop(self) -> None:
         """Cancel all local runners before the server-wide stop command."""
         self._operation_epoch += 1
+        for key in tuple(self._linear_runs):
+            self._cancel_linear(key)
         await asyncio.gather(
             *(self.async_stop(key) for key in tuple(self.devices)), return_exceptions=True
         )
@@ -1714,14 +1725,17 @@ class OggHub:
             self._notify()
 
     async def async_linear(
-        self, key: str, position: float, duration: float, index: int = 0
+        self, key: str, position: float, duration: float, index: int = 0, *, _script: bool = False
     ) -> None:
         """Live stroker following: one LinearCmd, no stop-first.
 
         Called up to ~10 times a second (one per stroke turn). Calls never
         queue up: a call still waiting for the device lock when a newer one
-        arrives is dropped, so only the newest target is ever sent.
+        arrives is dropped, so only the newest target is ever sent. A live
+        call takes over from a stroker timeline playing on the device.
         """
+        if not _script:
+            self._cancel_linear(key)
         epoch = self._operation_epoch
         device = self._require_device(key)
         if not 0 <= index < device.linear_count:
@@ -1751,6 +1765,99 @@ class OggHub:
                 raise HomeAssistantError("Linear command could not be completed") from err
             device.aux_values[f"linear_{index}"] = position
             self._notify()
+
+    async def async_play_linear(
+        self,
+        key: str,
+        script: Any,
+        speed: float = 1.0,
+        loop: bool = False,
+        max_seconds: float | None = None,
+        index: int = 0,
+    ) -> None:
+        """Play a stroker timeline (funscript positions) on one device.
+
+        Runs here, so it carries on when the phone that started it sleeps.
+        Ends at the script's end (unless looping), on the device's Stop, Stop
+        all, Ogg off, a disconnect, or a live command to the device.
+        """
+        device = self._require_device(key)
+        if not 0 <= index < device.linear_count:
+            raise HomeAssistantError("This device has no stroke (linear) control")
+        try:
+            actions = parse_script(script)[0]
+        except ValueError as err:
+            raise HomeAssistantError(str(err)) from err
+        if not actions:
+            raise HomeAssistantError("The script has no actions")
+        self._require_online(device)
+        self._cancel_linear(key)
+        speed = min(4.0, max(0.25, float(speed)))
+        task = self.entry.async_create_background_task(
+            self.hass,
+            self._run_linear(
+                device, actions, speed, bool(loop), max_seconds, index, self._operation_epoch
+            ),
+            "ogg_linear_script",
+        )
+        self._linear_runs[key] = task
+
+    def _cancel_linear(self, key: str) -> None:
+        task = self._linear_runs.pop(key, None)
+        if task is not None and task is not asyncio.current_task():
+            task.cancel()
+
+    async def _run_linear(
+        self,
+        device: OggDevice,
+        actions: list[tuple[int, float]],
+        speed: float,
+        loop: bool,
+        max_seconds: float | None,
+        index: int,
+        epoch: int,
+    ) -> None:
+        """At each point, head for the next one over the time between them."""
+        key = device.key
+        first = True
+        began = time.monotonic()
+        try:
+            while True:
+                start = time.monotonic()
+                prev_at = 0
+                for at, level in actions:
+                    wait = start + prev_at / speed / 1000 - time.monotonic()
+                    if wait > 0:
+                        await asyncio.sleep(wait)
+                    if (
+                        epoch != self._operation_epoch
+                        or not self.enabled
+                        or not device.connected
+                        or not device.commands_enabled
+                        or self._linear_runs.get(key) is not asyncio.current_task()
+                        or (max_seconds is not None and time.monotonic() - began >= max_seconds)
+                    ):
+                        return
+                    duration = (at - prev_at) / speed
+                    if first:
+                        duration = max(duration, 400)  # from wherever it is now
+                        first = False
+                    try:
+                        await self.async_linear(
+                            key, level * 100, max(LINEAR_MIN_MS, duration), index, _script=True
+                        )
+                    except HomeAssistantError as err:
+                        _LOGGER.debug("Stroker timeline step was not sent: %s", err)
+                    prev_at = at
+                # Let the last move finish (then end, or go round again).
+                rest = start + prev_at / speed / 1000 - time.monotonic()
+                if rest > 0:
+                    await asyncio.sleep(rest)
+                if not loop:
+                    return
+        finally:
+            if self._linear_runs.get(key) is asyncio.current_task():
+                self._linear_runs.pop(key, None)
 
     @staticmethod
     def _number(value: Any, minimum: float, maximum: float) -> float:

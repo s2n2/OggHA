@@ -355,6 +355,14 @@
         "loop": {
           "name": "Loop",
           "description": "Repeat until stopped."
+        },
+        "output": {
+          "name": "Output",
+          "description": "Vibrate (motors), Linear (a stroker follows the positions) or Auto (a stroker when the device has no motors)."
+        },
+        "max_seconds": {
+          "name": "Time limit",
+          "description": "Stop after this many seconds, even when looping."
         }
       }
     },
