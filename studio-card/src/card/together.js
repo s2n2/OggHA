@@ -23,12 +23,15 @@ export class TogetherPart {
     $('tgaccept').addEventListener('change', () => this._tgShow());
     $('tgstop').addEventListener('click', () => { this._tgStopLocal(true); this._toast('Stopped both sides.'); });
     $('tgend').addEventListener('click', () => this._tgEnd());
+    $('tgsync').addEventListener('change', () => { if (this._tg) { this._tg.sync = $('tgsync').checked; this._tgSend({ sync: this._tg.sync }); } this._tgShow(); });
+    $('tgrec').addEventListener('click', () => this._tgRecToggle());
     this._tgShow();
   }
 
   _tgNew(role) {
     if (this._tg) this._tgEnd();
-    const tg = { role, joined: false, theirs: false, name: '', in: null, link: '', token: null, sentAccept: null, lastOut: 0, outAt: 0, pingAt: 0, driving: false };
+    const tg = { role, joined: false, theirs: false, name: '', in: null, link: '', token: null, sentAccept: null, lastOut: 0, outAt: 0, pingAt: 0, driving: false,
+      offer: {}, offerKey: '', partner: [], sync: false, rec: null, outLevel: 0 };
     this._tg = tg;
     clearInterval(this._tgTimer);
     this._tgTimer = setInterval(() => this._tgTick(), 100);
@@ -54,7 +57,12 @@ export class TogetherPart {
     if (this._tg !== tg || !ev) return;
     if (ev.event === 'open') { tg.token = ev.token; tg.link = String(ev.base || location.origin).replace(/\/+$/, '') + ev.path; }
     else if (ev.event === 'join') this._tgJoined(tg);
-    else if (ev.event === 'leave') { tg.joined = false; tg.theirs = false; tg.in = null; tg.sentAccept = null; this._toast('Your partner left. The link still works if they come back.'); }
+    else if (ev.event === 'leave') {
+      tg.joined = false; tg.theirs = false; tg.in = null; tg.sentAccept = null; tg.partner = []; tg.offerKey = '';
+      if (tg.rec) this._tgRecToggle();
+      this._outStop();
+      this._toast('Your partner left. The link still works if they come back.');
+    }
     else if (ev.event === 'msg') this._tgMsg(tg, ev.data || {});
     this._tgShow();
   }
@@ -65,6 +73,54 @@ export class TogetherPart {
     const discreet = this._privacy && this._privacy.discreet;
     const name = !discreet && this._hass && this._hass.user && String(this._hass.user.name || '').trim();
     if (name) this._tgSend({ name: name.slice(0, 30) });
+    tg.offerKey = '';               // the tick offers them the toys I am not using
+    if (tg.sync) this._tgSend({ sync: true });
+  }
+
+  // Toys I am not using, offered to my partner as theirs to pick (his/hers shown).
+  _tgOffer() {
+    const used = new Set((this._outs || []).map((o, i) => (this._outDevice(i) || {}).id));
+    const list = this._devices.filter((d) => !used.has(d.id) && this._online(d)).slice(0, 8);
+    const offer = {};
+    const items = list.map((d, n) => {
+      const k = `d${n}`;
+      offer[k] = `${d.id}|${d.linear && !d.vibe ? 'l' : 'b'}`;
+      return { k, name: String(d.name || 'Toy').slice(0, 30), owner: this._whose(d), kind: d.linear && !d.vibe ? 'stroke' : d.dual ? 'dual' : 'vibe' };
+    });
+    return { offer, items };
+  }
+
+  _whose(d) {
+    const st = d && d.owner && this._hass && this._hass.states[d.owner];
+    return st && ['his', 'hers'].includes(st.state) ? st.state : 'unassigned';
+  }
+
+  // Record what my partner sends, to play again later (they are told).
+  _tgRecToggle() {
+    const tg = this._tg;
+    if (!tg) return;
+    if (tg.rec) {
+      const rec = tg.rec;
+      tg.rec = null;
+      this._tgSend({ rec: false });
+      const t = Math.round(performance.now() - rec.t0);
+      const acts = rec.acts;
+      if (acts.length) acts.push({ at: t, pos: acts[acts.length - 1].pos }, { at: t + 1, pos: 0 });
+      if (acts.length > 2) {
+        this._take = { version: '1.0', inverted: false, range: 100, actions: acts,
+          metadata: { creator: 'Ogg', type: 'vibration', title: `From ${tg.name || 'my partner'}` } };
+        this._libPick = 'take';
+        if (this._simple && this._ctl !== 'library') this._setCtl('library');
+        if (this._rp && !this._rp.playing) this._rpLoad(this._take, 'Current take', null);
+        this._update();
+        this._toast('Recorded: it is the current take in the Library, to play or save.');
+      } else this._toast('Nothing came from your partner while recording.');
+    } else {
+      if (!tg.joined) { this._toast('Your partner has not joined yet.'); return; }
+      tg.rec = { t0: performance.now(), acts: [], last: null, seen: null };
+      this._tgSend({ rec: true });
+    }
+    this._tgShow();
   }
 
   _tgJoin() {
@@ -103,6 +159,14 @@ export class TogetherPart {
     if (Array.isArray(d.v) && d.v.length && d.v.every((x) => Number.isFinite(x))) tg.in = { v: d.v.slice(0, 2).map((x) => Math.min(100, Math.max(0, x))), at: performance.now() };
     if (typeof d.accept === 'boolean') tg.theirs = d.accept;
     if (typeof d.name === 'string') tg.name = d.name.slice(0, 30);
+    if (Array.isArray(d.mine) && tg.role === 'host') {
+      // The toys my partner says are theirs (from those I offered).
+      const before = tg.partner.join();
+      tg.partner = d.mine.map((k) => tg.offer[k]).filter(Boolean).slice(0, 4);
+      if (tg.partner.join() !== before) { this._outStop(); this._toast(tg.partner.length ? 'Your partner picked their toys: your controls now play them.' : 'Your partner put their toys back.'); }
+    }
+    if (typeof d.sync === 'boolean' && tg.role === 'guest') tg.sync = d.sync;
+    if (typeof d.rec === 'boolean' && tg.role === 'guest') this._toast(d.rec ? 'Your partner is recording what you send.' : 'Your partner stopped recording.');
     if (d.stop === true) { this._tgStopLocal(false); this._toast('Your partner stopped both sides.'); }
   }
 
@@ -117,16 +181,35 @@ export class TogetherPart {
     const accept = this._tgAccepting;
     if (tg.joined) {
       if (accept !== tg.sentAccept) { tg.sentAccept = accept; this._tgSend({ accept }); }
-      const out = Number($('tgsend').value) || 0;
+      if (tg.role === 'host') {
+        const { offer, items } = this._tgOffer();
+        const key = JSON.stringify(items);
+        if (key !== tg.offerKey) { tg.offerKey = key; tg.offer = offer; this._tgSend({ devices: items }); }
+      }
+      // What my partner feels: my controls' level (the Play card), or the slider.
+      const out = this._simple ? Math.round(tg.outLevel || 0) : (Number($('tgsend').value) || 0);
       if (out !== tg.lastOut || (out > 0 && now - tg.outAt >= 500)) { tg.lastOut = out; tg.outAt = now; this._tgSend({ v: [out] }); }
       if (now - tg.pingAt >= 10000) { tg.pingAt = now; this._tgSend({ ping: true }); }
     }
     const fresh = Boolean(tg.in && now - tg.in.at < TG_FRESH_MS);
     $('tgin').style.width = `${fresh ? Math.max(...tg.in.v) : 0}%`;
+    if (tg.rec) {
+      // Recording what they send (a held level is kept, not ramped).
+      const t = Math.round(now - tg.rec.t0);
+      const pos = Math.round(fresh ? Math.max(...tg.in.v) : 0);
+      const acts = tg.rec.acts;
+      if (pos !== tg.rec.last) {
+        const prev = acts[acts.length - 1];
+        if (prev && tg.rec.seen !== null && tg.rec.seen > prev.at && tg.rec.seen < t) acts.push({ at: tg.rec.seen, pos: prev.pos });
+        acts.push({ at: t, pos });
+        tg.rec.last = pos;
+      }
+      tg.rec.seen = t;
+    }
     if (accept && fresh) {
       tg.driving = true;
       const v = tg.in.v;
-      this._outApply(this._outIdx.map((i) => this._mapLevel(i, v[i % 2] ?? v[0])), 0.6);
+      this._outApply(this._outIdx.map((i) => this._mapLevel(i, v[i % 2] ?? v[0])), 0.6, 'partner');
     } else if (tg.driving) {
       tg.driving = false;
       this._outStop();
@@ -153,6 +236,8 @@ export class TogetherPart {
     this._tg = null;
     clearInterval(this._tgTimer);
     this._tgTimer = null;
+    if (tg.rec) this._tgRecToggle();
+    tg.partner = [];
     if (tg.unsub) { try { Promise.resolve(tg.unsub()).catch(() => {}); } catch (_) { /* connection gone */ } }
     if (tg.ws) { try { tg.ws.close(); } catch (_) { /* already closed */ } }
     if (tg.driving) this._outStop();
@@ -168,6 +253,7 @@ export class TogetherPart {
 
   _tgShow() {
     if (!this._el) return;
+    if (this._mediaShow) this._mediaShow();          // the section's badge
     const $ = this._el;
     const tg = this._tg;
     $('tgidle').hidden = Boolean(tg);
@@ -180,7 +266,23 @@ export class TogetherPart {
     const who = tg.name || 'Your partner';
     let text;
     if (!tg.joined) text = tg.role === 'host' ? 'Waiting for your partner to open the link…' : 'Connecting…';
+    else if (this._simple) text = `${who} is here · ${tg.sync ? 'synced: you both feel the same' : $('tgaccept').checked ? 'they play your toys' : 'they cannot play your toys yet'}`;
     else text = `${who} is here · ${tg.theirs ? 'your slider drives their devices' : 'they have not let you control yet'} · ${$('tgaccept').checked ? 'they drive your devices' : 'your devices do not follow them'}`;
     if ($('tgstat').textContent !== text) $('tgstat').textContent = text;
+    // Whose toys are whose (his / hers), and what plays what.
+    const chip = (d) => { const o = this._whose(d); return o === 'unassigned' ? '' : `<span class="tgchip ${o}">${o === 'his' ? 'His' : 'Hers'}</span>`; };
+    const esc = (t) => String(t).replace(/[&<>"]/g, '');
+    const mineList = (this._outs || []).map((o, i) => this._outDevice(i)).filter(Boolean);
+    const theirs = tg.partner.map((t) => this._devices.find((d) => d.id === t.split('|')[0])).filter(Boolean);
+    const row = (label, list, empty) => `<div class="tgrow"><span class="tglab">${label}</span>${list.length ? list.map((d) => `<span class="tgtoy">${esc(d.name)}${chip(d)}</span>`).join('') : `<span class="tgnone">${empty}</span>`}</div>`;
+    const html = tg.role !== 'host' ? '' : row('Your toys', mineList, 'none chosen under Devices')
+      + row('Their toys', theirs, tg.joined ? 'they can pick theirs on their page' : 'when they join');
+    if ($('tgtoys').innerHTML !== html) $('tgtoys').innerHTML = html;
+    $('tgsync').checked = tg.sync;
+    $('tgsync').disabled = !tg.joined;
+    $('tgrec').textContent = tg.rec ? '■ Stop recording' : '● Record partner';
+    $('tgrec').classList.toggle('on', Boolean(tg.rec));
+    $('tgrec').disabled = !tg.joined || tg.role !== 'host';
+    $('tgsendbox').hidden = this._simple;
   }
 }

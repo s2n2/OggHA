@@ -154,6 +154,7 @@ export class OggStudioCard extends HTMLElement {
         if (e.platform !== 'ogg' || !e.device_id || uid.split(':').length < 3) continue;
         const d = byDevice.get(e.device_id) || { id: e.device_id, name: names.get(e.device_id) };
         if (uid.endsWith(':stop')) d.stop = e.entity_id;
+        if (uid.endsWith(':owner')) d.owner = e.entity_id;      // Ogg's his / hers
         if (uid.endsWith(':connected')) d.connected = e.entity_id;
         if (uid.endsWith(':motor_level_1')) d.dual = true;
         if (uid.endsWith(':linear_0')) d.linear = e.entity_id;
@@ -297,7 +298,9 @@ ${STYLES}
                 <div class="rpinfo" id="tgstat"></div>
                 <label class="check"><input id="tgaccept" type="checkbox"> Let my partner control my devices</label>
                 <label>From my partner</label><div class="meter"><i id="tgin"></i></div>
-                <label>To my partner <b id="tgsendv">0%</b></label><input id="tgsend" type="range" min="0" max="100" step="1" value="0">
+                <div id="tgtoys" class="tgtoys"></div>
+                <div class="row tgopts"><label class="check"><input id="tgsync" type="checkbox"> ⇄ Sync both</label><button id="tgrec" type="button" class="rec">● Record partner</button></div>
+                <div id="tgsendbox"><label>To my partner <b id="tgsendv">0%</b></label><input id="tgsend" type="range" min="0" max="100" step="1" value="0"></div>
                 <div class="row" style="margin-top:8px"><button id="tgstop" type="button" class="stop">■ Stop both</button><button id="tgend" type="button">End session</button></div>
               </div>
             </div>

@@ -87,6 +87,15 @@ for bad in ({"v": [1, 2, 3]}, {"v": ["9"]}, {"v": [float("nan")]}, {"v": [True]}
     assert clean(bad) is None, bad
 assert clean({"stop": True, "accept": False, "name": "A" * 99, "ping": True}) == {
     "stop": True, "accept": False, "name": "A" * 30, "ping": True}
+# his/hers toys offered, picked, Sync and Record notices
+assert clean({"devices": [{"k": "d0", "name": "Lush\n", "owner": "hers", "kind": "vibe"},
+                          {"k": "D0", "name": "bad key"}, {"k": "d1", "name": "X", "owner": "boss", "kind": "laser"}]}) == {
+    "devices": [{"k": "d0", "name": "Lush", "owner": "hers", "kind": "vibe"},
+                {"k": "d1", "name": "X", "owner": "unassigned", "kind": "vibe"}]}
+assert clean({"devices": [{"k": f"d{i}", "name": "t"} for i in range(9)]}) is None
+assert clean({"mine": ["d0", "d0", "d2"], "sync": True, "rec": False}) == {"mine": ["d0", "d2"], "sync": True, "rec": False}
+for bad in ({"mine": ["d0"] * 5}, {"mine": ["d0; drop"]}, {"mine": "d0"}, {"sync": 1}, {"rec": "yes"}):
+    assert clean(bad) is None, bad
 
 
 # ---- end to end: host card <-> partner over the link

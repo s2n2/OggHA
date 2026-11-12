@@ -169,12 +169,31 @@ export class OutputsPart {
   }
 
   // Send output values (0-100; a stroker may get {goal, dur}) to the devices.
-  _outApply(values, seconds) {
+  // `path` 'partner': what a Together partner sends, for my own toys.
+  _outApply(values, seconds, path) {
     if (!this._hass || !this._outs) return;
     const now = performance.now();
     if (now < (this._holdUntil || 0)) return;       // Stop all was just pressed
-    const targets = this._outs.map((o, i) => this._outTargetValue(i));
+    let targets = this._outs.map((o, i) => this._outTargetValue(i));
     values = values.map((v, i) => (this._outs[i] && this._outs[i].on === false ? null : v));   // a device switched off is left alone
+    // Together, with my partner's toys picked: my controls play theirs and
+    // what they send plays mine; with Sync, both play both.
+    const tg = this._tg;
+    const partner = tg && tg.joined && tg.partner && tg.partner.length ? tg.partner : null;
+    if (partner) {
+      const pv = partner.map((t, j) => { const v = values[j % 2]; return v === undefined || v === null ? (values[0] ?? null) : v; });
+      if (path !== 'partner') {
+        const first = pv.find((v) => v !== null && v !== undefined);
+        tg.outLevel = typeof first === 'object' && first ? first.goal : (first || 0);
+      }
+      if (tg.sync) { targets = [...targets, ...partner]; values = [...values, ...pv]; }
+      else if (path !== 'partner') { targets = partner.slice(); values = pv; }
+    } else if (tg && path !== 'partner') {
+      const first = values.find((v) => v !== null && v !== undefined);
+      tg.outLevel = typeof first === 'object' && first ? first.goal : (first || 0);
+    }
+    // A stroker's move and a vibrator's level each in their own form.
+    values = values.map((v, i) => { const p = parseTarget(targets[i]); return v && typeof v === 'object' && p && p.motor !== 'l' ? v.goal : v; });
     let blocked = false;
     for (const e of outLevels(targets, values, this._devices)) {
       if (!this._outClaim(e.dev)) { blocked = true; continue; }
