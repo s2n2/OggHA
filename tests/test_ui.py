@@ -273,7 +273,9 @@ async def test_device_entities_preserve_names_and_dispatch_standard_actions(hass
 
 
 async def test_later_capabilities_create_entities_once_and_errors_are_visible(hass, fake_server):
-    fake_server.devices[0]["DeviceName"] = "WeVibe Sync"
+    # One motor: classic native patterns are one-motor ones (two-motor
+    # devices take the two-motor set, which has no native command).
+    fake_server.devices[0] = vibration_device(0, "WeVibe Sync", motors=1)
     entry = await setup_entry(hass, fake_server.url)
     try:
         await service(hass, "switch", "turn_on", entity_id(hass, entry, "switch", "enabled"))
