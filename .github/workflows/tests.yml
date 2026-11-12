@@ -19,6 +19,7 @@ jobs:
       - name: Ogg and studio tests (real Home Assistant)
         run: pytest -q
       - name: Studio backend checks (stubbed Home Assistant)
+        if: success() || failure()     # also when older Ogg tests fail
         run: |
           python studio-card/tests/backend_test.py
           python studio-card/tests/video_test.py
