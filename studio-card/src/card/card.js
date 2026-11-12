@@ -265,7 +265,7 @@ ${STYLES}
                 <div class="row"><button id="tlstart" type="button">Cut before here</button><button id="tlend" type="button">Cut after here</button></div>
                 <div class="row"><select id="tln" aria-label="How many times"></select><button id="tlloop" type="button">Repeat</button></div>
                 <div class="row"><select id="tlother" aria-label="Script to add"></select><button id="tlstitch" type="button">Add after</button></div>
-                <div class="hint">Drag the bar to a spot, then cut. Each change becomes the current take; the saved script is not touched.</div>
+                <div class="hint vhide">Drag the bar to a spot, then cut. Each change becomes the current take; the saved script is not touched.</div>
               </div>
               <div class="subbox" id="plbox" hidden>
                 <div id="pllist"></div>
@@ -287,7 +287,7 @@ ${STYLES}
             <div id="libslot"></div>
             <div id="tgbox" hidden>
               <div id="tgidle">
-                <div class="hint" style="margin-top:0">Play together from two places. Each of you gets a slider that drives the other's devices, by feel, inside the limits each has set. Either of you can stop both sides at any time.</div>
+                <div class="hint" style="margin-top:0">Each of you drives the other's devices, inside your own limits. Either of you can stop both.</div>
                 <button id="tgstart" type="button" class="go" style="margin-top:8px">🤝 Start a session</button>
                 <label>Or join one: paste the link you were sent</label>
                 <div class="row"><input id="tglink" type="text" placeholder="https://…/api/ogg/studio/together/…" autocomplete="off"><button id="tgjoin" type="button" style="flex:0 0 auto">Join</button></div>
@@ -335,13 +335,13 @@ ${STYLES}
           <div class="vfold" id="vscriptbox"><label>Script</label><select id="vsrc"></select>
           <div id="vfilebox"><input id="vscriptfile" type="file" accept=".funscript,.json,application/json" multiple style="margin-top:6px"></div></div>
             <div class="vside" id="vside">
-              <button id="vsfile" type="button" title="Choose a video" aria-label="Choose a video">🎬</button>
-              <button id="vsplay" type="button" title="Play or pause" aria-label="Play or pause">▶</button>
-              <button id="vsscript" type="button" title="Script to play with the video" aria-label="Script to play with the video">📂</button>
-              <button id="vsaud" type="button" title="Audio from video: the sound of the video drives the devices" aria-label="Audio from video">♪</button>
-              <button id="vscast" type="button" title="Play the video on a TV" aria-label="Cast to a TV">📺</button>
-              <button id="vsoff" type="button" title="Sync offset" aria-label="Sync offset">⏱</button>
-              <button id="vsfull" type="button" title="Full screen, with the slider over the video" aria-label="Full screen">⛶</button>
+              <button id="vsfile" type="button" title="Choose a video" aria-label="Choose a video">🎬<small>Video</small></button>
+              <button id="vsplay" type="button" title="Play or pause" aria-label="Play or pause">▶<small>Play</small></button>
+              <button id="vsscript" type="button" title="Script to play with the video" aria-label="Script to play with the video">📂<small>Script</small></button>
+              <button id="vsaud" type="button" title="Audio from video: the sound of the video drives the devices" aria-label="Audio from video">♪<small>Sound</small></button>
+              <button id="vscast" type="button" title="Play the video on a TV" aria-label="Cast to a TV">📺<small>Cast</small></button>
+              <button id="vsoff" type="button" title="Sync offset" aria-label="Sync offset">⏱<small>Sync</small></button>
+              <button id="vsfull" type="button" title="Full screen, with the slider over the video" aria-label="Full screen">⛶<small>Full</small></button>
             </div>
           <div class="vwrap">
             <div class="vstage">

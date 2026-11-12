@@ -379,7 +379,9 @@ export class PlayPart {
     const video = $('video');
     const has = Boolean(this._vurl);
     $('vempty').hidden = !this._simple || has;
-    $('vsplay').textContent = has && !video.paused ? '⏸' : '▶';
+    const playing = has && !video.paused;
+    const playHtml = playing ? '⏸<small>Pause</small>' : '▶<small>Play</small>';
+    if ($('vsplay').innerHTML !== playHtml) $('vsplay').innerHTML = playHtml;
     $('vsplay').disabled = !has;
     $('vsaud').disabled = !has;
     $('vsaud').classList.toggle('on', Boolean(this._au && this._au.src === 'video'));
@@ -871,21 +873,21 @@ export class PlayPart {
     badge('tgbadge', Boolean(tg && tg.joined), tg && tg.joined ? 'connected' : 'off');
     const rpn = this._rp && this._rp.raw ? this._rp.name || 'script' : '';
     badge('toolbadge', Boolean(rpn), rpn ? rpn.slice(0, 18) : 'no script');
-    const tinfo = rpn ? `Working on "${rpn}" (the script in the Library). Drag its bar to a spot, then cut; each change becomes the current take.` : 'Choose a script in the Library first.';
+    const tinfo = rpn ? `Editing "${rpn}": drag the Library's bar to a spot, then cut. Changes become the current take.` : 'Choose a script in the Library first.';
     if (this._el('toolinfo').textContent !== tinfo) this._el('toolinfo').textContent = tinfo;
     const pl = this._pl;
     const n = pl && pl.items ? pl.items.length : 0;
     badge('queuebadge', Boolean(pl && pl.on), pl && pl.on ? `playing ${pl.i + 1}/${n}` : n ? `${n} in queue` : 'empty');
     const p = this._privacy || {};
     badge('lockbadge', Boolean(p.pin || p.discreet), p.pin ? 'PIN set' : p.discreet ? 'discreet' : 'off');
-    const linfo = `PIN: ${p.pin ? 'set' : 'none'} · Discreet: ${p.discreet ? 'on' : 'off'} · Auto-lock: ${p.auto_lock ? `${p.auto_lock} min` : 'off'}. These are set in Home Assistant (admins), and apply to every OggStudio card.`;
+    const linfo = `PIN ${p.pin ? 'set' : 'not set'} · discreet ${p.discreet ? 'on' : 'off'} · auto-lock ${p.auto_lock ? `${p.auto_lock} min` : 'off'}. Changed in Home Assistant by an admin.`;
     if (this._el('lockinfo').textContent !== linfo) this._el('lockinfo').textContent = linfo;
     // Extras: the controller when it is on.
     const gp = this._el('gpon');
     badge('extrabadge', Boolean(gp && gp.checked), gp && gp.checked ? 'controller' : '');
     this._el('extrabadge').hidden = !(gp && gp.checked);
     // Controls: what they are doing.
-    const tab = { record: 'manual', pattern: 'pattern', mood: 'mood' }[this._ctl] || '';
+    const tab = { record: 'manual', pattern: 'pattern', mood: 'mood', library: 'library' }[this._ctl] || '';
     const playing = this._pt ? (this._pt.key === PATTERN_RANDOM ? 'random' : (PATTERNS[this._pt.key] || PATTERNS_DUAL[this._pt.key] || 'pattern'))
       : this._rp && this._rp.playing ? (this._rp.name || 'playing') : '';
     badge('ctlbadge', Boolean(playing), (playing || tab).toString().toLowerCase().slice(0, 18));

@@ -170,7 +170,7 @@ export class ToolsPart {
       + `<button type="button" data-act="up" aria-label="Move up"${i ? '' : ' disabled'}>↑</button>`
       + `<button type="button" data-act="down" aria-label="Move down"${i < pl.items.length - 1 ? '' : ' disabled'}>↓</button>`
       + '<button type="button" data-act="x" aria-label="Remove">✕</button></div>').join('')
-      || '<div class="hint">The queue is empty: add scripts and moods below. They play in order. A mood plays one of its combos, then the queue moves on.</div>';
+      || '<div class="hint">Add scripts and moods; they play in order.</div>';
   }
 
   // The queue stops following (what is playing carries on).
