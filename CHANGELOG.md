@@ -1,3 +1,10 @@
+## 3.1.0 - Keeps playing with the screen off
+- **Screen off:** a pattern, mood, Library script or queue started on the Play card keeps playing when the phone's screen turns off or the app goes to the background. The card hands each device's timeline to Ogg, which plays it in Home Assistant; back on screen, the card carries on from where Ogg is. Patterns and moods loop for up to an hour without the phone; a script or queue plays to its end. Not with a video, sound or a Together partner (they need the phone). Closing the page or Stop all still stops everything.
+- `ogg.play_script` gains `output` (`auto`, `vibrate` or `linear`: strokers can now play a timeline in Home Assistant) and `max_seconds` (a time limit, also for loops). A stroker's timeline ends on its Stop, Stop all, Ogg off, a disconnect or any live command.
+- A new two-motor device starts on the two-motor steady pattern (it started on the one-motor one).
+- Ogg cancels its pending wake-up timers when it unloads.
+- The test suite is up to date and passes in full.
+
 ## 3.0.0 - OggStudio is part of Ogg
 - **The Play card is built in.** OggStudio's card and services now ship inside Ogg: add the card with `type: custom:oggstudio-play-card` (the old OggStudio card types still work and show the Play card). Ogg registers it as a dashboard resource, like the control deck.
 - **One card for everything:** up to four devices (1 and 3 follow pad 1, 2 and 4 pad 2), manual, Ogg's patterns, moods and the Library; recording with Save/Download; video with a matching script picked automatically and an overlay for fullscreen; sound; Script editing; Queue; Lock & PIN; Extras.
