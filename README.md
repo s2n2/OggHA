@@ -60,6 +60,23 @@ Assistant's existing networking dependencies; it does not install the old
 This repository supports installation as a HACS custom repository. It is not a
 claim of inclusion in the HACS default catalogue.
 
+## Ogg Studio: the Play card (3.0)
+
+Ogg includes a second dashboard card for playing, recording and sharing:
+
+```yaml
+type: custom:oggstudio-play-card
+```
+
+It plays up to four devices by hand, with Ogg's patterns and moods, from saved
+scripts or in time with a video, records what you do, and has **Together**:
+a link your partner opens to play your toys (and you theirs, with his/hers
+shown, a Sync option and recording of what they send). Videos are never
+stored on Home Assistant. Privacy settings (discreet mode, PIN, auto-lock)
+are under Ogg's **Configure → Studio**. If you used the separate OggStudio
+integration, Ogg takes over its scripts and settings; remove OggStudio
+afterwards.
+
 ### Ogg Control Deck: bundled dashboard card (v0.1.9+)
 
 The gear beside **HA Server** opens IntiHA in Devices & services, and the gear beside **Ogg** opens Ogg in Devices & services. These links are separate from the on/off switches.
