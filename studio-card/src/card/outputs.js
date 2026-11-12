@@ -267,7 +267,7 @@ export class OutputsPart {
       const dev = p && this._devices.find((d) => d.id === p.id);
       if (i < 2) labels[i] = dev ? (p.motor === 'b' ? dev.name : p.motor === 'l' ? `${dev.name} (stroker)` : `${dev.name} m${Number(p.motor) + 1}`) : `Pad ${i + 1}`;
       row.querySelector('.outon').checked = o.on !== false;
-      row.querySelector('.outpad').hidden = n < 2;
+      row.querySelector('.outpad').classList.toggle('gone', n < 2);   // keeps its column, so the row does not shift
       // How it follows (stroke recorder): a stroker by position, a vibrator by a run mode.
       const msel = row.querySelector('.outm');
       const modes = p && p.motor === 'l'

@@ -3,6 +3,7 @@ import { AUDIO_MODES, AudioFeel } from '../lib/audio.js';
 
 const AUDIO_KEY = 'oggstudio_audio';
 const AUDIO_HINT = 'Sound drives the devices: a pulse on each beat, or following the bass or the loudness. Nothing is recorded or sent anywhere; only the levels reach the devices.';
+const AUDIO_HINT_SHORT = 'Nothing is recorded or sent anywhere.';
 
 // Methods mixed into OggStudioCard.
 export class AudioPart {
@@ -156,7 +157,7 @@ export class AudioPart {
     const from = { mic: 'the microphone', file: 'the music file', video: 'the video', tab: 'the shared audio' };
     const dev = this._outDevice(0);
     const to = dev ? '' : ' · no device is chosen under Devices, so nothing is driven';
-    $('auinfo').textContent = au ? `Listening to ${from[au.src]} · ${au.feel.beats} beats${to}` : (this._auErr || AUDIO_HINT);
+    $('auinfo').textContent = au ? `Listening to ${from[au.src]} · ${au.feel.beats} beats${to}` : (this._auErr || (this._simple ? AUDIO_HINT_SHORT : AUDIO_HINT));
     const tab = this.shadowRoot.querySelector('.ctltabs [data-ctl="audio"]');
     if (tab) tab.classList.toggle('live', Boolean(au));
   }

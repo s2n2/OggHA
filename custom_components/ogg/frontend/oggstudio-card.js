@@ -1663,6 +1663,21 @@ ha-card.simple section.psec{margin-top:10px}
 .psec .tsub{margin:10px 0 4px;font-size:12.5px;font-weight:760;color:#e8edff}
 #toolsec .subbox,#tgsec #tgbox{margin-top:6px}
 #tgsec #tgbox{display:block}
+.outrow .outpad.gone{visibility:hidden;width:0;margin-right:-6px}
+ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d4bc);color:#072a2d;border-color:transparent}
+#moodinfo:empty{display:none}
+.vside button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:46px;line-height:1}
+.vside button small{font-size:9px;font-weight:700;color:#a8b8da;letter-spacing:.01em}
+.vside button.on small{color:#072a2d}
+/* A device: switch, pad, the device and remove on one line; how it follows below */
+.outrow{grid-template-columns:auto auto minmax(0,1fr) 34px;row-gap:4px}
+.outrow .outon{grid-column:1;grid-row:1}
+.outrow .outpad{grid-column:2;grid-row:1}
+.outrow .outt{grid-column:3;grid-row:1}
+.outrow .outdel{grid-column:4;grid-row:1}
+.outrow .outm{grid-column:3/5;grid-row:2;min-height:34px;font-size:12px;font-weight:600;color:#c5d2f0}
+.outrow .outai,.outrow .outtake{grid-column:3/5}
+.outrow + .outrow{margin-top:6px;padding-top:8px;border-top:1px solid rgba(174,194,246,.08)}
 [hidden],.off{display:none!important}
 `;
 
@@ -1943,7 +1958,7 @@ ${STYLES}
                 <div class="row"><button id="tlstart" type="button">Cut before here</button><button id="tlend" type="button">Cut after here</button></div>
                 <div class="row"><select id="tln" aria-label="How many times"></select><button id="tlloop" type="button">Repeat</button></div>
                 <div class="row"><select id="tlother" aria-label="Script to add"></select><button id="tlstitch" type="button">Add after</button></div>
-                <div class="hint">Drag the bar to a spot, then cut. Each change becomes the current take; the saved script is not touched.</div>
+                <div class="hint vhide">Drag the bar to a spot, then cut. Each change becomes the current take; the saved script is not touched.</div>
               </div>
               <div class="subbox" id="plbox" hidden>
                 <div id="pllist"></div>
@@ -1965,7 +1980,7 @@ ${STYLES}
             <div id="libslot"></div>
             <div id="tgbox" hidden>
               <div id="tgidle">
-                <div class="hint" style="margin-top:0">Play together from two places. Each of you gets a slider that drives the other's devices, by feel, inside the limits each has set. Either of you can stop both sides at any time.</div>
+                <div class="hint" style="margin-top:0">Each of you drives the other's devices, inside your own limits. Either of you can stop both.</div>
                 <button id="tgstart" type="button" class="go" style="margin-top:8px">🤝 Start a session</button>
                 <label>Or join one: paste the link you were sent</label>
                 <div class="row"><input id="tglink" type="text" placeholder="https://…/api/ogg/studio/together/…" autocomplete="off"><button id="tgjoin" type="button" style="flex:0 0 auto">Join</button></div>
@@ -2013,13 +2028,13 @@ ${STYLES}
           <div class="vfold" id="vscriptbox"><label>Script</label><select id="vsrc"></select>
           <div id="vfilebox"><input id="vscriptfile" type="file" accept=".funscript,.json,application/json" multiple style="margin-top:6px"></div></div>
             <div class="vside" id="vside">
-              <button id="vsfile" type="button" title="Choose a video" aria-label="Choose a video">🎬</button>
-              <button id="vsplay" type="button" title="Play or pause" aria-label="Play or pause">▶</button>
-              <button id="vsscript" type="button" title="Script to play with the video" aria-label="Script to play with the video">📂</button>
-              <button id="vsaud" type="button" title="Audio from video: the sound of the video drives the devices" aria-label="Audio from video">♪</button>
-              <button id="vscast" type="button" title="Play the video on a TV" aria-label="Cast to a TV">📺</button>
-              <button id="vsoff" type="button" title="Sync offset" aria-label="Sync offset">⏱</button>
-              <button id="vsfull" type="button" title="Full screen, with the slider over the video" aria-label="Full screen">⛶</button>
+              <button id="vsfile" type="button" title="Choose a video" aria-label="Choose a video">🎬<small>Video</small></button>
+              <button id="vsplay" type="button" title="Play or pause" aria-label="Play or pause">▶<small>Play</small></button>
+              <button id="vsscript" type="button" title="Script to play with the video" aria-label="Script to play with the video">📂<small>Script</small></button>
+              <button id="vsaud" type="button" title="Audio from video: the sound of the video drives the devices" aria-label="Audio from video">♪<small>Sound</small></button>
+              <button id="vscast" type="button" title="Play the video on a TV" aria-label="Cast to a TV">📺<small>Cast</small></button>
+              <button id="vsoff" type="button" title="Sync offset" aria-label="Sync offset">⏱<small>Sync</small></button>
+              <button id="vsfull" type="button" title="Full screen, with the slider over the video" aria-label="Full screen">⛶<small>Full</small></button>
             </div>
           <div class="vwrap">
             <div class="vstage">
@@ -4352,6 +4367,7 @@ ${STYLES}
         const gslot = $("xgpslot");
         const lib = this.shadowRoot.querySelector('section[data-part="library"]');
         if (lib.parentElement !== $("libslot")) $("libslot").appendChild(lib);
+        if ($("rpbox").parentElement !== lib) lib.insertBefore($("rpbox"), $("saved").nextSibling);
         lib.classList.toggle("off", ctl !== "library");
         if (ctl === "library" && !this._rp.raw && !this._rp.playing && !this._libPick) this._libPreview($("saved").value);
         if ($("tgbox").parentElement !== $("tgsec")) $("tgsec").appendChild($("tgbox"));
@@ -4759,7 +4775,7 @@ ${STYLES}
       const mood = this._mood && MOODS[this._mood.key];
       for (const b of this.shadowRoot.querySelectorAll(".moodbtn")) b.classList.toggle("on", Boolean(mood && rp.playing && b.dataset.mood === this._mood.key));
       $("moodfill").style.width = mood && rp.len ? `${Math.min(100, rp.t / rp.len * 100)}%` : "0";
-      $("moodinfo").textContent = mood ? `${mood.icon} ${rp.name} (${this._mood.combo + 1} of ${mood.combos.length}) · ${fmt(rp.t)} / ${fmt(rp.len)}${rp.playing ? "" : " · stopped"}` : "Pick how you want it to feel. Each mood has three combos, picked at random; a new one follows when it ends.";
+      $("moodinfo").textContent = mood ? `${mood.icon} ${rp.name} (${this._mood.combo + 1} of ${mood.combos.length}) · ${fmt(rp.t)} / ${fmt(rp.len)}${rp.playing ? "" : " · stopped"}` : this._simple ? "" : "Pick how you want it to feel. Each mood has three combos, picked at random; a new one follows when it ends.";
       $("rpplay").classList.toggle("stop", rp.playing);
     }
   };
@@ -5061,7 +5077,7 @@ ${STYLES}
         const dev = p && this._devices.find((d) => d.id === p.id);
         if (i < 2) labels[i] = dev ? p.motor === "b" ? dev.name : p.motor === "l" ? `${dev.name} (stroker)` : `${dev.name} m${Number(p.motor) + 1}` : `Pad ${i + 1}`;
         row.querySelector(".outon").checked = o.on !== false;
-        row.querySelector(".outpad").hidden = n < 2;
+        row.querySelector(".outpad").classList.toggle("gone", n < 2);
         const msel = row.querySelector(".outm");
         const modes = p && p.motor === "l" ? [[FOLLOW_STROKER, "Stroker: follows the position"], [FOLLOW_AI, "✨ AI feel: strokes from a vibration's mood"]] : [[FOLLOW_AI, "✨ AI feel: patterns from the stroke's mood"], ...Object.entries(RUN_MODES).map(([v, t]) => [v, t.replace(/ \(vibration scripts\)/, "")]), [FOLLOW_STROKER, "Stroker: level = position"]];
         const mkey = JSON.stringify(modes);
@@ -6004,7 +6020,7 @@ ${STYLES}
       $("plplay").textContent = pl.on ? "■ Stop queue" : "▶ Play queue";
       $("plplay").classList.toggle("stop", pl.on);
       if ($("plbox").hidden) return;
-      $("pllist").innerHTML = pl.items.map((it, i) => `<div class="plitem${pl.on && i === pl.i ? " on" : ""}" data-i="${i}"><button type="button" class="plname" data-act="go">${i + 1}. ${esc(this._plLabel(it))}</button><button type="button" data-act="up" aria-label="Move up"${i ? "" : " disabled"}>↑</button><button type="button" data-act="down" aria-label="Move down"${i < pl.items.length - 1 ? "" : " disabled"}>↓</button><button type="button" data-act="x" aria-label="Remove">✕</button></div>`).join("") || '<div class="hint">The queue is empty: add scripts and moods below. They play in order. A mood plays one of its combos, then the queue moves on.</div>';
+      $("pllist").innerHTML = pl.items.map((it, i) => `<div class="plitem${pl.on && i === pl.i ? " on" : ""}" data-i="${i}"><button type="button" class="plname" data-act="go">${i + 1}. ${esc(this._plLabel(it))}</button><button type="button" data-act="up" aria-label="Move up"${i ? "" : " disabled"}>↑</button><button type="button" data-act="down" aria-label="Move down"${i < pl.items.length - 1 ? "" : " disabled"}>↓</button><button type="button" data-act="x" aria-label="Remove">✕</button></div>`).join("") || '<div class="hint">Add scripts and moods; they play in order.</div>';
     }
     // The queue stops following (what is playing carries on).
     _plOff() {
@@ -6239,6 +6255,7 @@ ${STYLES}
   // studio-card/src/card/audio.js
   var AUDIO_KEY = "oggstudio_audio";
   var AUDIO_HINT = "Sound drives the devices: a pulse on each beat, or following the bass or the loudness. Nothing is recorded or sent anywhere; only the levels reach the devices.";
+  var AUDIO_HINT_SHORT = "Nothing is recorded or sent anywhere.";
   var AudioPart = class {
     // ---------------------------------------------------------- audio
     // The sound is analysed here in the browser, a few times a second.
@@ -6433,7 +6450,7 @@ ${STYLES}
       const from = { mic: "the microphone", file: "the music file", video: "the video", tab: "the shared audio" };
       const dev = this._outDevice(0);
       const to = dev ? "" : " · no device is chosen under Devices, so nothing is driven";
-      $("auinfo").textContent = au ? `Listening to ${from[au.src]} · ${au.feel.beats} beats${to}` : this._auErr || AUDIO_HINT;
+      $("auinfo").textContent = au ? `Listening to ${from[au.src]} · ${au.feel.beats} beats${to}` : this._auErr || (this._simple ? AUDIO_HINT_SHORT : AUDIO_HINT);
       const tab = this.shadowRoot.querySelector('.ctltabs [data-ctl="audio"]');
       if (tab) tab.classList.toggle("live", Boolean(au));
     }
@@ -7118,7 +7135,9 @@ ${STYLES}
       const video = $("video");
       const has = Boolean(this._vurl);
       $("vempty").hidden = !this._simple || has;
-      $("vsplay").textContent = has && !video.paused ? "⏸" : "▶";
+      const playing = has && !video.paused;
+      const playHtml = playing ? "⏸<small>Pause</small>" : "▶<small>Play</small>";
+      if ($("vsplay").innerHTML !== playHtml) $("vsplay").innerHTML = playHtml;
       $("vsplay").disabled = !has;
       $("vsaud").disabled = !has;
       $("vsaud").classList.toggle("on", Boolean(this._au && this._au.src === "video"));
@@ -7711,19 +7730,19 @@ ${STYLES}
       badge("tgbadge", Boolean(tg && tg.joined), tg && tg.joined ? "connected" : "off");
       const rpn = this._rp && this._rp.raw ? this._rp.name || "script" : "";
       badge("toolbadge", Boolean(rpn), rpn ? rpn.slice(0, 18) : "no script");
-      const tinfo = rpn ? `Working on "${rpn}" (the script in the Library). Drag its bar to a spot, then cut; each change becomes the current take.` : "Choose a script in the Library first.";
+      const tinfo = rpn ? `Editing "${rpn}": drag the Library's bar to a spot, then cut. Changes become the current take.` : "Choose a script in the Library first.";
       if (this._el("toolinfo").textContent !== tinfo) this._el("toolinfo").textContent = tinfo;
       const pl = this._pl;
       const n = pl && pl.items ? pl.items.length : 0;
       badge("queuebadge", Boolean(pl && pl.on), pl && pl.on ? `playing ${pl.i + 1}/${n}` : n ? `${n} in queue` : "empty");
       const p = this._privacy || {};
       badge("lockbadge", Boolean(p.pin || p.discreet), p.pin ? "PIN set" : p.discreet ? "discreet" : "off");
-      const linfo = `PIN: ${p.pin ? "set" : "none"} · Discreet: ${p.discreet ? "on" : "off"} · Auto-lock: ${p.auto_lock ? `${p.auto_lock} min` : "off"}. These are set in Home Assistant (admins), and apply to every OggStudio card.`;
+      const linfo = `PIN ${p.pin ? "set" : "not set"} · discreet ${p.discreet ? "on" : "off"} · auto-lock ${p.auto_lock ? `${p.auto_lock} min` : "off"}. Changed in Home Assistant by an admin.`;
       if (this._el("lockinfo").textContent !== linfo) this._el("lockinfo").textContent = linfo;
       const gp = this._el("gpon");
       badge("extrabadge", Boolean(gp && gp.checked), gp && gp.checked ? "controller" : "");
       this._el("extrabadge").hidden = !(gp && gp.checked);
-      const tab = { record: "manual", pattern: "pattern", mood: "mood" }[this._ctl] || "";
+      const tab = { record: "manual", pattern: "pattern", mood: "mood", library: "library" }[this._ctl] || "";
       const playing = this._pt ? this._pt.key === PATTERN_RANDOM ? "random" : PATTERNS[this._pt.key] || PATTERNS_DUAL[this._pt.key] || "pattern" : this._rp && this._rp.playing ? this._rp.name || "playing" : "";
       badge("ctlbadge", Boolean(playing), (playing || tab).toString().toLowerCase().slice(0, 18));
       badge("sndbadge", Boolean(au && au.src !== "video"), au && au.src !== "video" ? src[au.src] || "on" : "off");

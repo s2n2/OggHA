@@ -344,5 +344,20 @@ ha-card.simple section.psec{margin-top:10px}
 .psec .tsub{margin:10px 0 4px;font-size:12.5px;font-weight:760;color:#e8edff}
 #toolsec .subbox,#tgsec #tgbox{margin-top:6px}
 #tgsec #tgbox{display:block}
+.outrow .outpad.gone{visibility:hidden;width:0;margin-right:-6px}
+ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d4bc);color:#072a2d;border-color:transparent}
+#moodinfo:empty{display:none}
+.vside button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:46px;line-height:1}
+.vside button small{font-size:9px;font-weight:700;color:#a8b8da;letter-spacing:.01em}
+.vside button.on small{color:#072a2d}
+/* A device: switch, pad, the device and remove on one line; how it follows below */
+.outrow{grid-template-columns:auto auto minmax(0,1fr) 34px;row-gap:4px}
+.outrow .outon{grid-column:1;grid-row:1}
+.outrow .outpad{grid-column:2;grid-row:1}
+.outrow .outt{grid-column:3;grid-row:1}
+.outrow .outdel{grid-column:4;grid-row:1}
+.outrow .outm{grid-column:3/5;grid-row:2;min-height:34px;font-size:12px;font-weight:600;color:#c5d2f0}
+.outrow .outai,.outrow .outtake{grid-column:3/5}
+.outrow + .outrow{margin-top:6px;padding-top:8px;border-top:1px solid rgba(174,194,246,.08)}
 [hidden],.off{display:none!important}
 `;

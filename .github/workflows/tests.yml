@@ -13,7 +13,7 @@ jobs:
         with:
           python-version: "3.14"
       - name: Install Home Assistant's test harness
-        run: pip install "pytest-homeassistant-custom-component==0.13.375" ruff==0.17.3
+        run: pip install "pytest-homeassistant-custom-component==0.13.375" "home-assistant-frontend==20260930.5" ruff==0.17.3
       - name: Lint the studio (Play card) code
         run: ruff check custom_components/ogg/studio custom_components/ogg/config_flow.py custom_components/ogg/dashboard_resource.py tests/test_studio.py
       - name: Ogg and studio tests (real Home Assistant)

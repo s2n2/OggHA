@@ -112,6 +112,8 @@ export class ReplayPart {
       const gslot = $('xgpslot');
       const lib = this.shadowRoot.querySelector('section[data-part="library"]');
       if (lib.parentElement !== $('libslot')) $('libslot').appendChild(lib);
+      // The Library's preview and progress sit under its list of scripts.
+      if ($('rpbox').parentElement !== lib) lib.insertBefore($('rpbox'), $('saved').nextSibling);
       lib.classList.toggle('off', ctl !== 'library');
       // Opening the Library shows the chosen script's preview.
       if (ctl === 'library' && !this._rp.raw && !this._rp.playing && !this._libPick) this._libPreview($('saved').value);
@@ -462,7 +464,7 @@ export class ReplayPart {
     $('moodfill').style.width = mood && rp.len ? `${Math.min(100, rp.t / rp.len * 100)}%` : '0';
     $('moodinfo').textContent = mood
       ? `${mood.icon} ${rp.name} (${this._mood.combo + 1} of ${mood.combos.length}) · ${fmt(rp.t)} / ${fmt(rp.len)}${rp.playing ? '' : ' · stopped'}`
-      : 'Pick how you want it to feel. Each mood has three combos, picked at random; a new one follows when it ends.';
+      : (this._simple ? '' : 'Pick how you want it to feel. Each mood has three combos, picked at random; a new one follows when it ends.');
     $('rpplay').classList.toggle('stop', rp.playing);
   }
 }
