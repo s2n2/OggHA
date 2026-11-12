@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -58,7 +58,8 @@ class Resources:
 
 def fake_hass(resources=None, mode="storage"):
     return SimpleNamespace(
-        http=SimpleNamespace(async_register_static_paths=AsyncMock()),
+        http=SimpleNamespace(async_register_static_paths=AsyncMock(), register_view=Mock()),
+        services=SimpleNamespace(async_register=Mock()),
         data={"lovelace": SimpleNamespace(resource_mode=mode, resources=resources or Resources())},
     )
 
