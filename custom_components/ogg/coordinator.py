@@ -155,6 +155,7 @@ class OggHub:
         self._listeners: set[Callable[[], None]] = set()
         self._event_tasks: set[asyncio.Task] = set()
         self._wake = asyncio.Event()
+        self._wake_timers: set[asyncio.TimerHandle] = set()
         self._master_lock = asyncio.Lock()
         self._scan_active = False
         self._force_scan = False
@@ -298,6 +299,15 @@ class OggHub:
         """Start a device search, while respecting the master switch."""
         await self.async_set_search(True)
 
+    def _wake_later(self, delay: float) -> None:
+        """Wake the connection manager later (cancelled if Ogg unloads first)."""
+        def fire() -> None:
+            self._wake_timers.discard(handle)
+            self._wake.set()
+
+        handle = self.hass.loop.call_later(delay, fire)
+        self._wake_timers.add(handle)
+
     @staticmethod
     def _is_intiha(client: Any) -> bool:
         name = str(getattr(client, "server_info", {}).get("ServerName", ""))
@@ -323,7 +333,7 @@ class OggHub:
             return
         _LOGGER.debug("Ogg started an automatic IntiHA search (%s)", reason)
         self._auto_search_until = time.monotonic() + AUTO_SEARCH_SECONDS
-        self.hass.loop.call_later(AUTO_SEARCH_SECONDS + 0.5, self._wake.set)
+        self._wake_later(AUTO_SEARCH_SECONDS + 0.5)
 
     async def async_set_search(self, on: bool) -> None:
         """Toggle a device search on the connected server."""
@@ -695,7 +705,7 @@ class OggHub:
             if key not in current_keys and device.connected:
                 self._offline_since[key] = time.monotonic()
                 self._offline_searched.discard(key)
-                self.hass.loop.call_later(AUTO_SEARCH_OFFLINE_SECONDS + 0.5, self._wake.set)
+                self._wake_later(AUTO_SEARCH_OFFLINE_SECONDS + 0.5)
                 self._cancel_stop_backups(key)
                 self._mark_intention_lost(key)
                 device.connected = False
@@ -1907,6 +1917,9 @@ class OggHub:
     async def _shutdown(self) -> None:
         self._shutting_down = True
         self._operation_epoch += 1
+        for handle in self._wake_timers:
+            handle.cancel()
+        self._wake_timers.clear()
         if self._unsubscribe_ips is not None:
             self._unsubscribe_ips()
             self._unsubscribe_ips = None

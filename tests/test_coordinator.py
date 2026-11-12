@@ -310,7 +310,7 @@ async def test_sensor_ip_change_reconnects_with_same_device_identity(
 
 
 async def test_native_cancel_sends_zero_packet_even_before_initial_ack(fake_server, hub_factory):
-    fake_server.devices = [vibration_device(0, "WeVibe Nova")]
+    fake_server.devices = [vibration_device(0, "WeVibe Nova", motors=1)]
     fake_server.devices[0]["DeviceMessages"]["RawWriteCmd"] = {"Endpoints": ["tx"]}
     hub = await hub_factory(fake_server)
     key = next(iter(hub.devices))
@@ -389,7 +389,7 @@ async def test_native_explicit_rejection_falls_back_to_standard_output(fake_serv
 async def test_native_reconnect_sends_explicit_off_before_new_user_output(
     fake_server, hub_factory, late_discovery
 ):
-    fake_server.devices = [vibration_device(0, "WeVibe Nova")]
+    fake_server.devices = [vibration_device(0, "WeVibe Nova", motors=1)]
     fake_server.devices[0]["DeviceMessages"]["RawWriteCmd"] = {"Endpoints": ["tx"]}
     hub = await hub_factory(fake_server)
     key = next(iter(hub.devices))
@@ -550,7 +550,7 @@ async def test_pulse_redundant_stops_at_three_checkpoints(fake_server, hub_facto
     monkeypatch.setattr(coordinator, "PULSE_STOP_BACKUP_DELAYS", (.02, .04, .06, .08, .10))
     hub = await hub_factory(fake_server)
     key = next(iter(hub.devices))
-    await hub.async_set_pulse_duration(.08)
+    await hub.async_set_pulse_duration(.1)
     stop_baseline = sum(name == "StopDeviceCmd" for name, _ in fake_server.requests)
     await hub.async_start(key, pulse=True)
     await fake_server.wait_for("ScalarCmd")
@@ -573,7 +573,7 @@ async def test_late_pulse_stops_cannot_interrupt_new_run(fake_server, hub_factor
     monkeypatch.setattr(coordinator, "PULSE_STOP_BACKUP_DELAYS", (.04, .08, .12, .16, .20))
     hub = await hub_factory(fake_server)
     key = next(iter(hub.devices))
-    await hub.async_set_pulse_duration(.08)
+    await hub.async_set_pulse_duration(.1)
     await hub.async_start(key, pulse=True)
     await fake_server.wait_for("ScalarCmd")
     await until(lambda: not hub.devices[key].running)
@@ -594,13 +594,13 @@ async def test_native_pulse_backups_repeat_zero_packet(fake_server, hub_factory,
     from custom_components.ogg import coordinator
 
     monkeypatch.setattr(coordinator, "PULSE_STOP_BACKUP_DELAYS", (.02, .04, .06, .08, .10))
-    fake_server.devices = [vibration_device(0, "WeVibe Nova")]
+    fake_server.devices = [vibration_device(0, "WeVibe Nova", motors=1)]
     fake_server.devices[0]["DeviceMessages"]["RawWriteCmd"] = {"Endpoints": ["tx"]}
     hub = await hub_factory(fake_server)
     key = next(iter(hub.devices))
     await hub.async_set_setting(key, "native_profile", "classic")
     await hub.async_set_setting(key, "pattern", "pulse")
-    await hub.async_set_pulse_duration(.08)
+    await hub.async_set_pulse_duration(.1)
     await hub.async_start(key, pulse=True)
     await until(lambda: not hub.devices[key].running)
     await until(lambda: sum(
@@ -628,7 +628,7 @@ async def test_pulse_all_has_independent_stop_backup_per_device(
     await until(lambda: hub.connected_count == 2 and all(
         not device.recovering for device in hub.devices.values()
     ))
-    await hub.async_set_pulse_duration(.08)
+    await hub.async_set_pulse_duration(.1)
     baseline = {
         index: sum(
             name == "StopDeviceCmd" and body["DeviceIndex"] == index

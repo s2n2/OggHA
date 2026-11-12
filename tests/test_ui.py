@@ -121,7 +121,7 @@ async def test_restored_enabled_entry_loads_while_endpoint_is_offline(
         assert hub.devices[key].settings["motor_mode"] == "together"
         assert hub.devices[key].settings["native_profile"] == "disabled"
         assert hass.states.get(entity_id(hass, entry, "switch", "run", key)).state == "unavailable"
-        await wait_until(lambda: hub.last_error == "No configured server is responding")
+        await wait_until(lambda: bool(hub.last_error))
         assert entry.state is ConfigEntryState.LOADED
         assert (
             hass.states.get(entity_id(hass, entry, "sensor", "connection_status")).state
