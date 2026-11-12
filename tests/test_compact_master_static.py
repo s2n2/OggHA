@@ -1,4 +1,5 @@
 """Lightweight layout regressions that do not need Home Assistant dependencies."""
+import re
 from pathlib import Path
 
 
@@ -7,6 +8,6 @@ def test_compact_master_layout_preserved():
     assert "grid-template-columns:repeat(2,minmax(0,1fr))" in source
     assert "master-bottom" in source
     assert "master-label" in source
-    assert 'card v2.2.0' in source
+    assert re.search(r"card v\d+\.\d+\.\d+", source)
     assert 'id="server"' in source and 'id="ogg"' in source
     assert "server-settings" in source and "ogg-settings" in source

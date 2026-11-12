@@ -96,7 +96,7 @@ async def connected_to(hass, hub, peer: SwitchableServer, count: int = 1) -> Non
             hub.connected and hub.server_url == peer.url and hub.connected_count == count
         ):
             await asyncio.sleep(0.005)
-    await peer.wait_for("StartScanning")
+    await peer.wait_for("RequestDeviceList")
     await hass.async_block_till_done()
 
 

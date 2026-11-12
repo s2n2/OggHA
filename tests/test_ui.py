@@ -84,7 +84,7 @@ async def test_offline_entry_loads_with_connection_controls_and_no_setup_retry(h
     ],
 )
 async def test_restored_enabled_entry_loads_while_endpoint_is_offline(
-    hass, hass_storage, unused_tcp_port, socket_enabled, settings
+    hass, hass_storage, socket_enabled, unused_tcp_port, settings
 ):
     host = f"ws://127.0.0.1:{unused_tcp_port}"
     entry = MockConfigEntry(domain=DOMAIN, unique_id=DOMAIN, title="Ogg", data=config(host))
@@ -117,7 +117,7 @@ async def test_restored_enabled_entry_loads_while_endpoint_is_offline(
         assert hub.devices[key].alias == "Saved device"
         assert not hub.devices[key].running
         assert hub.devices[key].settings["intensity"] == 60
-        assert hub.devices[key].settings["pattern"] == "steady"
+        assert hub.devices[key].settings["pattern"] == "dual_steady"
         assert hub.devices[key].settings["motor_mode"] == "together"
         assert hub.devices[key].settings["native_profile"] == "disabled"
         assert hass.states.get(entity_id(hass, entry, "switch", "run", key)).state == "unavailable"
@@ -189,7 +189,7 @@ async def test_options_can_replace_addresses_without_a_running_server(hass):
     assert result["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
     try:
-        assert entry.options == changed
+        assert entry.options == {**changed, "multi_server": False}
         assert entry.state is ConfigEntryState.LOADED
         assert entry.runtime_data.config["manual_hosts"] == []
         assert entry.runtime_data.config["sensor_entities"] == ["sensor.phone_ip"]
@@ -237,7 +237,7 @@ async def test_device_entities_preserve_names_and_dispatch_standard_actions(hass
             "select",
             "select_option",
             entity_id(hass, entry, "select", "pattern", key),
-            option="steady",
+            option="dual_steady",
         )
         assert not any(name == "ScalarCmd" for name, _ in fake_server.requests)
         await service(

@@ -42,7 +42,7 @@ async def hub_factory(hass, enable_custom_integrations):
         hub = entry.runtime_data
         await hub.async_set_enabled(True)
         await until(lambda: hub.connected and hub.connected_count > 0)
-        await server.wait_for("StartScanning")
+        await server.wait_for("RequestDeviceList")
         return hub
 
     yield create
