@@ -94,7 +94,8 @@ def default_settings(motors: int) -> dict[str, Any]:
     return {
         "intensity": 25.0,
         "period": 2.0,
-        "pattern": "steady",
+        # A two-motor device takes the two-motor set (as when settings load).
+        "pattern": "dual_steady" if motors > 1 else "steady",
         "motor_mode": "together",
         "native_profile": "disabled",
         "owner": "unassigned",
