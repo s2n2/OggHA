@@ -100,3 +100,57 @@ stop_script:
       selector:
         entity:
           integration: ogg
+
+# The Play card (was the OggStudio integration)
+studio_save:
+  fields:
+    name: {required: true, selector: {text: {}}}
+    script: {required: true, selector: {object: {}}}
+    mode: {required: false, selector: {select: {options: ["speed", "position", "upper", "combo", "down", "up"]}}}
+studio_set_mode:
+  fields:
+    name: {required: true, selector: {text: {}}}
+    mode: {required: true, selector: {select: {options: ["speed", "position", "upper", "combo", "down", "up"]}}}
+studio_delete:
+  fields:
+    name: {required: true, selector: {text: {}}}
+studio_rename:
+  fields:
+    name: {required: true, selector: {text: {}}}
+    new_name: {required: true, selector: {text: {}}}
+studio_get_script:
+  fields:
+    name: {required: true, selector: {text: {}}}
+studio_play:
+  fields:
+    entity_id: {required: true, selector: {entity: {integration: ogg}}}
+    name: {required: false, selector: {text: {}}}
+    script: {required: false, selector: {object: {}}}
+    speed: {required: false, selector: {select: {options: ["0.5x", "0.75x", "1x", "1.25x", "1.5x", "2x"]}}}
+    loop: {required: false, default: false, selector: {boolean: {}}}
+    mode: {required: false, selector: {select: {options: ["speed", "position", "upper", "combo", "down", "up"]}}}
+studio_claim:
+  fields:
+    entity_id: {required: true, selector: {entity: {integration: ogg}}}
+    owner: {required: true, selector: {text: {}}}
+    label: {required: false, selector: {text: {}}}
+    release: {required: false, default: false, selector: {boolean: {}}}
+studio_stop:
+  fields:
+    entity_id: {required: true, selector: {entity: {integration: ogg}}}
+studio_panic:
+studio_set_limits:
+  fields:
+    entity_id: {required: true, selector: {entity: {integration: ogg}}}
+    max: {required: false, default: 100, selector: {number: {min: 0, max: 100, unit_of_measurement: "%"}}}
+    lo: {required: false, default: 0, selector: {number: {min: 0, max: 100, unit_of_measurement: "%"}}}
+    hi: {required: false, default: 100, selector: {number: {min: 0, max: 100, unit_of_measurement: "%"}}}
+    speed: {required: false, default: 100, selector: {number: {min: 5, max: 100, unit_of_measurement: "%"}}}
+studio_save_playlist:
+  fields:
+    name: {required: true, selector: {text: {}}}
+    items: {required: true, selector: {object: {}}}
+    loop: {required: false, default: false, selector: {boolean: {}}}
+studio_delete_playlist:
+  fields:
+    name: {required: true, selector: {text: {}}}

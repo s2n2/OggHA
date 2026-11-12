@@ -9,6 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import OggHub
 from .entity import OggEntity, async_register_device_entities
+from .studio.entities import studio_buttons
 
 PARALLEL_UPDATES = 0
 
@@ -18,6 +19,7 @@ async def async_setup_entry(
 ) -> None:
     hub: OggHub = entry.runtime_data
     async_add_entities(OggButton(hub, action) for action in ("pulse_all", "stop_all", "search_now"))
+    async_add_entities(studio_buttons(hass, entry))
     async_register_device_entities(entry, async_add_entities, _device_buttons)
 
 

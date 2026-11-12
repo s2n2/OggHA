@@ -1,0 +1,13 @@
+{
+  "name": "ogg-play-card",
+  "private": true,
+  "type": "module",
+  "description": "Builds Ogg's Play card from studio-card/src into one file for Home Assistant.",
+  "scripts": {
+    "build": "esbuild studio-card/src/index.js --bundle --format=iife --target=es2020 --charset=utf8 --banner:js=\"/* Ogg Play card, built from studio-card/src (npm run build). Do not edit here. */\" --outfile=custom_components/ogg/frontend/oggstudio-card.js",
+    "test": "node studio-card/tests/card_logic_test.mjs && node studio-card/tests/tools_test.mjs && node studio-card/tests/patterns_test.mjs && python studio-card/tests/convert_test.py"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.0"
+  }
+}

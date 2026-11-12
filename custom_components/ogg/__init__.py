@@ -4,20 +4,20 @@ from __future__ import annotations
 
 import logging
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
-from homeassistant.core import Event, HomeAssistant
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers.typing import ConfigType
-
-import voluptuous as vol
-from homeassistant.core import ServiceCall
+from homeassistant.core import Event, HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN, PLATFORMS
 from .coordinator import OggHub
+from .studio import async_setup_studio, async_setup_studio_entry, async_unload_studio_entry
+from .studio.privacy import STUDIO_OPTIONS
 
 HOLD_SCHEMA = vol.Schema(
     {
@@ -65,6 +65,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         await async_register_control_deck(hass)
     except Exception:  # noqa: BLE001 - optional frontend must not break BLE control
         _LOGGER.exception("Could not register Ogg Control Deck; Ogg will remain available")
+    # The Play card's side (was the OggStudio integration): services, links.
+    # Like the cards, it must never keep Ogg's device control from starting.
+    try:
+        await async_setup_studio(hass)
+    except Exception:  # noqa: BLE001
+        _LOGGER.exception("Could not set up Ogg Studio; Ogg will remain available")
 
     async def async_hold(call: ServiceCall) -> None:
         """Hold-to-run for one device (any of its entities identifies it)."""
@@ -143,6 +149,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: OggConfigEntry) -> bool:
     entry.runtime_data = hub
     try:
         await hub.async_initialize()
+        await async_setup_studio_entry(hass, entry)
+        hass.data.setdefault(CONNECTION_SNAPSHOT, {})[entry.entry_id] = _connection(entry)
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
         async def async_stop(_event: Event) -> None:
@@ -158,8 +166,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: OggConfigEntry) -> bool:
     return True
 
 
+CONNECTION_SNAPSHOT = "ogg_connection_snapshot"
+
+
+def _connection(entry: ConfigEntry) -> dict:
+    """The settings that need a reconnect (not the studio's privacy settings)."""
+    return {k: v for k, v in {**entry.data, **entry.options}.items() if k not in STUDIO_OPTIONS}
+
+
 async def _async_update_options(hass: HomeAssistant, entry: OggConfigEntry) -> None:
-    """Apply the edited connection sources through a full clean reload."""
+    """Apply edited connection sources through a full clean reload.
+
+    Studio settings (privacy, PIN) apply on their own, without reconnecting.
+    """
+    if hass.data.get(CONNECTION_SNAPSHOT, {}).get(entry.entry_id) == _connection(entry):
+        return
     await hass.config_entries.async_reload(entry.entry_id)
 
 
@@ -178,4 +199,7 @@ async def async_remove_config_entry_device(
 async def async_unload_entry(hass: HomeAssistant, entry: OggConfigEntry) -> bool:
     """Cancel output, stop devices and release background work before entities."""
     await entry.runtime_data.async_shutdown()
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if ok:
+        async_unload_studio_entry(hass)
+    return ok

@@ -34,7 +34,14 @@
   "options": {
     "step": {
       "init": {
-        "title": "Ogg connection settings",
+        "title": "Ogg settings",
+        "menu_options": {
+          "connection": "Connection: servers and search",
+          "studio": "Studio: privacy and PIN for the Play card"
+        }
+      },
+      "connection": {
+        "title": "Connection",
         "description": "Update the connection sources. Saving reloads Ogg and stops current activity. The integration stays loaded even when servers are offline.",
         "data": {
           "manual_hosts": "Manual addresses",
@@ -52,10 +59,32 @@
           "scan_interval": "Seconds between checks when disconnected and between device scans while connected.",
           "multi_server": "Keep the first address (for example this Home Assistant's IntiHA) and one other reachable address (for example your phone) connected together. Devices from both appear as one list. Off: only one server is connected at a time."
         }
+      },
+      "studio": {
+        "title": "Studio privacy and PIN",
+        "description": "A PIN is {pin}. It locks the OggStudio cards, not Home Assistant.",
+        "data": {
+          "no_history": "Keep Ogg and OggStudio out of history and the logbook",
+          "discreet": "Discreet cards",
+          "discreet_name": "Discreet title",
+          "users": "Who may use OggStudio",
+          "pin": "New PIN",
+          "remove_pin": "Remove the PIN",
+          "auto_lock": "Lock again after (minutes idle)"
+        },
+        "data_description": {
+          "no_history": "Clears what the recorder kept about these entities, at start and every half hour. To have nothing written at all, also exclude them in configuration.yaml (see the README).",
+          "discreet": "Cards open covered, with a neutral title, no device names and no version line.",
+          "discreet_name": "The title shown on a discreet or locked card.",
+          "users": "Leave empty for everyone. Others do not see the cards and cannot call OggStudio's services. Stopping always works.",
+          "pin": "4 to 32 characters. Leave empty to keep the current one.",
+          "auto_lock": "0 keeps a card unlocked until the browser tab closes."
+        }
       }
     },
     "error": {
-      "invalid_config": "Check the addresses and sensors. Use no more than five of each, a valid port, and a search interval from 5 to 120 seconds."
+      "invalid_config": "Check the addresses and sensors. Use no more than five of each, a valid port, and a search interval from 5 to 120 seconds.",
+      "pin_length": "A PIN is 4 to 32 characters."
     }
   },
   "entity": {
@@ -91,6 +120,9 @@
       },
       "stop": {
         "name": "Stop"
+      },
+      "studio_stop_everything": {
+        "name": "Stop everything"
       }
     },
     "number": {
@@ -188,6 +220,12 @@
           "his": "His",
           "hers": "Hers"
         }
+      },
+      "studio_saved_script": {
+        "name": "Saved script"
+      },
+      "studio_speed": {
+        "name": "Replay speed"
       }
     },
     "binary_sensor": {
@@ -329,6 +367,199 @@
           "description": "Any Ogg entity of the device."
         }
       }
+    },
+    "studio_save": {
+      "name": "Save script",
+      "description": "Save a funscript under a name (overwrites a script with the same name).",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Script name."
+        },
+        "script": {
+          "name": "Script",
+          "description": "Funscript object (pos 0-100; optional channels.V1 for motor 2). metadata.type 'stroke' marks a stroke script, converted to vibration when played."
+        },
+        "mode": {
+          "name": "Run mode",
+          "description": "Stroke scripts only: how position becomes vibration. speed, position, upper (position above 50%: 50% and below off, 75% = half power), combo (speed plus position), down (speed on downstrokes only) or up (upstrokes only)."
+        }
+      }
+    },
+    "studio_delete": {
+      "name": "Delete script",
+      "description": "Delete a saved script.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Script name."
+        }
+      }
+    },
+    "studio_rename": {
+      "name": "Rename script",
+      "description": "Rename a saved script.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Current name."
+        },
+        "new_name": {
+          "name": "New name",
+          "description": "New name."
+        }
+      }
+    },
+    "studio_get_script": {
+      "name": "Get script",
+      "description": "Return a saved script (for export).",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Script name."
+        }
+      }
+    },
+    "studio_play": {
+      "name": "Play script",
+      "description": "Play a saved script (or a given script) on an Ogg device.",
+      "fields": {
+        "entity_id": {
+          "name": "Device",
+          "description": "Any Ogg entity of the device."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Saved script; defaults to the selected one."
+        },
+        "script": {
+          "name": "Script",
+          "description": "Play this funscript without saving it."
+        },
+        "speed": {
+          "name": "Speed",
+          "description": "0.5x-2x (default: the Replay speed setting)."
+        },
+        "loop": {
+          "name": "Loop",
+          "description": "Repeat until stopped."
+        },
+        "mode": {
+          "name": "Run mode",
+          "description": "Stroke scripts only: how position becomes vibration. speed, position, upper (position above 50%: 50% and below off, 75% = half power), combo (speed plus position), down (speed on downstrokes only) or up (upstrokes only). Defaults to the mode last used for the script; giving one remembers it."
+        }
+      }
+    },
+    "studio_stop": {
+      "name": "Stop",
+      "description": "Stop playback on a device.",
+      "fields": {
+        "entity_id": {
+          "name": "Device",
+          "description": "Any Ogg entity of the device."
+        }
+      }
+    },
+    "studio_set_mode": {
+      "name": "Set run mode",
+      "description": "Remember how a saved stroke script is converted to vibration.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Script name."
+        },
+        "mode": {
+          "name": "Run mode",
+          "description": "Stroke scripts only: how position becomes vibration. speed, position, upper (position above 50%: 50% and below off, 75% = half power), combo (speed plus position), down (speed on downstrokes only) or up (upstrokes only)."
+        }
+      }
+    },
+    "studio_claim": {
+      "name": "Claim live control",
+      "description": "Used by the Ogg Studio cards so only one phone or browser drives a device live at a time. Lapses after 12 seconds unless refreshed.",
+      "fields": {
+        "entity_id": {
+          "name": "Device",
+          "description": "Any Ogg entity of the device."
+        },
+        "owner": {
+          "name": "Owner",
+          "description": "An id for the controlling card."
+        },
+        "label": {
+          "name": "Label",
+          "description": "Shown to other controllers, for example \"Shane on Android\"."
+        },
+        "release": {
+          "name": "Release",
+          "description": "Give up control."
+        }
+      }
+    },
+    "studio_panic": {
+      "name": "Stop everything",
+      "description": "Stop every Ogg device now, drop all live control and halt every open Ogg Studio card. Never refused.",
+      "fields": {}
+    },
+    "studio_set_limits": {
+      "name": "Set device limits",
+      "description": "Limits nothing in Ogg Studio goes past on a device: scripts, live control, moods, audio and a remote partner.",
+      "fields": {
+        "entity_id": {
+          "name": "Device",
+          "description": "Any Ogg entity of the device."
+        },
+        "max": {
+          "name": "Top intensity",
+          "description": "Percent of full power (100 = no limit)."
+        },
+        "lo": {
+          "name": "Stroke range from",
+          "description": "Lowest stroke position, percent."
+        },
+        "hi": {
+          "name": "Stroke range to",
+          "description": "Highest stroke position, percent."
+        },
+        "speed": {
+          "name": "Top stroke speed",
+          "description": "Percent of full speed (100 = no limit)."
+        }
+      }
+    },
+    "studio_save_playlist": {
+      "name": "Save playlist",
+      "description": "Save a queue of saved scripts and moods under a name.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Playlist name."
+        },
+        "items": {
+          "name": "Items",
+          "description": "A list, in order, of {script: name} and {mood: key}."
+        },
+        "loop": {
+          "name": "Loop",
+          "description": "Start again after the last item."
+        }
+      }
+    },
+    "studio_delete_playlist": {
+      "name": "Delete playlist",
+      "description": "Delete a saved playlist.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Playlist name."
+        }
+      }
+    }
+  },
+  "issues": {
+    "oggstudio_merged": {
+      "title": "OggStudio is now part of Ogg",
+      "description": "The Play card, your saved scripts, limits and privacy settings now live in Ogg. Remove the OggStudio integration (Settings > Devices & services > OggStudio > Delete) and, in HACS, remove OggStudio. Your dashboards keep working: the cards are the same."
     }
   }
 }

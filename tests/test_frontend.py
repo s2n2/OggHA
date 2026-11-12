@@ -14,8 +14,13 @@ from custom_components.ogg.dashboard_resource import (
     CARD_PATH,
     CARD_VERSION,
     CARD_URL,
+    STUDIO_FILE,
+    STUDIO_PATH,
+    STUDIO_VERSION,
     async_register_control_deck,
 )
+
+STUDIO_URL = f"{STUDIO_PATH}?v={STUDIO_VERSION}"
 
 
 class Resources:
@@ -66,14 +71,16 @@ async def test_installs_from_integration_folder_and_registers_once():
     await async_register_control_deck(hass)
     assert resources.loads == 1
     assert resources.rows[0]["url"] == "/some-other-card.js"
-    assert resources.creates == [{"url": CARD_URL, "res_type": "module"}]
-    route = hass.http.async_register_static_paths.await_args.args[0][0]
-    assert route.url_path == CARD_PATH
-    assert route.path == str(CARD_FILE)
-    assert route.cache_headers is False
+    # The Control Deck and the Play card.
+    assert resources.creates == [{"url": CARD_URL, "res_type": "module"},
+                                 {"url": STUDIO_URL, "res_type": "module"}]
+    routes = [c.args[0][0] for c in hass.http.async_register_static_paths.await_args_list]
+    assert [r.url_path for r in routes] == [CARD_PATH, STUDIO_PATH]
+    assert routes[0].path == str(CARD_FILE) and routes[1].path == str(STUDIO_FILE)
+    assert all(r.cache_headers is False for r in routes)
 
     await async_register_control_deck(hass)
-    assert len(resources.creates) == 1
+    assert len(resources.creates) == 2
     assert resources.updates == []
 
 
@@ -84,7 +91,7 @@ async def test_updates_old_version_but_leaves_unrelated_cards_untouched():
         {"id": "other", "url": "/something-else.js", "type": "module"},
     ])
     await async_register_control_deck(fake_hass(resources))
-    assert resources.creates == []
+    assert resources.creates == [{"url": STUDIO_URL, "res_type": "module"}]
     assert resources.updates == [("old", {"url": CARD_URL, "res_type": "module"})]
     assert resources.rows[1]["url"] == "/something-else.js"
 
@@ -94,7 +101,7 @@ async def test_yaml_mode_serves_file_without_modifying_resources():
     resources = Resources()
     hass = fake_hass(resources, mode="yaml")
     await async_register_control_deck(hass)
-    hass.http.async_register_static_paths.assert_awaited_once()
+    assert hass.http.async_register_static_paths.await_count == 2
     assert resources.loads == 0
     assert resources.creates == []
 
