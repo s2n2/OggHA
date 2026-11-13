@@ -17,12 +17,23 @@ import { AudioPart } from './card/audio.js';
 import { TogetherPart } from './card/together.js';
 import { PlayPart } from './card/play.js';
 import { ScreenOffPart } from './card/screenoff.js';
+import { OggPrivacyCard, PRIVACY_TAG } from './card/privacy.js';
+import { privateHass } from './lib/private.js';
 
 // Each part's methods join the card (later parts win on a shared name).
 for (const part of [StrokePart, GamepadPart, VideoPart, CastPart, ReplayPart, OutputsPart, SafetyPart, ToolsPart, AudioPart, TogetherPart, PlayPart, ScreenOffPart]) {
   for (const [key, desc] of Object.entries(Object.getOwnPropertyDescriptors(part.prototype))) {
     if (key !== 'constructor') Object.defineProperty(OggStudioCard.prototype, key, desc);
   }
+}
+
+// Private mode: for whoever turned it on, the card sees the live states.
+privateHass(OggStudioCard);
+
+if (!customElements.get(PRIVACY_TAG)) {
+  customElements.define(PRIVACY_TAG, OggPrivacyCard);
+  window.customCards = window.customCards || [];
+  window.customCards.push({ type: PRIVACY_TAG, name: 'Ogg Privacy', description: "Private mode: Ogg's toys stop showing their status to everyone else; you still see them as usual.", preview: true });
 }
 
 if (!customElements.get(TAG)) {

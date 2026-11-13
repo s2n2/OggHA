@@ -8,6 +8,64 @@
   const TAG = 'ogg-control-deck-card';
   if (customElements.get(TAG)) return;
 
+  // Private mode (a copy of the Play card's studio-card/src/lib/private.js;
+  // both share one feed per page): for whoever turned it on, this card sees
+  // the live states of Ogg's toys, which Home Assistant holds from others.
+  function oggPrivate() {
+    if (window.__oggPrivate) return window.__oggPrivate;
+    const p = {
+      conn: null, unsub: null, on: false, mine: false, since: null, known: false,
+      states: {}, version: 0, cards: new Set(), cache: null,
+      // A card's Home Assistant object (and the card, to tell it of changes).
+      attach(hass, card) {
+        if (card) this.cards.add(card);
+        if (hass && hass.connection && hass.connection !== this.conn) this._sub(hass.connection);
+      },
+      _sub(conn) {
+        if (this.unsub) { try { this.unsub(); } catch (_) { /* gone */ } }
+        this.conn = conn; this.unsub = null; this.states = {}; this.on = false; this.mine = false; this.known = false;
+        Promise.resolve(conn.subscribeMessage((ev) => this._event(ev), { type: 'ogg/private/subscribe' }))
+          .then((u) => { if (this.conn === conn) this.unsub = u; else u(); })
+          .catch(() => { /* an Ogg without private mode */ });
+      },
+      _event(ev) {
+        if (!ev || typeof ev !== 'object') return;
+        if ('on' in ev) {
+          this.on = Boolean(ev.on); this.mine = Boolean(ev.mine); this.since = ev.since || null; this.known = true;
+          this.states = ev.states && this.mine ? { ...ev.states } : {};
+        } else if (ev.states && this.mine) Object.assign(this.states, ev.states);
+        this.version += 1;
+        this.cache = null;
+        for (const card of [...this.cards]) {
+          if (!card.isConnected) { this.cards.delete(card); continue; }
+          try { card._oggPrivateChanged(); } catch (e) { console.warn('Ogg private mode', e); }
+        }
+      },
+      // Home Assistant as the card should see it.
+      wrap(hass) {
+        if (!hass || !this.on || !this.mine) return hass;
+        if (this.cache && this.cache.hass === hass && this.cache.version === this.version) return this.cache.out;
+        const overlay = {};
+        for (const [id, row] of Object.entries(this.states)) {
+          const base = hass.states[id];
+          overlay[id] = {
+            ...(base || {}), entity_id: id, state: row.state, attributes: row.attributes,
+            last_changed: new Date(row.last_changed * 1000).toISOString(),
+            last_updated: new Date(row.last_updated * 1000).toISOString(),
+          };
+        }
+        const out = { ...hass, states: { ...hass.states, ...overlay } };
+        this.cache = { hass, version: this.version, out };
+        return out;
+      },
+      async set(hass, on) {
+        return hass.callWS({ type: 'ogg/private/set', on });
+      },
+    };
+    window.__oggPrivate = p;
+    return p;
+  }
+
   const CYCLE_OPTIONS = [1, 2, 3, 5, 10, 15, 30];
   const SPARK_INTERVAL_MS = 140;
   const SPARK_POINTS = 56; // About eight seconds of requested and device-reported intensity.
@@ -312,7 +370,15 @@
       this._schedule();
     }
 
+    _oggPrivateChanged() {
+      if (this._rawHass) this.hass = this._rawHass;
+    }
+
     set hass(hass) {
+      const priv = oggPrivate();
+      this._rawHass = hass;
+      priv.attach(hass, this);
+      hass = priv.wrap(hass);
       const old = this._hass;
       this._hass = hass;
       if (old?.connection !== hass?.connection) {
