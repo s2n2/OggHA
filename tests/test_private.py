@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
 from homeassistant.helpers import entity_registry as er
 
 from custom_components.ogg.const import DOMAIN
 from custom_components.ogg.private import DATA, PrivateMode
 
 from .test_ui import setup_entry
+
+pytestmark = pytest.mark.usefixtures("enable_custom_integrations")
 
 
 def pulse_entity(hass, entry) -> str:

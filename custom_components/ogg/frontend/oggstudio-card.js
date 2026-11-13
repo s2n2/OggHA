@@ -8300,11 +8300,213 @@ ${STYLES}
     }
   };
 
+  // studio-card/src/lib/private.js
+  function oggPrivate() {
+    if (window.__oggPrivate) return window.__oggPrivate;
+    const p = {
+      conn: null,
+      unsub: null,
+      on: false,
+      mine: false,
+      since: null,
+      known: false,
+      states: {},
+      version: 0,
+      cards: /* @__PURE__ */ new Set(),
+      cache: null,
+      // A card's Home Assistant object (and the card, to tell it of changes).
+      attach(hass, card) {
+        if (card) this.cards.add(card);
+        if (hass && hass.connection && hass.connection !== this.conn) this._sub(hass.connection);
+      },
+      _sub(conn) {
+        if (this.unsub) {
+          try {
+            this.unsub();
+          } catch (_) {
+          }
+        }
+        this.conn = conn;
+        this.unsub = null;
+        this.states = {};
+        this.on = false;
+        this.mine = false;
+        this.known = false;
+        Promise.resolve(conn.subscribeMessage((ev) => this._event(ev), { type: "ogg/private/subscribe" })).then((u) => {
+          if (this.conn === conn) this.unsub = u;
+          else u();
+        }).catch(() => {
+        });
+      },
+      _event(ev) {
+        if (!ev || typeof ev !== "object") return;
+        if ("on" in ev) {
+          this.on = Boolean(ev.on);
+          this.mine = Boolean(ev.mine);
+          this.since = ev.since || null;
+          this.known = true;
+          this.states = ev.states && this.mine ? { ...ev.states } : {};
+        } else if (ev.states && this.mine) Object.assign(this.states, ev.states);
+        this.version += 1;
+        this.cache = null;
+        for (const card of [...this.cards]) {
+          if (!card.isConnected) {
+            this.cards.delete(card);
+            continue;
+          }
+          try {
+            card._oggPrivateChanged();
+          } catch (e) {
+            console.warn("Ogg private mode", e);
+          }
+        }
+      },
+      // Home Assistant as the card should see it.
+      wrap(hass) {
+        if (!hass || !this.on || !this.mine) return hass;
+        if (this.cache && this.cache.hass === hass && this.cache.version === this.version) return this.cache.out;
+        const overlay = {};
+        for (const [id, row] of Object.entries(this.states)) {
+          const base = hass.states[id];
+          overlay[id] = {
+            ...base || {},
+            entity_id: id,
+            state: row.state,
+            attributes: row.attributes,
+            last_changed: new Date(row.last_changed * 1e3).toISOString(),
+            last_updated: new Date(row.last_updated * 1e3).toISOString()
+          };
+        }
+        const out = { ...hass, states: { ...hass.states, ...overlay } };
+        this.cache = { hass, version: this.version, out };
+        return out;
+      },
+      async set(hass, on) {
+        return hass.callWS({ type: "ogg/private/set", on });
+      }
+    };
+    window.__oggPrivate = p;
+    return p;
+  }
+  function privateHass(cls) {
+    const desc = Object.getOwnPropertyDescriptor(cls.prototype, "hass");
+    if (!desc || !desc.set || cls.prototype._oggPrivateChanged) return;
+    Object.defineProperty(cls.prototype, "hass", {
+      configurable: true,
+      get: desc.get,
+      set(hass) {
+        const p = oggPrivate();
+        this._rawHass = hass;
+        p.attach(hass, this);
+        desc.set.call(this, p.wrap(hass));
+      }
+    });
+    cls.prototype._oggPrivateChanged = function() {
+      if (this._rawHass) desc.set.call(this, oggPrivate().wrap(this._rawHass));
+    };
+  }
+
+  // studio-card/src/card/privacy.js
+  var PRIVACY_TAG = "ogg-privacy-card";
+  var STYLE = `
+:host{display:block}
+ha-card{overflow:hidden;border-radius:24px;border:1px solid rgba(174,194,246,.13);color:#f5f6ff;
+  background:radial-gradient(circle at 110% -10%,rgba(105,100,240,.24),transparent 260px),linear-gradient(160deg,#141d33,#0d1426);
+  font:14px/1.4 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
+.wrap{padding:16px 16px 14px;display:flex;flex-direction:column;gap:12px}
+.head{display:flex;align-items:center;gap:12px}
+.brand{flex:0 0 44px;height:44px;border-radius:15px;display:grid;place-items:center;font-size:21px;background:linear-gradient(155deg,#8f7dff,#5b6be0);color:#0b1022}
+.brand.on{background:linear-gradient(155deg,#6adfd4,#31c6b8)}
+.eyebrow{font-size:10px;font-weight:850;letter-spacing:.19em;color:#b8b0ff;text-transform:uppercase}
+h2{margin:0;font-size:19px;letter-spacing:-.03em;font-weight:780}
+.sw{margin-left:auto;position:relative;flex:0 0 58px;height:34px;border-radius:20px;border:1px solid #364563;background:#1b2741;cursor:pointer;padding:0}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#8b97b3;transition:transform .18s,background .18s}
+.sw.on{background:linear-gradient(110deg,#31c6b8,#54d4bc);border-color:transparent}
+.sw.on::after{transform:translateX(24px);background:#fff}
+.sw:disabled{opacity:.45;cursor:not-allowed}
+.state{font-size:13px;font-weight:700}
+.state.on{color:#9adbd1}
+.state.other{color:#ffcf8a}
+.muted{font-size:12px;color:#9aa7c4}
+.err{font-size:12px;color:#ffbcc2}
+[hidden]{display:none!important}
+`;
+  var OggPrivacyCard = class extends HTMLElement {
+    setConfig(config) {
+      this._config = config || {};
+    }
+    getCardSize() {
+      return 2;
+    }
+    static getStubConfig() {
+      return {};
+    }
+    set hass(hass) {
+      this._hass = hass;
+      oggPrivate().attach(hass, this);
+      this._render();
+    }
+    _oggPrivateChanged() {
+      this._render();
+    }
+    connectedCallback() {
+      this._render();
+    }
+    _render() {
+      if (!this.shadowRoot) {
+        this.attachShadow({ mode: "open" });
+        this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="wrap">
+        <div class="head"><div class="brand" id="brand">🕶</div>
+          <div><div class="eyebrow">Ogg</div><h2>Private mode</h2></div>
+          <button class="sw" id="sw" type="button" role="switch" aria-checked="false" aria-label="Private mode"></button></div>
+        <div class="state" id="state"></div>
+        <div class="muted" id="info"></div>
+        <div class="err" id="err" hidden></div>
+      </div></ha-card>`;
+        this.shadowRoot.getElementById("sw").addEventListener("click", () => this._toggle());
+      }
+      const $ = (id) => this.shadowRoot.getElementById(id);
+      const p = oggPrivate();
+      const mineOn = p.on && p.mine;
+      const otherOn = p.on && !p.mine;
+      $("sw").classList.toggle("on", p.on);
+      $("sw").setAttribute("aria-checked", String(p.on));
+      $("sw").disabled = !p.known || otherOn || this._busy;
+      $("brand").classList.toggle("on", mineOn);
+      const st = $("state");
+      st.className = `state${mineOn ? " on" : otherOn ? " other" : ""}`;
+      st.textContent = !p.known ? "Checking…" : mineOn ? "On: only you see what your toys are doing" : otherOn ? "On for someone else" : "Off";
+      $("info").textContent = !p.known ? "" : mineOn ? `Everyone else sees Ogg's toys as they were${p.since ? ` at ${new Date(p.since * 1e3).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}, and nothing goes into history. You see them as usual here and on your other devices. Turn it off to show them again.` : otherOn ? "Someone has private mode on: what Ogg's toys show here is held until they turn it off." : "Turn on so Ogg's toys stop showing their status to everyone else in Home Assistant. You keep seeing them as usual, on all your devices.";
+    }
+    async _toggle() {
+      const p = oggPrivate();
+      if (!this._hass || this._busy) return;
+      this._busy = true;
+      const err = this.shadowRoot.getElementById("err");
+      err.hidden = true;
+      this._render();
+      try {
+        await p.set(this._hass, !(p.on && p.mine));
+      } catch (e) {
+        err.textContent = e && e.message || String(e);
+        err.hidden = false;
+      }
+      this._busy = false;
+      this._render();
+    }
+  };
+
   // studio-card/src/index.js
   for (const part of [StrokePart, GamepadPart, VideoPart, CastPart, ReplayPart, OutputsPart, SafetyPart, ToolsPart, AudioPart, TogetherPart, PlayPart, ScreenOffPart]) {
     for (const [key, desc] of Object.entries(Object.getOwnPropertyDescriptors(part.prototype))) {
       if (key !== "constructor") Object.defineProperty(OggStudioCard.prototype, key, desc);
     }
+  }
+  privateHass(OggStudioCard);
+  if (!customElements.get(PRIVACY_TAG)) {
+    customElements.define(PRIVACY_TAG, OggPrivacyCard);
+    window.customCards = window.customCards || [];
+    window.customCards.push({ type: PRIVACY_TAG, name: "Ogg Privacy", description: "Private mode: Ogg's toys stop showing their status to everyone else; you still see them as usual.", preview: true });
   }
   if (!customElements.get(TAG)) {
     window.customCards = window.customCards || [];
