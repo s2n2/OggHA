@@ -11,6 +11,7 @@ from homeassistant.helpers.entity import DeviceInfo, Entity
 
 from .const import DOMAIN
 from .models import useful_label
+from .private import PrivateStateMixin
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
     from .models import OggDevice
 
 
-class OggEntity(Entity):
+class OggEntity(PrivateStateMixin, Entity):
     """An entity with stable identity and the user's actual device name."""
 
     _attr_has_entity_name = True
