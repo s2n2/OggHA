@@ -77,6 +77,15 @@ are under Ogg's **Configure → Studio**. If you used the separate OggStudio
 integration, Ogg takes over its scripts and settings; remove OggStudio
 afterwards.
 
+**Private mode (3.2):** add the Privacy card
+
+```yaml
+type: custom:ogg-privacy-card
+```
+
+and switch it on: Ogg's toys stop showing their status to other users (and to
+history), while you keep seeing them live on all your devices.
+
 ### Ogg Control Deck: bundled dashboard card (v0.1.9+)
 
 The gear beside **HA Server** opens IntiHA in Devices & services, and the gear beside **Ogg** opens Ogg in Devices & services. These links are separate from the on/off switches.
