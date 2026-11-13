@@ -1,3 +1,6 @@
+## 3.2.0 - Private mode
+- **Private mode:** a new Privacy card (`type: custom:ogg-privacy-card`) with one switch. On, Ogg's toys stop showing their status to everyone else in Home Assistant: other users, history, the logbook and automations keep seeing what was there when it was turned on. Whoever turned it on still sees everything live on the Play card and the Control Deck, on every device they are signed in on. Only they (or the Home Assistant owner) can turn it off; it stays on across restarts. The toys keep working for everyone.
+
 ## 3.1.0 - Keeps playing with the screen off
 - **Screen off:** a pattern, mood, Library script or queue started on the Play card keeps playing when the phone's screen turns off or the app goes to the background. The card hands each device's timeline to Ogg, which plays it in Home Assistant; back on screen, the card carries on from where Ogg is. Patterns and moods loop for up to an hour without the phone; a script or queue plays to its end. Not with a video, sound or a Together partner (they need the phone). Closing the page or Stop all still stops everything.
 - `ogg.play_script` gains `output` (`auto`, `vibrate` or `linear`: strokers can now play a timeline in Home Assistant) and `max_seconds` (a time limit, also for loops). A stroker's timeline ends on its Stop, Stop all, Ogg off, a disconnect or any live command.
