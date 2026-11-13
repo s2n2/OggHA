@@ -12,6 +12,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 
+from ..private import PrivateStateMixin
 from .const import LIBRARY, NO_SCRIPT, OGG_DOMAIN, SPEEDS
 from .library import Library, script_info
 from .safety import async_panic
@@ -31,7 +32,7 @@ def studio_buttons(hass: HomeAssistant, entry: ConfigEntry) -> list[ButtonEntity
     return [PanicButton(entry)] if hass.data.get(LIBRARY) is not None else []
 
 
-class _Base(SelectEntity):
+class _Base(PrivateStateMixin, SelectEntity):
     _attr_has_entity_name = True
     _attr_should_poll = False
 
@@ -92,7 +93,7 @@ class SpeedSelect(_Base):
         self.library.set_speed(option)
 
 
-class PanicButton(ButtonEntity):
+class PanicButton(PrivateStateMixin, ButtonEntity):
     """Stop every Ogg device now: for automations, a physical button, a voice assistant."""
 
     _attr_has_entity_name = True

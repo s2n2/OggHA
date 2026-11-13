@@ -58,6 +58,7 @@ LINEAR_SCHEMA = vol.Schema(
 )
 STOP_SCHEMA = vol.Schema({vol.Required("entity_id"): cv.entity_id})
 from .dashboard_resource import async_register_control_deck
+from .private import async_setup_private
 
 type OggConfigEntry = ConfigEntry[OggHub]
 
@@ -76,6 +77,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         await async_setup_studio(hass)
     except Exception:  # noqa: BLE001
         _LOGGER.exception("Could not set up Ogg Studio; Ogg will remain available")
+    # Private mode (the Privacy card): toys stop showing their status to others.
+    try:
+        await async_setup_private(hass)
+    except Exception:  # noqa: BLE001
+        _LOGGER.exception("Could not set up private mode; Ogg will remain available")
 
     async def async_hold(call: ServiceCall) -> None:
         """Hold-to-run for one device (any of its entities identifies it)."""
