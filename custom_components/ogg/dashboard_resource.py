@@ -18,7 +18,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # Stable URL for HA dashboards; the query string is bumped on each Ogg release.
 CARD_PATH = "/ogg/control-deck/ogg-control-deck-card.js"
-CARD_VERSION = "3.1.0"
+CARD_VERSION = "3.2.0"
 CARD_URL = f"{CARD_PATH}?v={CARD_VERSION}"
 CARD_FILE = Path(__file__).parent / "frontend" / "ogg-control-deck-card.js"
 
@@ -26,7 +26,7 @@ CARD_FILE = Path(__file__).parent / "frontend" / "ogg-control-deck-card.js"
 # The Play card (was the OggStudio integration's card). Its old resource is
 # removed once that integration is gone, so dashboards load only this one.
 STUDIO_PATH = "/ogg/studio/oggstudio-card.js"
-STUDIO_VERSION = "3.1.0"
+STUDIO_VERSION = "3.2.0"
 STUDIO_FILE = Path(__file__).parent / "frontend" / "oggstudio-card.js"
 OLD_STUDIO_PATH = "/oggstudio/oggstudio-card.js"
 
