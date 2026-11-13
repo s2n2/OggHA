@@ -10,7 +10,7 @@ export const PRIVACY_TAG = 'ogg-privacy-card';
 
 const STYLE = `
 :host{display:block}
-ha-card{overflow:hidden;border-radius:24px;border:1px solid rgba(174,194,246,.13);color:#f5f6ff;
+ha-card{display:block;overflow:hidden;border-radius:24px;border:1px solid rgba(174,194,246,.13);color:#f5f6ff;
   background:radial-gradient(circle at 110% -10%,rgba(105,100,240,.24),transparent 260px),linear-gradient(160deg,#141d33,#0d1426);
   font:14px/1.4 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
 .wrap{padding:16px 16px 14px;display:flex;flex-direction:column;gap:12px}
