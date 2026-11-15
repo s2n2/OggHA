@@ -1,5 +1,50 @@
 /* Ogg Together remote, built from studio-card/src/guest (npm run build). Do not edit here. */
 (() => {
+  // studio-card/src/lib/convert.js
+  var RUN_MODES = {
+    speed: "Speed: faster strokes vibrate harder",
+    position: "Position: higher = stronger (vibration scripts)",
+    upper: "Position above 50%: 50% and below = off, 75% = half power",
+    combo: "Speed + position combined",
+    down: "Speed, downstrokes only",
+    up: "Speed, upstrokes only"
+  };
+  var isStroke = (script) => Boolean(script && script.metadata && script.metadata.type === "stroke");
+  var speedIntensity = (dpos, dtMs) => dtMs > 0 ? Math.min(100, Math.abs(dpos) / dtMs * 250) : 0;
+  function moveIntensity(mode, from2, to, dtMs) {
+    const s = speedIntensity(to - from2, dtMs);
+    if (mode === "down") return to < from2 ? s : 0;
+    if (mode === "up") return to > from2 ? s : 0;
+    if (mode === "combo") return s + (100 - s) * 0.35 * ((from2 + to) / 2) / 100;
+    return s;
+  }
+  var upperHalf = (pos) => Math.max(0, Math.round((pos - 50) * 2));
+  var cleanActions = (actions) => (Array.isArray(actions) ? actions : []).filter((x) => x && Number.isFinite(x.at) && Number.isFinite(x.pos)).map((x) => ({ at: Math.max(0, Math.round(x.at)), pos: Math.round(Math.min(100, Math.max(0, x.pos))) })).sort((x, y) => x.at - y.at);
+  function toIntensity(actions, mode) {
+    const a = cleanActions(actions);
+    if (mode === "upper") return a.map((x) => ({ at: x.at, pos: upperHalf(x.pos) }));
+    if (!RUN_MODES[mode] || mode === "position" || a.length < 2) return a;
+    const out = [];
+    const push = (at2, pos) => {
+      const last2 = out[out.length - 1];
+      if (last2 && last2.at >= at2) last2.pos = pos;
+      else out.push({ at: at2, pos });
+    };
+    for (let i = 1; i < a.length; i++) {
+      const v = Math.round(moveIntensity(mode, a[i - 1].pos, a[i].pos, a[i].at - a[i - 1].at));
+      push(a[i - 1].at, v);
+      if (a[i].at - a[i - 1].at > 1) push(a[i].at - 1, v);
+    }
+    push(a[a.length - 1].at, 0);
+    return out;
+  }
+  function runScript(script, mode) {
+    if (!isStroke(script)) return script;
+    const out = { ...script, actions: toIntensity(script.actions, mode), metadata: { ...script.metadata, type: "vibration" } };
+    if (script.channels && script.channels.V1) out.channels = { V1: { actions: toIntensity(script.channels.V1.actions, mode) } };
+    return out;
+  }
+
   // studio-card/src/lib/outputs.js
   function sampleAt(actions, ms) {
     if (!actions || !actions.length || ms < actions[0].at) return 0;
@@ -28,11 +73,15 @@
       return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
   }
+  var hashUnit = (n) => {
+    const x = Math.sin(n * 12.9898) * 43758.5453;
+    return x - Math.floor(x);
+  };
 
   // studio-card/src/lib/moods.js
-  function moodTrack(start, stroke) {
-    const a = [{ at: 0, pos: start }];
-    let t = 0, v = start;
+  function moodTrack(start2, stroke) {
+    const a = [{ at: 0, pos: start2 }];
+    let t = 0, v = start2;
     const b = {
       get t() {
         return t;
@@ -82,11 +131,11 @@
       b.to(pos, 700);
       if (b.t < end) b.hold(end - b.t);
     },
-    ramp: (from, to) => (b, end, r) => {
-      const start = b.t;
+    ramp: (from2, to) => (b, end, r) => {
+      const start2 = b.t;
       b.until(end, () => {
-        const k = clampN((b.t - start) / Math.max(1, end - start), 0, 1);
-        const L = (i) => from[i] + (to[i] - from[i]) * k;
+        const k = clampN((b.t - start2) / Math.max(1, end - start2), 0, 1);
+        const L = (i) => from2[i] + (to[i] - from2[i]) * k;
         b.to(L(1), jit(r, L(2), 0.05)).to(L(0), jit(r, L(2), 0.05));
       });
     },
@@ -94,9 +143,9 @@
       for (let i = 0; i < n; i++) b.to(hi, half).to(lo, half);
       b.hold(jit(r, pause, 0.3));
     }),
-    flick: (base, amp, half, n, pause) => (b, end, r) => b.until(end, () => {
-      b.to(base, 300);
-      for (let i = 0; i < n; i++) b.to(base - jit(r, amp, 0.2), half).to(base, half);
+    flick: (base2, amp, half, n, pause) => (b, end, r) => b.until(end, () => {
+      b.to(base2, 300);
+      for (let i = 0; i < n; i++) b.to(base2 - jit(r, amp, 0.2), half).to(base2, half);
       b.hold(jit(r, pause, 0.3));
     }),
     gasp: () => (b, end, r) => b.until(end, () => {
@@ -153,10 +202,10 @@
       });
     },
     waveUp: (lo, hiFrom, hiTo, period) => (b, end, r) => {
-      const start = b.t;
+      const start2 = b.t;
       b.until(end, () => {
         const p = jit(r, period);
-        const hi = hiFrom + (hiTo - hiFrom) * clampN((b.t - start) / Math.max(1, end - start), 0, 1);
+        const hi = hiFrom + (hiTo - hiFrom) * clampN((b.t - start2) / Math.max(1, end - start2), 0, 1);
         for (let k = 1; k <= 8; k++) b.to(lo + (hi - lo) * (0.5 - 0.5 * Math.cos(2 * Math.PI * k / 8)), p / 8);
       });
     },
@@ -184,8 +233,8 @@
       b.jump(Math.min(100, lvl + 6 + 4 * r())).hold(170).jump(lvl - 12).hold(170);
     }),
     // a ~3 Hz texture
-    flicker: (lvl, base) => (b, end, r) => b.until(end, () => {
-      b.jump(base).hold(300 + 500 * r());
+    flicker: (lvl, base2) => (b, end, r) => b.until(end, () => {
+      b.jump(base2).hold(300 + 500 * r());
       b.jump(lvl * (0.7 + 0.3 * r())).hold(BLE_PULSE + 80 * r());
     }),
     steps: (levels2, each) => (b, end) => b.until(end, () => {
@@ -194,8 +243,8 @@
         b.jump(x).hold(Math.min(each, Math.max(1, end - b.t)));
       }
     }),
-    bursts: (lvl, burst, gap, base = 0) => (b, end, r) => b.until(end, () => {
-      b.to(lvl, 80).hold(jit(r, burst, 0.2)).to(base, 200).hold(jit(r, gap, 0.3));
+    bursts: (lvl, burst, gap, base2 = 0) => (b, end, r) => b.until(end, () => {
+      b.to(lvl, 80).hold(jit(r, burst, 0.2)).to(base2, 200).hold(jit(r, gap, 0.3));
     }),
     swell: (lo, hi, rise, fall, top) => (b, end) => b.until(end, () => {
       b.to(hi, rise).hold(top).to(lo, fall).hold(300);
@@ -341,6 +390,27 @@
       ["Bounce", [[3e4, MS.mix(), MV.pulses(60, 200, 300)]]],
       ["Peekaboo", [[3e4, MS.stopstart(40, 90, 300, 2, 900), MV.bursts(70, 600, 900)]]]
     ] }
+  };
+  var MOOD_TIP = 95;
+  var MOOD_BASE = 5;
+  var MOOD_EASE = 1500;
+  function moodAnchor(ms) {
+    let start2 = 0, i = 0, prev = MOOD_TIP;
+    for (; ; ) {
+      const len = 1e4 + 6e3 * hashUnit(i + 7);
+      const here = i % 2 ? MOOD_BASE : MOOD_TIP;
+      if (ms < start2 + len) {
+        const k = i === 0 ? 1 : Math.min(1, (ms - start2) / MOOD_EASE);
+        return prev + (here - prev) * (0.5 - 0.5 * Math.cos(Math.PI * k));
+      }
+      start2 += len;
+      prev = here;
+      i++;
+    }
+  }
+  var moodSoften = (pos, k, ms = 0) => {
+    const a = moodAnchor(ms);
+    return a + (pos - a) * k;
   };
   function buildMood(sections, r) {
     const s = moodTrack(85, true), v1 = moodTrack(0, false), v2 = moodTrack(0, false);
@@ -535,8 +605,568 @@
   };
   var patternPeriod = (speed) => 8 * Math.pow(0.5 / 8, Math.min(100, Math.max(0, speed)) / 100);
 
-  // studio-card/src/guest/index.js
+  // studio-card/src/lib/core.js
+  var PLAY = {
+    name: "OggStudio Play",
+    sub: "Manual, pattern, mood, library, video and sound: record any of them",
+    parts: ["record", "video", "take"],
+    simple: true,
+    size: 10,
+    description: "Everything in one card: play by hand, a pattern, a mood, a saved script, a video or sound, record any of it, and Together, script editing, a queue and the lock."
+  };
+  var PLAY_STROKE = { ...PLAY, parts: ["stroke", "video", "take"], hidden: true };
+  var VARIANTS = {
+    "oggstudio-play-card": PLAY,
+    "oggstudio-card": { ...PLAY, hidden: true },
+    "oggstudio-recorder-card": { ...PLAY, hidden: true },
+    "oggstudio-player-card": { ...PLAY, hidden: true },
+    "oggstudio-video-card": { ...PLAY, hidden: true },
+    "oggstudio-stroke-card": PLAY_STROKE,
+    "oggstudio-play-stroke-card": PLAY_STROKE,
+    "oggstudio-video-stroke-card": PLAY_STROKE,
+    "oggstudio-together-card": { ...PLAY, hidden: true }
+  };
+  var duration = (s) => Math.max(
+    s.actions.length ? s.actions[s.actions.length - 1].at : 0,
+    s.channels && s.channels.V1.actions.length ? s.channels.V1.actions[s.channels.V1.actions.length - 1].at : 0
+  );
+
+  // studio-card/src/card/screenoff.js
+  var SO_AHEAD_MS = 10 * 60 * 1e3;
+  var SO_SCRIPT_MAX_MS = 60 * 60 * 1e3;
+  var SO_MAX_S = 60 * 60;
+  function simplify(points, tol = 1) {
+    if (points.length <= 2) return points.slice();
+    const keep = new Uint8Array(points.length);
+    keep[0] = 1;
+    keep[points.length - 1] = 1;
+    const stack = [[0, points.length - 1]];
+    while (stack.length) {
+      const [a, b] = stack.pop();
+      const pa = points[a], pb = points[b];
+      let worst = -1, at2 = -1;
+      for (let i = a + 1; i < b; i++) {
+        const p = points[i];
+        const f = pb.at === pa.at ? 0 : (p.at - pa.at) / (pb.at - pa.at);
+        const d = Math.abs(p.pos - (pa.pos + (pb.pos - pa.pos) * f));
+        if (d > worst) {
+          worst = d;
+          at2 = i;
+        }
+      }
+      if (worst > tol) {
+        keep[at2] = 1;
+        stack.push([a, at2], [at2, b]);
+      }
+    }
+    return points.filter((p, i) => keep[i]);
+  }
+
+  // studio-card/src/lib/compose.js
+  var STEP_MS = 50;
+  var MAX_STEP_MS = 60 * 60 * 1e3;
+  var MAX_TOTAL_MS = 6 * 60 * 60 * 1e3;
+  var DURATIONS = [5, 10, 15, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600];
+  var clamp = (v) => Math.min(100, Math.max(0, v));
+  var isDual = (key) => key in PATTERNS_DUAL;
+  function clock(ms) {
+    const s = Math.max(0, Math.round(ms / 1e3));
+    const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = s % 60;
+    const two = (n) => String(n).padStart(2, "0");
+    return h ? `${h}:${two(m)}:${two(r)}` : `${m}:${two(r)}`;
+  }
+  function parseTime(text) {
+    const s = String(text || "").trim().toLowerCase().replace(/\s+/g, "");
+    if (!s) return null;
+    if (/^\d+(:\d{1,2}){1,2}$/.test(s)) return s.split(":").reduce((n, x) => n * 60 + Number(x), 0);
+    if (/^\d+(\.\d+)?$/.test(s)) return Number(s);
+    const m = /^(?:(\d+(?:\.\d+)?)h(?:ours?|rs?)?)?(?:(\d+(?:\.\d+)?)m(?:in(?:ute)?s?)?)?(?:(\d+(?:\.\d+)?)s(?:ec(?:ond)?s?)?)?$/.exec(s);
+    if (!m || !m[1] && !m[2] && !m[3]) return null;
+    return Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0);
+  }
+  function defaultName(ms, now2 = /* @__PURE__ */ new Date()) {
+    const day = now2.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+    const time = now2.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return `${clock(ms)} · ${day} ${time}`;
+  }
+  function cut(track, end) {
+    const out = [];
+    for (let i = 0; i < track.length; i++) {
+      const p = track[i];
+      if (p.at <= end) {
+        out.push({ at: p.at, pos: p.pos });
+        continue;
+      }
+      const q = track[i - 1];
+      if (q && q.at < end) out.push({ at: end, pos: Math.round(q.pos + (p.pos - q.pos) * (end - q.at) / (p.at - q.at)) });
+      break;
+    }
+    const last2 = out[out.length - 1];
+    if (last2 && last2.at < end) out.push({ at: end, pos: last2.pos });
+    return out;
+  }
+  function fill(track, ms) {
+    const len = track.length ? track[track.length - 1].at : 0;
+    if (!len) return [{ at: 0, pos: track.length ? track[0].pos : 0 }, { at: ms, pos: track.length ? track[0].pos : 0 }];
+    const out = [];
+    for (let by = 0; by < ms; by += len) {
+      for (const p of track) {
+        const at2 = p.at + by, last2 = out[out.length - 1];
+        if (last2 && at2 <= last2.at) {
+          if (p.pos !== last2.pos) out.push({ at: last2.at + 1, pos: p.pos });
+          continue;
+        }
+        out.push({ at: at2, pos: p.pos });
+      }
+    }
+    return cut(out, ms);
+  }
+  function renderPattern(key, ms, { level: level2 = 70, speed = 50, seed = 1 } = {}) {
+    const top = clamp(level2), period = patternPeriod(speed) * 1e3;
+    const rnd = key === PATTERN_RANDOM ? new RandomProgram(2, Math.max(0.1, top / 100), aiRandom(seed)) : null;
+    const a = [], b = [];
+    for (let t = 0; t <= ms; t += STEP_MS) {
+      let va, vb;
+      if (rnd) [va, vb] = rnd.step(t ? STEP_MS : 0).map((v) => v * 100);
+      else if (isDual(key)) {
+        va = patternDual(key, t / period, 0) * top;
+        vb = patternDual(key, t / period, 1) * top;
+      } else va = vb = patternLevel(key, t / period) * top;
+      a.push({ at: t, pos: Math.round(clamp(va)) });
+      b.push({ at: t, pos: Math.round(clamp(vb)) });
+    }
+    const dual = Boolean(rnd) || isDual(key);
+    return { a: cut(simplify(a, 1.5), ms), b: dual ? cut(simplify(b, 1.5), ms) : null };
+  }
+  function renderMood(key, ms, { strength = 100, seed = 1 } = {}) {
+    const mood2 = MOODS[key];
+    if (!mood2) throw new Error("Unknown mood");
+    const r = aiRandom(seed), k = clamp(strength) / 100;
+    const stroke = [], a = [], b = [];
+    let at2 = 0, last2 = -1, two = false;
+    const add2 = (to, track, by) => {
+      for (const p of track) {
+        const t = p.at + by, prev = to[to.length - 1];
+        if (prev && t <= prev.at) {
+          if (prev.pos !== p.pos) to.push({ at: prev.at + 1, pos: p.pos });
+          continue;
+        }
+        to.push({ at: t, pos: p.pos });
+      }
+    };
+    for (let guard = 0; at2 < ms && guard < 1e3; guard++) {
+      let i = Math.floor(r() * mood2.combos.length);
+      if (mood2.combos.length > 1 && i === last2) i = (i + 1) % mood2.combos.length;
+      last2 = i;
+      const built = buildMood(mood2.combos[i][1], r);
+      const len = Math.max(built.stroke[built.stroke.length - 1].at, ...built.vibe.map((v) => v[v.length - 1].at));
+      add2(stroke, built.stroke, at2);
+      add2(a, built.vibe[0], at2);
+      if (built.vibe[1]) two = true;
+      add2(b, built.vibe[1] || built.vibe[0], at2);
+      at2 += len;
+    }
+    const soft = (track, fn) => track.map((p) => ({ at: p.at, pos: Math.round(clamp(fn(p))) }));
+    return {
+      stroke: cut(soft(stroke, (p) => k >= 1 ? p.pos : moodSoften(p.pos, k, p.at)), ms),
+      a: cut(soft(a, (p) => p.pos * k), ms),
+      b: two ? cut(soft(b, (p) => p.pos * k), ms) : null
+    };
+  }
+  function renderStep(step, stroke, scripts, last2 = 0) {
+    const ms = Math.min(MAX_STEP_MS, Math.max(1e3, Math.round(step.ms || 6e4)));
+    if (step.type === "pause") {
+      const hold = stroke ? last2 : 0;
+      return { a: [{ at: 0, pos: hold }, { at: ms, pos: hold }], b: null, ms };
+    }
+    if (step.type === "mood") {
+      const m = renderMood(step.key, ms, { strength: step.level ?? 100, seed: step.seed || 1 });
+      return stroke ? { a: m.stroke, b: null, ms } : { a: m.a, b: m.b, ms };
+    }
+    if (step.type === "script") {
+      const s = scripts && scripts.get(step.name);
+      if (!s) throw new Error(`"${step.name}" is not in the library`);
+      const src = !stroke && isStroke(s) ? runScript(s, "speed") : s;
+      const second = src.channels && src.channels.V1 && src.channels.V1.actions.length ? src.channels.V1.actions : null;
+      return { a: fill(src.actions, ms), b: !stroke && second ? fill(second, ms) : null, ms };
+    }
+    const p = renderPattern(step.key, ms, { level: step.level ?? 70, speed: step.speed ?? 50, seed: step.seed || 1 });
+    return { a: p.a, b: stroke ? null : p.b, ms };
+  }
+  function composeScript(steps2, { stroke = false, title = "" } = {}, scripts = /* @__PURE__ */ new Map()) {
+    if (!steps2.length) throw new Error("Add a step first");
+    const A = [], B = [];
+    let at2 = 0, two = false;
+    const join = (to, track, by) => {
+      for (const p of track) {
+        const t = p.at + by, prev = to[to.length - 1];
+        if (prev && t <= prev.at) {
+          if (prev.pos !== p.pos) to.push({ at: prev.at + 1, pos: p.pos });
+          continue;
+        }
+        to.push({ at: t, pos: p.pos });
+      }
+    };
+    for (const step of steps2) {
+      const last2 = A.length ? A[A.length - 1].pos : 50;
+      const out = renderStep(step, stroke, scripts, last2);
+      if (out.b) two = true;
+      join(A, out.a, at2);
+      join(B, out.b || out.a, at2);
+      at2 += out.ms;
+      if (at2 > MAX_TOTAL_MS) throw new Error("A script can be at most six hours long");
+    }
+    const script = {
+      version: "1.0",
+      inverted: false,
+      range: 100,
+      actions: A,
+      metadata: { type: stroke ? "stroke" : "vibration", creator: "Ogg Queue", title: title || defaultName(at2), steps: steps2.length }
+    };
+    if (two) script.channels = { V1: { actions: B } };
+    return script;
+  }
+  var stepsMs = (steps2) => steps2.reduce((n, s) => n + Math.min(MAX_STEP_MS, Math.max(1e3, Math.round(s.ms || 6e4))), 0);
+
+  // studio-card/src/guest/queue.js
   var $ = (id) => document.getElementById(id);
+  var esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  var base = location.href.replace(/[?#].*$/, "").replace(/\/$/, "") + "/queue";
+  var KEEP = "ogg_together_queue";
+  var WHO = { his: "His", hers: "Hers" };
+  var KIND = { pattern: "〰️", mood: "🎭", pause: "⏸" };
+  var uid = () => Math.random().toString(36).slice(2, 9);
+  var NEW = {
+    pattern: () => ({ type: "pattern", key: "wave", ms: 6e4, level: 70, speed: 50 }),
+    mood: () => ({ type: "mood", key: Object.keys(MOODS)[0], ms: 12e4, level: 100, seed: 1 + Math.floor(Math.random() * 1e6) }),
+    pause: () => ({ type: "pause", ms: 1e4 })
+  };
+  var items = {};
+  var seg = "hers";
+  var cur = null;
+  var play = null;
+  var from = 0;
+  var steps = [];
+  var onStart = () => {
+  };
+  var keepGet = () => {
+    try {
+      return JSON.parse(localStorage.getItem(KEEP) || "{}") || {};
+    } catch (_) {
+      return {};
+    }
+  };
+  var keepSet = (patch) => {
+    try {
+      localStorage.setItem(KEEP, JSON.stringify({ ...keepGet(), ...patch }));
+    } catch (_) {
+    }
+  };
+  var msg = (text) => {
+    $("qmsg").textContent = text;
+    clearTimeout(msg.t);
+    msg.t = setTimeout(() => {
+      $("qmsg").textContent = "";
+    }, 6e3);
+  };
+  var now = () => {
+    if (!cur) return 0;
+    const len = duration(cur.script);
+    if (!play) return from;
+    const t = play.from + (performance.now() - play.t0);
+    return play.loop ? t % Math.max(1, len) : Math.min(len, t);
+  };
+  function queueLevels() {
+    if (!play || !cur) return null;
+    const t = now();
+    if (!play.loop && t >= duration(cur.script)) {
+      play = null;
+      from = 0;
+      show();
+      return [0];
+    }
+    return cur.levels.map((track) => Math.round(Math.max(0, Math.min(100, sampleAt(track, t)))));
+  }
+  function queueStop() {
+    if (play) {
+      from = now();
+      play = null;
+      show();
+    }
+  }
+  function load(next) {
+    const s = isStroke(next.script) ? runScript(next.script, "speed") : next.script;
+    const levels2 = [s.actions, ...s.channels && s.channels.V1 ? [s.channels.V1.actions] : []];
+    cur = { ...next, levels: levels2 };
+    play = null;
+    from = 0;
+    show();
+  }
+  function start() {
+    if (!cur) return;
+    onStart();
+    if (from >= duration(cur.script) - 100) from = 0;
+    play = { t0: performance.now(), from, loop: $("qloop").checked };
+    if (cur.id && items[cur.id]) fetch(`${base}/${cur.id}`, { method: "POST" }).then(refresh).catch(() => {
+    });
+    show();
+  }
+  async function loadItem(id, andPlay) {
+    const r = items[id];
+    try {
+      const res = await fetch(`${base}/${id}`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Gone");
+      load({ id, name: r ? r.name : body.name, script: body.script });
+      if (andPlay) start();
+    } catch (e) {
+      msg(`Could not load it: ${e.message || e}`);
+    }
+  }
+  async function refresh() {
+    try {
+      const res = await fetch(base);
+      if (!res.ok) return;
+      items = (await res.json()).items || {};
+      show();
+    } catch (_) {
+    }
+  }
+  function show() {
+    const all = Object.entries(items);
+    const of = (s) => all.filter(([, r]) => s === "played" ? r.played : !r.played && r.for === s);
+    for (const b of document.querySelectorAll("#qseg button")) {
+      const n = of(b.dataset.q).length;
+      b.textContent = `${b.dataset.q === "his" ? "♂ His" : b.dataset.q === "hers" ? "♀ Hers" : "✓ Played"}${n ? ` (${n})` : ""}`;
+      b.classList.toggle("on", b.dataset.q === seg);
+    }
+    const rows = of(seg).sort((a, b) => String((seg === "played" ? b[1].played : a[1].made) || "").localeCompare(String((seg === "played" ? a[1].played : b[1].made) || "")));
+    $("qlist").innerHTML = rows.map(([id, r]) => `<div class="qitem${cur && cur.id === id ? " cur" : ""}" data-id="${esc(id)}"><div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">${[clock(r.duration_ms), r.by ? `from ${esc(r.by)}` : "", seg === "played" ? WHO[r.for].toLowerCase() : ""].filter(Boolean).join(" · ")}</div></div><button type="button" class="on" aria-label="Play">▶</button></div>`).join("") || `<div class="empty">${seg === "played" ? "Nothing played yet." : `Nothing in ${WHO[seg].toLowerCase()} queue yet: make one below.`}</div>`;
+    const opts = [
+      '<option value="">Choose one to play…</option>',
+      cur && !cur.id ? `<option value="cur">${esc(cur.name)} (${clock(duration(cur.script))})</option>` : "",
+      ...["his", "hers", "played"].map((s) => {
+        const list = of(s);
+        return list.length ? `<optgroup label="${s === "played" ? "Played" : `${WHO[s]} queue`}">${list.map(([id, r]) => `<option value="${esc(id)}">${esc(r.name)} (${clock(r.duration_ms)})</option>`).join("")}</optgroup>` : "";
+      })
+    ].join("");
+    if ($("qpick").dataset.h !== opts) {
+      $("qpick").innerHTML = opts;
+      $("qpick").dataset.h = opts;
+    }
+    $("qpick").value = cur ? cur.id || "cur" : "";
+    showPlayer();
+  }
+  function showPlayer() {
+    const len = cur ? duration(cur.script) : 0, t = now();
+    $("qcur").style.width = len ? `${(100 * t / len).toFixed(2)}%` : "0";
+    $("qtime").textContent = cur ? `${clock(t)} / ${clock(len)} · ${cur.name}` : "Pick one from a queue below, or make one.";
+    $("qplay").textContent = play ? "↻ Restart" : "▶ Play";
+    $("qplay").disabled = !cur;
+  }
+  function stepsShow() {
+    $("steps").innerHTML = steps.map((s, i) => {
+      const sec = Math.round(s.ms / 1e3);
+      const lens = (DURATIONS.includes(sec) ? DURATIONS : [...DURATIONS, sec].sort((a, b) => a - b)).map((v) => `<option value="${v}"${v === sec ? " selected" : ""}>${clock(v * 1e3)}</option>`).join("") + '<option value="custom">Custom…</option>';
+      const what = s.type === "pattern" ? `<optgroup label="Patterns">${Object.entries(PATTERNS).map(([k, n]) => `<option value="${k}"${k === s.key ? " selected" : ""}>${n}</option>`).join("")}<option value="${PATTERN_RANDOM}"${s.key === PATTERN_RANDOM ? " selected" : ""}>Random</option></optgroup><optgroup label="Two motors">${Object.entries(PATTERNS_DUAL).map(([k, n]) => `<option value="${k}"${k === s.key ? " selected" : ""}>${n}</option>`).join("")}</optgroup>` : s.type === "mood" ? Object.entries(MOODS).map(([k, m]) => `<option value="${k}"${k === s.key ? " selected" : ""}>${m.icon} ${m.label}</option>`).join("") : "<option>Nothing plays</option>";
+      const slider = (f, lab, min, val) => `<div class="slider"><label>${lab}</label><input type="range" min="${min}" max="100" step="5" value="${val}" data-f="${f}"><b>${val}%</b></div>`;
+      return `<div class="step" data-id="${s.id}"><div class="top"><div class="handle" tabindex="0" role="button" aria-label="Drag to move step ${i + 1}">⠿</div><span class="num">${i + 1}</span><span class="kind">${KIND[s.type]}</span><select data-f="what"${s.type === "pause" ? " disabled" : ""}>${what}</select><button type="button" class="x" data-x="1" aria-label="Remove step">✕</button></div><div class="slider"><label>Time</label><select data-f="ms">${lens}</select></div>` + (s.type === "pattern" ? slider("level", "Strength", 5, s.level ?? 70) + slider("speed", "Speed", 0, s.speed ?? 50) : s.type === "mood" ? slider("level", "Strength", 20, s.level ?? 100) : "") + "</div>";
+    }).join("") || '<div class="empty">Add a pattern, a mood or a pause.</div>';
+    totalShow();
+  }
+  function totalShow() {
+    const ms = stepsMs(steps);
+    $("qtotal").textContent = `${steps.length} step${steps.length === 1 ? "" : "s"} · total ${clock(ms)}`;
+    $("qname").placeholder = `Name (default: ${defaultName(ms)})`;
+    keepSet({ steps: steps.map(({ id, ...s }) => s) });
+  }
+  function compose() {
+    try {
+      const name = $("qname").value.trim() || defaultName(stepsMs(steps));
+      return composeScript(steps, { title: name });
+    } catch (e) {
+      msg(e.message || String(e));
+      return null;
+    }
+  }
+  async function add(who) {
+    const script = compose();
+    if (!script) return;
+    try {
+      const res = await fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ for: who, name: script.metadata.title, script }) });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Not saved");
+      $("qname").value = "";
+      seg = who;
+      msg(`Added "${body.name}" to ${WHO[who].toLowerCase()} queue: your partner can play it now or later.`);
+      await refresh();
+    } catch (e) {
+      msg(`Could not add it: ${e.message || e}`);
+    }
+  }
+  function bindSteps() {
+    const box = $("steps");
+    const find = (el) => {
+      const row = el.closest(".step");
+      return row ? steps.findIndex((s) => s.id === row.dataset.id) : -1;
+    };
+    box.addEventListener("input", (e) => {
+      const i = find(e.target), f = e.target.dataset.f;
+      if (i < 0 || f !== "level" && f !== "speed") return;
+      steps[i][f] = Number(e.target.value);
+      e.target.nextElementSibling.textContent = `${e.target.value}%`;
+      totalShow();
+    });
+    box.addEventListener("change", (e) => {
+      const i = find(e.target), f = e.target.dataset.f;
+      if (i < 0) return;
+      if (f === "what") steps[i].key = e.target.value;
+      if (f === "ms") {
+        if (e.target.value === "custom") {
+          const typed = window.prompt("How long? For example 7, 45s, 1:30 or 2m", clock(steps[i].ms));
+          const sec = typed === null ? null : parseTime(typed);
+          if (sec !== null && sec >= 1 && sec * 1e3 <= MAX_STEP_MS) steps[i].ms = Math.round(sec) * 1e3;
+          else if (typed !== null) msg("Type a time from 1 second to an hour, like 7, 45s, 1:30 or 2m.");
+          stepsShow();
+          return;
+        }
+        steps[i].ms = Number(e.target.value) * 1e3;
+      }
+      totalShow();
+    });
+    box.addEventListener("click", (e) => {
+      if (!e.target.closest("[data-x]")) return;
+      const i = find(e.target);
+      if (i >= 0) {
+        steps.splice(i, 1);
+        stepsShow();
+      }
+    });
+    box.addEventListener("keydown", (e) => {
+      if (!e.target.classList.contains("handle") || !["ArrowUp", "ArrowDown"].includes(e.key)) return;
+      e.preventDefault();
+      const i = find(e.target), j = e.key === "ArrowUp" ? i - 1 : i + 1;
+      if (i < 0 || j < 0 || j >= steps.length) return;
+      [steps[i], steps[j]] = [steps[j], steps[i]];
+      stepsShow();
+      box.querySelector(`.step[data-id="${steps[j].id}"] .handle`).focus();
+    });
+    box.addEventListener("pointerdown", (e) => {
+      const h = e.target.closest(".handle");
+      if (!h) return;
+      e.preventDefault();
+      const row = h.closest(".step");
+      const rows = [...box.querySelectorAll(".step")];
+      const at2 = rows.indexOf(row), rects = rows.map((r) => r.getBoundingClientRect()), y0 = e.clientY;
+      let to = at2;
+      try {
+        h.setPointerCapture(e.pointerId);
+      } catch (_) {
+      }
+      row.classList.add("drag");
+      const move = (ev) => {
+        const dy = ev.clientY - y0;
+        row.style.transform = `translateY(${dy}px)`;
+        const mid = rects[at2].top + rects[at2].height / 2 + dy;
+        to = rects.findIndex((r) => mid < r.top + r.height / 2);
+        if (to < 0) to = rects.length - 1;
+        const gap = rects[at2].height + 8;
+        rows.forEach((r, k) => {
+          if (k === at2) return;
+          const shift = at2 < to && k > at2 && k <= to ? -gap : at2 > to && k < at2 && k >= to ? gap : 0;
+          r.style.transform = shift ? `translateY(${shift}px)` : "";
+        });
+      };
+      const up = () => {
+        h.removeEventListener("pointermove", move);
+        h.removeEventListener("pointerup", up);
+        h.removeEventListener("pointercancel", up);
+        rows.forEach((r) => {
+          r.style.transform = "";
+        });
+        row.classList.remove("drag");
+        if (to !== at2) {
+          const [s] = steps.splice(at2, 1);
+          steps.splice(to, 0, s);
+          stepsShow();
+        }
+      };
+      h.addEventListener("pointermove", move);
+      h.addEventListener("pointerup", up);
+      h.addEventListener("pointercancel", up);
+    });
+  }
+  function initQueue(opts) {
+    onStart = opts.onStart || onStart;
+    const kept = keepGet();
+    steps = (Array.isArray(kept.steps) ? kept.steps.filter((s) => s && NEW[s.type]) : []).map((s) => ({ ...s, id: uid() }));
+    if (!steps.length) steps = [{ ...NEW.pattern(), id: uid() }, { ...NEW.mood(), id: uid() }];
+    seg = ["his", "hers", "played"].includes(kept.seg) ? kept.seg : "hers";
+    $("qseg").addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (b) {
+        seg = b.dataset.q;
+        keepSet({ seg });
+        show();
+      }
+    });
+    $("qlist").addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (b) loadItem(b.closest(".qitem").dataset.id, true);
+    });
+    $("qpick").addEventListener("change", () => {
+      const v = $("qpick").value;
+      if (v && v !== "cur") loadItem(v, false);
+    });
+    $("qplay").addEventListener("click", () => {
+      from = play ? 0 : from;
+      start();
+    });
+    $("qstop").addEventListener("click", () => {
+      play = null;
+      from = 0;
+      show();
+      opts.onStop && opts.onStop();
+    });
+    $("qloop").addEventListener("change", () => {
+      if (play) {
+        from = now();
+        start();
+      }
+    });
+    $("qbar").addEventListener("pointerdown", (e) => {
+      if (!cur) return;
+      const r = $("qbar").getBoundingClientRect();
+      from = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration(cur.script);
+      if (play) start();
+      else showPlayer();
+    });
+    document.querySelector("#t-queue .adds").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-add]");
+      if (!b) return;
+      steps.push({ ...NEW[b.dataset.add](), id: uid() });
+      stepsShow();
+    });
+    $("qhis").addEventListener("click", () => add("his"));
+    $("qhers").addEventListener("click", () => add("hers"));
+    $("qtry").addEventListener("click", () => {
+      const script = compose();
+      if (!script) return;
+      load({ name: script.metadata.title, script });
+      start();
+    });
+    bindSteps();
+    stepsShow();
+    show();
+    setInterval(showPlayer, 250);
+    setInterval(() => {
+      if (!document.hidden) refresh();
+    }, 2e4);
+    refresh();
+  }
+
+  // studio-card/src/guest/index.js
+  var $2 = (id) => document.getElementById(id);
   var OWNER = { his: "His", hers: "Hers", unassigned: "" };
   var url = location.href.replace(/^http/, "ws").replace(/[?#].*$/, "").replace(/\/$/, "") + "/ws";
   var ws = null;
@@ -554,17 +1184,21 @@
   var offer = [];
   var mine = /* @__PURE__ */ new Set();
   var state = (text, live) => {
-    $("state").textContent = text;
-    $("state").classList.toggle("wait", !live);
+    $2("state").textContent = text;
+    $2("state").classList.toggle("wait", !live);
   };
   var send = (data) => {
     if (ws && ws.readyState === 1) ws.send(JSON.stringify(data));
   };
   function levels(dtMs) {
+    if (tab !== "manual") {
+      const q = queueLevels();
+      if (q) return q;
+    }
     if (tab === "manual" || !pt && !mood) return [Math.round(level)];
     if (pt) {
-      const speed = Number($("ptspeed").value);
-      const k2 = Number($("ptstr").value) / 100;
+      const speed = Number($2("ptspeed").value);
+      const k2 = Number($2("ptstr").value) / 100;
       if (pt.prog) {
         pt.prog.intensity = 0.4 + 0.58 * speed / 100;
         return pt.prog.step(dtMs).map((v) => Math.round(v * 100 * k2));
@@ -575,10 +1209,10 @@
     }
     const t = performance.now() - mood.t0;
     if (t >= mood.len) nextMood(false);
-    const k = Number($("moodstr").value) / 100;
+    const k = Number($2("moodstr").value) / 100;
     return mood.vibe.map((track) => Math.round(sampleAt(track, performance.now() - mood.t0) * k));
   }
-  function nextMood(start) {
+  function nextMood(start2) {
     const m = MOODS[mood.key];
     let i;
     do {
@@ -588,24 +1222,24 @@
     const built = buildMood(sections, aiRandom(Math.random() * 2 ** 32 >>> 0));
     const len = Math.max(...built.vibe.map((tr) => tr.length ? tr[tr.length - 1].at : 0));
     Object.assign(mood, { combo: i, vibe: built.vibe, len: Math.max(1e3, len), t0: performance.now(), name });
-    if (start) show();
+    if (start2) show2();
   }
-  function show() {
+  function show2() {
     for (const b of document.querySelectorAll(".tabs button")) b.classList.toggle("on", b.dataset.tab === tab);
-    for (const t of ["manual", "pattern", "mood"]) $(`t-${t}`).hidden = t !== tab;
-    $("fill").style.height = `${level}%`;
-    $("pct").textContent = `${Math.round(level)}%`;
-    const random = pt ? Boolean(pt.prog) : $("ptsel").value === PATTERN_RANDOM;
-    $("speedlab").textContent = random ? "How busy" : "Speed";
-    $("ptspeedv").textContent = random ? `${$("ptspeed").value}%` : `${patternPeriod(Number($("ptspeed").value)).toFixed(1)} s`;
-    $("ptstrv").textContent = `${$("ptstr").value}%`;
-    $("moodstrv").textContent = `${$("moodstr").value}%`;
-    $("ptgo").textContent = pt ? "■ Stop" : "▶ Play";
-    $("ptgo").classList.toggle("on", Boolean(pt));
+    for (const t of ["manual", "pattern", "mood", "queue"]) $2(`t-${t}`).hidden = t !== tab;
+    $2("fill").style.height = `${level}%`;
+    $2("pct").textContent = `${Math.round(level)}%`;
+    const random = pt ? Boolean(pt.prog) : $2("ptsel").value === PATTERN_RANDOM;
+    $2("speedlab").textContent = random ? "How busy" : "Speed";
+    $2("ptspeedv").textContent = random ? `${$2("ptspeed").value}%` : `${patternPeriod(Number($2("ptspeed").value)).toFixed(1)} s`;
+    $2("ptstrv").textContent = `${$2("ptstr").value}%`;
+    $2("moodstrv").textContent = `${$2("moodstr").value}%`;
+    $2("ptgo").textContent = pt ? "■ Stop" : "▶ Play";
+    $2("ptgo").classList.toggle("on", Boolean(pt));
     for (const b of document.querySelectorAll("#moods button")) b.classList.toggle("on", Boolean(mood && b.dataset.mood === mood.key));
-    $("moodinfo").textContent = mood ? `${MOODS[mood.key].icon} ${MOODS[mood.key].label}: ${mood.name || ""}` : "";
-    $("toysec").hidden = !offer.length;
-    $("toys").replaceChildren(...offer.map((d) => {
+    $2("moodinfo").textContent = mood ? `${MOODS[mood.key].icon} ${MOODS[mood.key].label}: ${mood.name || ""}` : "";
+    $2("toyhint").textContent = offer.length ? "Tap yours: your partner can then play them." : "None free yet: your partner is using every connected toy. If one of them is yours, ask them to take it out of their Devices, and it shows up here.";
+    $2("toys").replaceChildren(...offer.map((d) => {
       const b = document.createElement("button");
       b.type = "button";
       b.className = `toy${mine.has(d.k) ? " on" : ""}`;
@@ -614,7 +1248,7 @@
         if (mine.has(d.k)) mine.delete(d.k);
         else if (mine.size < 4) mine.add(d.k);
         send({ mine: [...mine] });
-        show();
+        show2();
       });
       return b;
     }));
@@ -624,12 +1258,13 @@
     pt = null;
     mood = null;
     incoming = 0;
-    $("in").style.width = "0";
-    if ($("buzz").checked && navigator.vibrate) navigator.vibrate(0);
+    queueStop();
+    $2("in").style.width = "0";
+    if ($2("buzz").checked && navigator.vibrate) navigator.vibrate(0);
     if (tell) send({ stop: true });
     send({ v: [0] });
     sent = "0";
-    show();
+    show2();
   }
   function connect() {
     ws = new WebSocket(url);
@@ -652,19 +1287,19 @@
       if (Array.isArray(data.v)) {
         incoming = Math.max(...data.v);
         lastIn = Date.now();
-        $("in").style.width = `${incoming}%`;
+        $2("in").style.width = `${incoming}%`;
       }
-      if (data.name) $("inlbl").textContent = `From ${data.name}`;
+      if (data.name) $2("inlbl").textContent = `From ${data.name}`;
       if (typeof data.accept === "boolean") state(data.accept ? "You are playing their toys" : "Connected: waiting for them to let you play", data.accept);
       if (Array.isArray(data.devices)) {
         offer = data.devices;
         mine = new Set([...mine].filter((k) => offer.some((d) => d.k === k)));
-        show();
+        show2();
       }
-      if (typeof data.rec === "boolean") $("recnote").hidden = !data.rec;
+      if (typeof data.rec === "boolean") $2("recnote").hidden = !data.rec;
       if (typeof data.sync === "boolean") {
-        $("syncnote").hidden = !data.sync;
-        $("ctlh").textContent = data.sync ? "Both of your toys" : "Your partner's toys";
+        $2("syncnote").hidden = !data.sync;
+        $2("ctlh").textContent = data.sync ? "Both of your toys" : "Your partner's toys";
       }
     };
     ws.onclose = () => {
@@ -680,32 +1315,33 @@
     };
   }
   function hello() {
-    const name = $("name").value.trim();
+    const name = $2("name").value.trim();
     if (name) send({ name });
     send({ accept: false });
     if (mine.size) send({ mine: [...mine] });
   }
-  $("name").addEventListener("change", hello);
+  $2("name").addEventListener("change", hello);
   for (const b of document.querySelectorAll(".tabs button")) b.addEventListener("click", () => {
     tab = b.dataset.tab;
-    show();
+    if (tab === "queue") refresh();
+    show2();
   });
-  var pad = $("pad");
+  var pad = $2("pad");
   var at = (e) => {
     const r = pad.getBoundingClientRect();
     level = Math.min(100, Math.max(0, (r.bottom - e.clientY) / r.height * 100));
-    show();
+    show2();
   };
   pad.addEventListener("pointerdown", (e) => {
     pad.setPointerCapture(e.pointerId);
-    const now = Date.now();
-    if (now - tapAt < 300) {
+    const now2 = Date.now();
+    if (now2 - tapAt < 300) {
       level = 0;
       tapAt = 0;
-      show();
+      show2();
       return;
     }
-    tapAt = now;
+    tapAt = now2;
     at(e);
   });
   pad.addEventListener("pointermove", (e) => {
@@ -717,25 +1353,26 @@
     g.append(...entries.map(([k, t]) => new Option(t, k)));
     return g;
   };
-  $("ptsel").replaceChildren(new Option("🎲 Random", PATTERN_RANDOM), group("Patterns", Object.entries(PATTERNS)), group("Two motors", Object.entries(PATTERNS_DUAL)));
-  $("ptsel").value = "wave";
+  $2("ptsel").replaceChildren(new Option("🎲 Random", PATTERN_RANDOM), group("Patterns", Object.entries(PATTERNS)), group("Two motors", Object.entries(PATTERNS_DUAL)));
+  $2("ptsel").value = "wave";
   var startPattern = (key) => {
     mood = null;
+    queueStop();
     pt = { key, phase: 0, prog: key === PATTERN_RANDOM ? new RandomProgram(2) : null };
-    show();
+    show2();
   };
-  $("ptgo").addEventListener("click", () => {
+  $2("ptgo").addEventListener("click", () => {
     if (pt) {
       pt = null;
-      show();
-    } else startPattern($("ptsel").value);
+      show2();
+    } else startPattern($2("ptsel").value);
   });
-  $("ptsel").addEventListener("change", () => {
-    if (pt) startPattern($("ptsel").value);
-    else show();
+  $2("ptsel").addEventListener("change", () => {
+    if (pt) startPattern($2("ptsel").value);
+    else show2();
   });
-  for (const id of ["ptspeed", "ptstr", "moodstr"]) $(id).addEventListener("input", show);
-  $("moods").replaceChildren(...Object.entries(MOODS).map(([key, m]) => {
+  for (const id of ["ptspeed", "ptstr", "moodstr"]) $2(id).addEventListener("input", show2);
+  $2("moods").replaceChildren(...Object.entries(MOODS).map(([key, m]) => {
     const b = document.createElement("button");
     b.type = "button";
     b.dataset.mood = key;
@@ -743,24 +1380,25 @@
     b.addEventListener("click", () => {
       if (mood && mood.key === key) {
         mood = null;
-        show();
+        show2();
         return;
       }
       pt = null;
+      queueStop();
       mood = { key, combo: -1 };
       nextMood(true);
     });
     return b;
   }));
-  $("stop").addEventListener("click", () => {
+  $2("stop").addEventListener("click", () => {
     stopAll(true);
     state("Stopped", false);
   });
   var last = performance.now();
   setInterval(() => {
-    const now = performance.now();
-    const v = levels(now - last);
-    last = now;
+    const now2 = performance.now();
+    const v = levels(now2 - last);
+    last = now2;
     const key = v.join(",");
     if (key !== sent || v.some((x) => x > 0) && Date.now() - sentAt >= 500) {
       send({ v });
@@ -769,12 +1407,17 @@
     }
     if (Date.now() - lastIn > 1500 && incoming) {
       incoming = 0;
-      $("in").style.width = "0";
+      $2("in").style.width = "0";
     }
-    if ($("buzz").checked && navigator.vibrate) navigator.vibrate(incoming > 3 ? Math.round(incoming * 0.9) : 0);
+    if ($2("buzz").checked && navigator.vibrate) navigator.vibrate(incoming > 3 ? Math.round(incoming * 0.9) : 0);
   }, 100);
   setInterval(() => send({ ping: true }), 1e4);
   addEventListener("pagehide", () => send({ v: [0] }));
-  show();
+  initQueue({ onStart: () => {
+    pt = null;
+    mood = null;
+    show2();
+  } });
+  show2();
   connect();
 })();

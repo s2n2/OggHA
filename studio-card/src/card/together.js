@@ -64,6 +64,7 @@ export class TogetherPart {
       this._toast('Your partner left. The link still works if they come back.');
     }
     else if (ev.event === 'msg') this._tgMsg(tg, ev.data || {});
+    else if (ev.event === 'queued') this._toast(`${tg.name || 'Your partner'} added "${ev.name}" to a queue (Queue card).`);
     this._tgShow();
   }
 

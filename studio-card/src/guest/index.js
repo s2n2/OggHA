@@ -5,11 +5,13 @@
 // run here, and only levels (0-100) travel to the host's card, which keeps
 // them inside the host's limits. If the partner's own toys are on the same
 // Ogg, the host offers them (his/hers shown) and the partner picks theirs:
-// the host can then play them.
+// the host can then play them. The Queue tab (queue.js) plays his and hers
+// queues and makes new ones to add to them.
 import { aiRandom } from '../lib/ai.js';
 import { MOODS, buildMood } from '../lib/moods.js';
 import { sampleAt } from '../lib/outputs.js';
 import { PATTERNS, PATTERNS_DUAL, PATTERN_RANDOM, RandomProgram, patternDual, patternLevel, patternPeriod } from '../lib/patterns.js';
+import { initQueue, queueLevels, queueStop, refresh as queueRefresh } from './queue.js';
 
 const $ = (id) => document.getElementById(id);
 const OWNER = { his: 'His', hers: 'Hers', unassigned: '' };
@@ -35,6 +37,7 @@ const send = (data) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(d
 
 // ---------------------------------------------------------- the levels
 function levels(dtMs) {
+  if (tab !== 'manual') { const q = queueLevels(); if (q) return q; }
   if (tab === 'manual' || (!pt && !mood)) return [Math.round(level)];
   if (pt) {
     const speed = Number($('ptspeed').value);
@@ -67,7 +70,7 @@ function nextMood(start) {
 // ---------------------------------------------------------- what is shown
 function show() {
   for (const b of document.querySelectorAll('.tabs button')) b.classList.toggle('on', b.dataset.tab === tab);
-  for (const t of ['manual', 'pattern', 'mood']) $(`t-${t}`).hidden = t !== tab;
+  for (const t of ['manual', 'pattern', 'mood', 'queue']) $(`t-${t}`).hidden = t !== tab;
   $('fill').style.height = `${level}%`;
   $('pct').textContent = `${Math.round(level)}%`;
   const random = pt ? Boolean(pt.prog) : $('ptsel').value === PATTERN_RANDOM;
@@ -80,7 +83,8 @@ function show() {
   for (const b of document.querySelectorAll('#moods button')) b.classList.toggle('on', Boolean(mood && b.dataset.mood === mood.key));
   $('moodinfo').textContent = mood ? `${MOODS[mood.key].icon} ${MOODS[mood.key].label}: ${mood.name || ''}` : '';
   // Their toys: offered by the host, picked here.
-  $('toysec').hidden = !offer.length;
+  $('toyhint').textContent = offer.length ? 'Tap yours: your partner can then play them.'
+    : 'None free yet: your partner is using every connected toy. If one of them is yours, ask them to take it out of their Devices, and it shows up here.';
   $('toys').replaceChildren(...offer.map((d) => {
     const b = document.createElement('button');
     b.type = 'button';
@@ -97,6 +101,7 @@ function show() {
 
 function stopAll(tell) {
   level = 0; pt = null; mood = null; incoming = 0;
+  queueStop();
   $('in').style.width = '0';
   if ($('buzz').checked && navigator.vibrate) navigator.vibrate(0);
   if (tell) send({ stop: true });
@@ -140,7 +145,7 @@ function hello() {
 
 // ---------------------------------------------------------- controls
 $('name').addEventListener('change', hello);
-for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => { tab = b.dataset.tab; show(); });
+for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => { tab = b.dataset.tab; if (tab === 'queue') queueRefresh(); show(); });
 const pad = $('pad');
 const at = (e) => { const r = pad.getBoundingClientRect(); level = Math.min(100, Math.max(0, (r.bottom - e.clientY) / r.height * 100)); show(); };
 pad.addEventListener('pointerdown', (e) => {
@@ -155,7 +160,7 @@ pad.addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType === 
 const group = (label, entries) => { const g = document.createElement('optgroup'); g.label = label; g.append(...entries.map(([k, t]) => new Option(t, k))); return g; };
 $('ptsel').replaceChildren(new Option('🎲 Random', PATTERN_RANDOM), group('Patterns', Object.entries(PATTERNS)), group('Two motors', Object.entries(PATTERNS_DUAL)));
 $('ptsel').value = 'wave';
-const startPattern = (key) => { mood = null; pt = { key, phase: 0, prog: key === PATTERN_RANDOM ? new RandomProgram(2) : null }; show(); };
+const startPattern = (key) => { mood = null; queueStop(); pt = { key, phase: 0, prog: key === PATTERN_RANDOM ? new RandomProgram(2) : null }; show(); };
 $('ptgo').addEventListener('click', () => { if (pt) { pt = null; show(); } else startPattern($('ptsel').value); });
 $('ptsel').addEventListener('change', () => { if (pt) startPattern($('ptsel').value); else show(); });
 for (const id of ['ptspeed', 'ptstr', 'moodstr']) $(id).addEventListener('input', show);
@@ -168,6 +173,7 @@ $('moods').replaceChildren(...Object.entries(MOODS).map(([key, m]) => {
   b.addEventListener('click', () => {
     if (mood && mood.key === key) { mood = null; show(); return; }
     pt = null;
+    queueStop();
     mood = { key, combo: -1 };
     nextMood(true);
   });
@@ -188,5 +194,6 @@ setInterval(() => {
 }, 100);
 setInterval(() => send({ ping: true }), 10000);
 addEventListener('pagehide', () => send({ v: [0] }));
+initQueue({ onStart: () => { pt = null; mood = null; show(); } });
 show();
 connect();

@@ -14,7 +14,12 @@ with it:
 * one partner at a time, a message rate limit, and the link dies when the
   host's card closes the session or goes away, or after six hours.
 
-Nothing is stored and nothing is logged.
+Nothing is stored and nothing is logged, except the one thing a partner
+can save: a script for his or hers queue (the Queue card's queues), over a
+small endpoint on the same link (``.../queue``). There they can list the
+queues and the played list, fetch one to play (they play it here, as levels,
+like a pattern), mark it played and add their own; nothing else, and only
+while the link is live, with a size and a count limit.
 """
 
 from __future__ import annotations
@@ -33,6 +38,9 @@ from aiohttp import WSMsgType, web
 from homeassistant.components import websocket_api
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
+
+from .const import QUEUES
 
 SESSIONS = "ogg_studio_together"
 ALLOW = "ogg_studio_allow"          # set by privacy: may this user use OggStudio?
@@ -46,6 +54,8 @@ KEY = re.compile(r"[a-z][0-9]{1,2}")
 OWNERS = ("unassigned", "his", "hers")
 KINDS = ("vibe", "stroke", "dual")
 GUEST_JS = "/ogg/studio/together-guest.js"
+MAX_QUEUE_BYTES = 1_000_000         # a script a partner adds (about an hour of a busy pattern)
+MAX_QUEUE_ADDS = 30                 # scripts a partner may add in one session
 GUEST_FILE = Path(__file__).parent.parent / "frontend" / "together-guest.js"
 
 
@@ -105,6 +115,8 @@ class Session:
         self.born = time.monotonic()
         self._window = 0.0
         self._count = 0
+        self.added = 0                  # scripts the partner added to a queue
+        self.guest_name = ""
 
     def push(self, event: dict[str, Any]) -> None:
         if not self.closed:
@@ -248,6 +260,8 @@ class TogetherSocket(HomeAssistantView):
                 except ValueError:
                     continue
                 if data:
+                    if "name" in data:
+                        session.guest_name = data["name"]
                     session.push({"event": "msg", "data": data})
         finally:
             if session.guest is ws:
@@ -256,11 +270,87 @@ class TogetherSocket(HomeAssistantView):
         return ws
 
 
+def _queue_json(body: Any, status: int = 200) -> web.Response:
+    return web.json_response(body, status=status, headers=HEADERS)
+
+
+class TogetherQueue(HomeAssistantView):
+    """His and hers queues for the partner: the list, and adding one."""
+
+    url = "/api/ogg/studio/together/{token}/queue"
+    name = "api:ogg:studio:together:queue"
+    requires_auth = False
+
+    async def get(self, request: web.Request, token: str) -> web.Response:
+        hass = request.app["hass"]
+        queues = hass.data.get(QUEUES)
+        if _live(hass, token) is None or queues is None:
+            return _queue_json({"error": "ended"}, 404)
+        return _queue_json({"items": queues.summary})
+
+    async def post(self, request: web.Request, token: str) -> web.Response:
+        hass = request.app["hass"]
+        session, queues = _live(hass, token), hass.data.get(QUEUES)
+        if session is None or queues is None:
+            return _queue_json({"error": "ended"}, 404)
+        if session.added >= MAX_QUEUE_ADDS:
+            return _queue_json({"error": "That is enough for one session"}, 429)
+        if (request.content_length or 0) > MAX_QUEUE_BYTES:
+            return _queue_json({"error": "That script is too long"}, 413)
+        try:
+            raw = await request.content.read(MAX_QUEUE_BYTES + 1)
+            if len(raw) > MAX_QUEUE_BYTES:
+                return _queue_json({"error": "That script is too long"}, 413)
+            body = json.loads(raw)
+            if not isinstance(body, dict):
+                raise ValueError
+            by = f"{session.guest_name} (Together)" if session.guest_name else "Together"
+            item_id = queues.add(body.get("for"), body.get("name"), body.get("script"), by)
+        except (ValueError, UnicodeDecodeError):
+            return _queue_json({"error": "That is not a script"}, 400)
+        except HomeAssistantError as err:
+            return _queue_json({"error": str(err)}, 400)
+        session.added += 1
+        session.push({"event": "queued", "id": item_id, "name": queues.items[item_id]["name"]})
+        return _queue_json({"id": item_id, "name": queues.items[item_id]["name"]})
+
+
+class TogetherQueueItem(HomeAssistantView):
+    """One queued script for the partner to play (GET), or played (POST)."""
+
+    url = "/api/ogg/studio/together/{token}/queue/{item_id}"
+    name = "api:ogg:studio:together:queue:item"
+    requires_auth = False
+
+    async def get(self, request: web.Request, token: str, item_id: str) -> web.Response:
+        hass = request.app["hass"]
+        queues = hass.data.get(QUEUES)
+        if _live(hass, token) is None or queues is None:
+            return _queue_json({"error": "ended"}, 404)
+        try:
+            return _queue_json({"script": queues.script(item_id), **queues.summary[item_id]})
+        except HomeAssistantError as err:
+            return _queue_json({"error": str(err)}, 404)
+
+    async def post(self, request: web.Request, token: str, item_id: str) -> web.Response:
+        hass = request.app["hass"]
+        queues = hass.data.get(QUEUES)
+        if _live(hass, token) is None or queues is None:
+            return _queue_json({"error": "ended"}, 404)
+        try:
+            queues.played(item_id)
+        except HomeAssistantError as err:
+            return _queue_json({"error": str(err)}, 404)
+        return _queue_json({"ok": True})
+
+
 async def async_setup_together(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_together)
     websocket_api.async_register_command(hass, ws_together_send)
     hass.http.register_view(TogetherPage())
     hass.http.register_view(TogetherSocket())
+    hass.http.register_view(TogetherQueue())
+    hass.http.register_view(TogetherQueueItem())
     if GUEST_FILE.exists():
         # The partner's remote (the page's script); public, like the cards.
         from homeassistant.components.http import StaticPathConfig
@@ -298,7 +388,7 @@ button.on{background:linear-gradient(110deg,#31c6b8,#54d4bc);color:#072a2d;borde
 .chip{font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;border:1px solid rgba(143,163,200,.25);color:#92a2be}
 .chip.his{color:#9fd3ff;border-color:rgba(110,180,255,.4);background:rgba(70,140,230,.12)}
 .chip.hers{color:#ffb3d9;border-color:rgba(255,130,190,.4);background:rgba(230,90,160,.12)}
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
 .tabs button{white-space:nowrap;font-size:13px;padding:0 6px;min-height:40px}
 button.on .chip{color:#072a2d;border-color:rgba(7,42,45,.35);background:rgba(255,255,255,.35)}
 #pad{position:relative;height:min(200px,30vh);border-radius:19px;background:#17243e;border:1px solid #364563;touch-action:none;overflow:hidden;user-select:none;-webkit-user-select:none}
@@ -317,15 +407,48 @@ button.on .chip{color:#072a2d;border-color:rgba(7,42,45,.35);background:rgba(255
 .note{font-size:12px;padding:8px 10px;border-radius:12px;background:rgba(244,100,118,.1);border:1px solid rgba(239,115,134,.3);color:#ffc9d1}
 .note.sync{background:rgba(49,198,184,.12);border-color:rgba(84,212,188,.4);color:#c8fff4}
 #stop{min-height:54px;background:rgba(244,100,118,.12);border-color:rgba(239,115,134,.38);color:#ffbcc2;font-size:15px}
+.qbar{position:relative;height:14px;border-radius:7px;background:#17243e;overflow:hidden;margin-top:8px;cursor:pointer;touch-action:none}
+.qbar i{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#31c6b8,#7bccfa)}
+.qtime{text-align:center;font-size:12px;color:#c9d3ee;margin-top:6px;font-variant-numeric:tabular-nums}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
+.seg button{min-height:36px;font-size:12px;padding:0 4px;background:transparent;border-color:#364563;color:var(--muted)}
+.seg button.on.his{background:rgba(70,140,230,.16);border-color:rgba(110,180,255,.55);color:#d6e8ff}
+.seg button.on.hers{background:rgba(230,90,160,.16);border-color:rgba(255,130,190,.55);color:#ffd9ec}
+.seg button.on.played{background:#24395a;border-color:#54d4bc;color:#e9fffb}
+.qlist{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:260px;overflow:auto}
+.qitem{display:flex;align-items:center;gap:8px;border:1px solid #364563;border-radius:13px;padding:6px 6px 6px 10px;background:#121b31}
+.qitem.cur{border-color:#54d4bc}
+.qitem .info{flex:1;min-width:0}
+.qitem .nm{font-weight:760;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qitem .meta{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qitem button{min-height:36px;flex:0 0 auto;padding:0 12px}
+.empty{font-size:12px;color:var(--muted);text-align:center;padding:8px}
+.steps{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.step{border:1px solid #364563;border-radius:15px;background:#121b31;padding:8px;transition:transform .12s}
+.step.drag{opacity:.9;box-shadow:0 10px 30px rgba(0,0,0,.45);border-color:#54d4bc;transition:none;position:relative;z-index:2}
+.step .top{display:flex;gap:6px;align-items:center}
+.step .top select{flex:1;min-width:0;padding:8px 10px;font-size:13px}
+.handle{flex:0 0 32px;height:36px;display:grid;place-items:center;color:var(--muted);cursor:grab;touch-action:none;font-size:18px;user-select:none;-webkit-user-select:none}
+.num{flex:0 0 14px;font-size:11px;color:var(--muted);font-weight:800;text-align:center}
+.kind{flex:0 0 auto;font-size:15px}
+.x{flex:0 0 34px;min-height:34px;padding:0;background:transparent;border-color:transparent;color:var(--muted)}
+.step .slider select{flex:1;padding:6px 10px;font-size:13px}
+.adds{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.adds button{min-height:38px;font-size:12.5px}
+.total{font-size:12px;color:#c9d3ee;margin-top:8px;font-weight:700}
+#qhis{background:rgba(70,140,230,.14);border-color:rgba(110,180,255,.45);color:#cfe3ff}
+#qhers{background:rgba(230,90,160,.14);border-color:rgba(255,130,190,.45);color:#ffd0e8}
+.sub{margin:14px 0 4px;font-size:13px;font-weight:760}
+.qmsg{min-height:16px;font-size:12px;color:#ffcf8a;margin-top:6px}
 [hidden]{display:none!important}
 </style></head><body><main>
 <div class="head"><div class="brand">🤝</div><div><div class="eyebrow">Ogg</div><h1>Together</h1></div><span class="pill wait" id="state">Connecting…</span></div>
 <input id="name" type="text" maxlength="30" placeholder="Your name (optional)">
 <div class="note" id="recnote" hidden>● Your partner is recording what you send, to play again later.</div>
 <div class="note sync" id="syncnote" hidden>⇄ Synced: you both feel the same.</div>
-<section id="toysec" hidden><h2>Which toys are yours?</h2><div class="muted">Tap yours: your partner can then play them.</div><div class="toys" id="toys" style="margin-top:8px"></div></section>
+<section id="toysec"><h2>Which toys are yours?</h2><div class="muted" id="toyhint">Tap yours: your partner can then play them.</div><div class="toys" id="toys" style="margin-top:8px"></div></section>
 <section><h2 id="ctlh">Your partner's toys</h2>
-  <div class="tabs"><button data-tab="manual" class="on">✋ Manual</button><button data-tab="pattern">〰 Pattern</button><button data-tab="mood">◎ Mood</button></div>
+  <div class="tabs"><button data-tab="manual" class="on">✋ Manual</button><button data-tab="pattern">〰 Pattern</button><button data-tab="mood">◎ Mood</button><button data-tab="queue">📋 Queue</button></div>
   <div id="t-manual"><div id="pad"><div id="fill"></div><div id="pct">0%</div></div><div class="muted" style="margin-top:6px">Slide up and down. Double-tap to drop to zero.</div></div>
   <div id="t-pattern" hidden><div class="row"><select id="ptsel"></select><button id="ptgo" style="flex:0 0 96px">▶ Play</button></div>
     <div class="slider"><label id="speedlab">Speed</label><input id="ptspeed" type="range" min="0" max="100" step="5" value="50"><b id="ptspeedv"></b></div>
@@ -333,6 +456,23 @@ button.on .chip{color:#072a2d;border-color:rgba(7,42,45,.35);background:rgba(255
   <div id="t-mood" hidden><div class="moods" id="moods"></div>
     <div class="slider"><label>Strength</label><input id="moodstr" type="range" min="20" max="100" step="5" value="100"><b id="moodstrv"></b></div>
     <div class="muted" id="moodinfo" style="margin-top:6px"></div></div>
+  <div id="t-queue" hidden>
+    <div class="row"><select id="qpick" aria-label="Script to play"></select></div>
+    <div class="qbar" id="qbar"><i id="qcur"></i></div>
+    <div class="qtime" id="qtime">Pick one from a queue below, or make one.</div>
+    <div class="row" style="margin-top:8px"><button id="qplay">▶ Play</button><button id="qstop" style="background:rgba(244,100,118,.12);border-color:rgba(239,115,134,.38);color:#ffbcc2">■ Stop</button><label class="muted" style="flex:0 0 auto;display:flex;gap:6px;align-items:center"><input id="qloop" type="checkbox"> Loop</label></div>
+    <div class="seg" id="qseg"><button type="button" class="his" data-q="his">♂ His</button><button type="button" class="hers" data-q="hers">♀ Hers</button><button type="button" class="played" data-q="played">✓ Played</button></div>
+    <div class="qlist" id="qlist"></div>
+    <div class="sub">🎨 Make one</div>
+    <div class="muted">Patterns, moods and pauses, each for a set time. Drag ⠿ to reorder.</div>
+    <div class="steps" id="steps"></div>
+    <div class="adds"><button type="button" data-add="pattern">+ Pattern</button><button type="button" data-add="mood">+ Mood</button><button type="button" data-add="pause">+ Pause</button></div>
+    <div class="total" id="qtotal"></div>
+    <input id="qname" type="text" maxlength="60" style="margin-top:8px" autocomplete="off" aria-label="Name">
+    <div class="row" style="margin-top:8px"><button type="button" class="his" id="qhis">♂ Add to his queue</button><button type="button" class="hers" id="qhers">♀ Add to hers queue</button></div>
+    <div class="row" style="margin-top:8px"><button type="button" id="qtry">▶ Try it now</button></div>
+    <div class="qmsg" id="qmsg" role="status"></div>
+  </div>
 </section>
 <section><h2 id="inlbl">From your partner</h2><div class="meter"><div id="in"></div></div>
   <label class="muted" style="display:flex;gap:6px;align-items:center;margin-top:8px"><input id="buzz" type="checkbox"> Vibrate this phone with what they send</label></section>

@@ -44,6 +44,9 @@ sys.modules["ogg.studio"] = studio
 lib = importlib.import_module("ogg.studio.library")
 privacy = importlib.import_module("ogg.studio.privacy")
 together = importlib.import_module("ogg.studio.together")
+queues_mod = importlib.import_module("ogg.studio.queues")
+from datetime import datetime, timezone  # noqa: E402
+queues_mod.dt_util = types.SimpleNamespace(utcnow=lambda: datetime.now(timezone.utc))
 
 
 def fails(fn, *args):
@@ -123,6 +126,13 @@ async def main():
     app["hass"] = hass
     for view in (together.TogetherPage(), together.TogetherSocket()):
         app.router.add_get(view.url, lambda request, view=view: view.get(request, request.match_info["token"]))
+    qv, qi = together.TogetherQueue(), together.TogetherQueueItem()
+    app.router.add_get(qv.url, lambda r: qv.get(r, r.match_info["token"]))
+    app.router.add_post(qv.url, lambda r: qv.post(r, r.match_info["token"]))
+    app.router.add_get(qi.url, lambda r: qi.get(r, r.match_info["token"], r.match_info["item_id"]))
+    app.router.add_post(qi.url, lambda r: qi.post(r, r.match_info["token"], r.match_info["item_id"]))
+    queues = queues_mod.Queues(hass)
+    hass.data[together.QUEUES] = queues
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "127.0.0.1", 0)
@@ -170,6 +180,40 @@ async def main():
         await asyncio.sleep(0.1)
         assert len(events) - before <= together.MAX_RATE
 
+        # his and hers queues over the link: list, add, fetch, played; nothing else
+        await asyncio.sleep(1.1)                 # past the rate limit above
+        await guest.send_json({"name": "Robin"})
+        await asyncio.sleep(0.05)
+        script = {"actions": [{"at": 0, "pos": 0}, {"at": 5000, "pos": 90}]}
+        async with http.post(f"{base}/{token}/queue", json={"for": "hers", "name": "From me", "script": script}) as r:
+            assert r.status == 200
+            item = (await r.json())["id"]
+        assert queues.items[item]["by"] == "Robin (Together)" and queues.items[item]["for"] == "hers"
+        assert events[-1]["event"] == "queued" and events[-1]["id"] == item
+        async with http.get(f"{base}/{token}/queue") as r:
+            listed = (await r.json())["items"]
+            assert listed[item]["name"] == "From me" and "script" not in listed[item]
+        async with http.get(f"{base}/{token}/queue/{item}") as r:
+            assert (await r.json())["script"]["actions"][-1] == {"at": 5000, "pos": 90}
+        async with http.post(f"{base}/{token}/queue/{item}") as r:
+            assert r.status == 200 and queues.items[item]["played"]
+        async with http.post(f"{base}/{token}/queue", json={"for": "nobody", "name": "x", "script": script}) as r:
+            assert r.status == 400
+        async with http.post(f"{base}/{token}/queue", data=b"not json") as r:
+            assert r.status == 400
+        async with http.post(f"{base}/{token}/queue", data=b"x" * (together.MAX_QUEUE_BYTES + 10)) as r:
+            assert r.status == 413
+        async with http.get(f"{base}/nope/queue") as r:
+            assert r.status == 404
+        async with http.get(f"{base}/{token}/queue/nope") as r:
+            assert r.status == 404
+        events.clear()
+        for _ in range(together.MAX_QUEUE_ADDS):
+            async with http.post(f"{base}/{token}/queue", json={"for": "his", "name": "n", "script": script}):
+                pass
+        async with http.post(f"{base}/{token}/queue", json={"for": "his", "name": "n", "script": script}) as r:
+            assert r.status == 429
+
         # host to partner, cleaned; only the owner of the session may send
         await together.ws_together_send(hass, conn, {"id": 8, "token": token, "data": {"v": [77], "junk": 1}})
         assert (await guest.receive_json()) == {"v": [77.0]}
@@ -182,6 +226,8 @@ async def main():
         await asyncio.sleep(0.05)
         assert (await guest.receive()).type.name in ("CLOSE", "CLOSED", "CLOSING")
         async with http.get(f"{base}/{token}") as r:
+            assert r.status == 404
+        async with http.get(f"{base}/{token}/queue") as r:
             assert r.status == 404
     await runner.cleanup()
 

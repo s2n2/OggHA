@@ -1,3 +1,8 @@
+## 3.4.0 - Together: the queue on the partner's page
+- **Queue tab on the Together page:** your partner can play anything from his or hers queue or the played list, and make their own from patterns, moods and pauses (any time, drag to reorder) to play now or add to his or hers queue. It plays on your toys like their patterns do, inside your limits. Your card tells you when they add one.
+- **Their toys:** the "Which toys are yours?" picker is always shown. When none are free it says why: you are using every connected toy.
+- The link reaches only the queues: listing them, playing one, marking it played and adding one (up to 30 a session, about an hour each), and only while the link is live.
+
 ## 3.3.1 - Queue card: connected toys, live levels
 - The Queue card lists only connected toys, each with its live level (vibration, both motors) or stroke position.
 - With no toy selected (or none connected), Play simulates: the player runs, nothing is sent, the card says so, and a simulated toy shows the level or position the script would play.
