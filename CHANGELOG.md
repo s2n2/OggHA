@@ -1,3 +1,6 @@
+## 3.7.2 - A different saying on every card
+- Each covered card shows its own saying, never the same as another card on the screen, and a new one each time it covers again. Twice as many of Ogg's own sayings.
+
 ## 3.7.1 - Covers fixed
 - A covered card no longer shows an empty PIN box (or More for someone not chosen): the PIN box appears only after More, when a PIN is set.
 - Examples and tests use made-up names.

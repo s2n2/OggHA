@@ -5509,9 +5509,39 @@ ${STYLES}
     "There's nothing in this cupboard for you, love. Go and put the kettle on.",
     "Every house has a drawer nobody talks about.",
     `The best stories start with "Well, I shouldn't say, but…"`,
-    "Hush now. Some of us are enjoying a quiet moment."
+    "Hush now. Some of us are enjoying a quiet moment.",
+    "A little of what you fancy does you good. A lot of it does you better, usually.",
+    "Never knock on a door you aren't ready to have opened.",
+    "If a thing's worth hiding, it's worth hiding behind something interesting.",
+    "Tea's for company. The good bottle is for later.",
+    'A closed curtain is a polite way of saying "mind your own".',
+    "What happens behind the bedroom door stays there, apart from the laundry.",
+    "There's no shame in a nap, only in being caught snoring.",
+    "Folk who say they've nothing to hide just haven't found anything good yet.",
+    "Keep your boots by the door and your secrets in your apron.",
+    "Life's too short for weak tea and dull company.",
+    "If you're going to be wicked, at least be cheerful about it.",
+    "Never trust a cake that's been left out on purpose.",
+    'Every good evening ends with someone saying "well, just the one more".',
+    "A woman with a full larder and a locked drawer fears nothing.",
+    "Manners cost nothing. Neither does a knowing look.",
+    "The best seat in any house is the one nearest the fire and furthest from the washing up.",
+    "Some songs are best sung after the children have gone to bed.",
+    "You can tell a lot about a person by what they keep in the top cupboard.",
+    "There's always room for pudding, and usually for a bit of mischief.",
+    "Leave the poor dear alone, they're having a private moment.",
+    "If the walls had ears, they'd be blushing by now.",
+    "A good secret is like a good cheese: better for keeping, and best shared with the right person.",
+    "Never ask what's in the pie. Just say thank you.",
+    "Nobody ever regretted an early night. Well, not for the reasons you'd think.",
+    "Old witches don't gossip, dear. We exchange information.",
+    "The kettle's on, the cat's out, and the door's shut. That's happiness.",
+    "There's nothing to see here. Unless you're invited.",
+    "A twinkle in the eye is worth two in the bush.",
+    "Shut the door on your way out, love. And knock next time.",
+    "Some things are better imagined than explained."
   ];
-  var page = () => window.__oggCoverPage = window.__oggCoverPage || { pick: Math.random(), covers: /* @__PURE__ */ new Set() };
+  var page = () => window.__oggCoverPage = window.__oggCoverPage || { covers: /* @__PURE__ */ new Set() };
   function studioSettings(hass) {
     if (!hass || !hass.states) return null;
     const p = page();
@@ -5576,11 +5606,18 @@ ${STYLES}
     if (settings.discreet && now >= until) return "more";
     return "none";
   }
-  function sayingFor(settings, pick = page().pick) {
+  function sayingsFor(settings) {
     const own = settings && Array.isArray(settings.quotes) ? settings.quotes.filter((q) => typeof q === "string" && q.trim()) : [];
-    const list = own.length ? own : SAYINGS;
-    return list[Math.min(list.length - 1, Math.floor(pick * list.length))];
+    return own.length ? own : SAYINGS;
   }
+  function pickSaying(list, taken, last, rnd = Math.random) {
+    if (!list.length) return "";
+    let pool = list.filter((q) => !taken.has(q) && q !== last);
+    if (!pool.length) pool = list.filter((q) => q !== last);
+    if (!pool.length) pool = list;
+    return pool[Math.min(pool.length - 1, Math.floor(rnd() * pool.length))];
+  }
+  var sayingFor = (settings, rnd = Math.random) => pickSaying(sayingsFor(settings), /* @__PURE__ */ new Set(), null, rnd);
   var STYLE = `
 .ogg-covered > :not(.ogg-cover){display:none!important}
 .ogg-cover{display:flex;flex-direction:column;gap:12px;padding:20px 18px;color:#eef1ff;font:14px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
@@ -5626,8 +5663,12 @@ ${STYLES}
           const name = mode === "more" ? String(settings && settings.name || "") : "";
           $(".oc-name").textContent = name;
           $(".oc-name").hidden = !name;
-          const q = sayingFor(settings);
-          if ($("blockquote").textContent !== q) $("blockquote").textContent = q;
+          const list = sayingsFor(settings);
+          if (!cover.covered || !cover.saying || !list.includes(cover.saying)) {
+            const taken = new Set([...page().covers].filter((c) => c !== cover && c.covered && c.saying).map((c) => c.saying));
+            cover.saying = pickSaying(list, taken, cover.saying);
+          }
+          if ($("blockquote").textContent !== cover.saying) $("blockquote").textContent = cover.saying;
           $(".oc-more").hidden = mode !== "more" || !$(".oc-pin").hidden;
           if (mode !== "more") $(".oc-pin").hidden = true;
         } else {

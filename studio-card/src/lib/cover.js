@@ -8,8 +8,8 @@
 //   (and the PIN, when there is one) opens every Ogg card in this browser for
 //   two hours, then they cover again.
 // The sayings are Ogg's own, or the ones set in Ogg's options ("Cover
-// sayings", kept in that Home Assistant). One saying per page, the same on
-// every card.
+// sayings", kept in that Home Assistant). Each card picks its own, never
+// one another card is showing, and a new one each time it covers again.
 
 export const OPEN_MS = 2 * 60 * 60 * 1000;
 const OPEN_KEY = 'ogg_cover_open_until';
@@ -46,9 +46,39 @@ export const SAYINGS = [
   'Every house has a drawer nobody talks about.',
   'The best stories start with "Well, I shouldn\'t say, but…"',
   'Hush now. Some of us are enjoying a quiet moment.',
+  'A little of what you fancy does you good. A lot of it does you better, usually.',
+  'Never knock on a door you aren\'t ready to have opened.',
+  'If a thing\'s worth hiding, it\'s worth hiding behind something interesting.',
+  'Tea\'s for company. The good bottle is for later.',
+  'A closed curtain is a polite way of saying "mind your own".',
+  'What happens behind the bedroom door stays there, apart from the laundry.',
+  'There\'s no shame in a nap, only in being caught snoring.',
+  'Folk who say they\'ve nothing to hide just haven\'t found anything good yet.',
+  'Keep your boots by the door and your secrets in your apron.',
+  'Life\'s too short for weak tea and dull company.',
+  'If you\'re going to be wicked, at least be cheerful about it.',
+  'Never trust a cake that\'s been left out on purpose.',
+  'Every good evening ends with someone saying "well, just the one more".',
+  'A woman with a full larder and a locked drawer fears nothing.',
+  'Manners cost nothing. Neither does a knowing look.',
+  'The best seat in any house is the one nearest the fire and furthest from the washing up.',
+  'Some songs are best sung after the children have gone to bed.',
+  'You can tell a lot about a person by what they keep in the top cupboard.',
+  'There\'s always room for pudding, and usually for a bit of mischief.',
+  'Leave the poor dear alone, they\'re having a private moment.',
+  'If the walls had ears, they\'d be blushing by now.',
+  'A good secret is like a good cheese: better for keeping, and best shared with the right person.',
+  'Never ask what\'s in the pie. Just say thank you.',
+  'Nobody ever regretted an early night. Well, not for the reasons you\'d think.',
+  'Old witches don\'t gossip, dear. We exchange information.',
+  'The kettle\'s on, the cat\'s out, and the door\'s shut. That\'s happiness.',
+  'There\'s nothing to see here. Unless you\'re invited.',
+  'A twinkle in the eye is worth two in the bush.',
+  'Shut the door on your way out, love. And knock next time.',
+  'Some things are better imagined than explained.',
 ];
 
-const page = () => (window.__oggCoverPage = window.__oggCoverPage || { pick: Math.random(), covers: new Set() });
+const page = () => (window.__oggCoverPage = window.__oggCoverPage || { covers: new Set() });
 
 // The studio's entity (it carries the settings): found once per page.
 export function studioSettings(hass) {
@@ -91,11 +121,22 @@ export function coverMode(settings, userId, now = Date.now(), until = openUntil(
   return 'none';
 }
 
-export function sayingFor(settings, pick = page().pick) {
+export function sayingsFor(settings) {
   const own = settings && Array.isArray(settings.quotes) ? settings.quotes.filter((q) => typeof q === 'string' && q.trim()) : [];
-  const list = own.length ? own : SAYINGS;
-  return list[Math.min(list.length - 1, Math.floor(pick * list.length))];
+  return own.length ? own : SAYINGS;
 }
+
+// A new saying for one card: not one another card is showing, nor its last one
+// (unless there are too few to go round).
+export function pickSaying(list, taken, last, rnd = Math.random) {
+  if (!list.length) return '';
+  let pool = list.filter((q) => !taken.has(q) && q !== last);
+  if (!pool.length) pool = list.filter((q) => q !== last);
+  if (!pool.length) pool = list;
+  return pool[Math.min(pool.length - 1, Math.floor(rnd() * pool.length))];
+}
+
+export const sayingFor = (settings, rnd = Math.random) => pickSaying(sayingsFor(settings), new Set(), null, rnd);
 
 const STYLE = `
 .ogg-covered > :not(.ogg-cover){display:none!important}
@@ -145,8 +186,13 @@ export function makeCover(host) {
         const name = mode === 'more' ? String((settings && settings.name) || '') : '';
         $('.oc-name').textContent = name;
         $('.oc-name').hidden = !name;
-        const q = sayingFor(settings);
-        if ($('blockquote').textContent !== q) $('blockquote').textContent = q;
+        // A new saying each time it covers (and when the list changes).
+        const list = sayingsFor(settings);
+        if (!cover.covered || !cover.saying || !list.includes(cover.saying)) {
+          const taken = new Set([...page().covers].filter((c) => c !== cover && c.covered && c.saying).map((c) => c.saying));
+          cover.saying = pickSaying(list, taken, cover.saying);
+        }
+        if ($('blockquote').textContent !== cover.saying) $('blockquote').textContent = cover.saying;
         $('.oc-more').hidden = mode !== 'more' || !$('.oc-pin').hidden;
         if (mode !== 'more') $('.oc-pin').hidden = true;
       } else { $('.oc-pin').hidden = true; $('.oc-msg').textContent = ''; }
