@@ -19,6 +19,7 @@ import { PATTERNS, PATTERNS_DUAL, PATTERN_RANDOM } from '../lib/patterns.js';
 import { heatColor, heatmap, trimScript } from '../lib/tools.js';
 import { DURATIONS, MAX_STEP_MS, clock, composeScript, defaultName, duration, parseTime, stepsMs } from '../lib/compose.js';
 import { oggPrivate } from '../lib/private.js';
+import { makeCover } from '../lib/cover.js';
 import { sampleAt } from '../lib/outputs.js';
 
 export const QUEUE_TAG = 'ogg-queue-card';
@@ -182,6 +183,8 @@ export class OggQueueCard extends HTMLElement {
     oggPrivate().attach(hass, this);
     this._hass = oggPrivate().wrap(hass);
     if (!this.shadowRoot) this._build();
+    if (!this._ocov) this._ocov = makeCover(this.shadowRoot.querySelector('ha-card'));
+    this._ocov.update(this._hass);
     if (!this._regLoaded) { this._regLoaded = true; this._loadRegistry(); }
     this._refresh();
   }

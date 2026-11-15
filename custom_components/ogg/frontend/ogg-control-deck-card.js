@@ -391,6 +391,21 @@
       this._loadRegistry();
       this._subscribeRegistry();
       this._schedule();
+      this._oggCover();
+    }
+
+    // The cover all Ogg cards wear (a saying; More when discreet), from the
+    // Play card's script (window.oggCover). Until it has loaded, the deck
+    // waits hidden for up to three seconds rather than show what it covers.
+    _oggCover() {
+      const card = this.shadowRoot.querySelector('ha-card');
+      if (!card) return;
+      if (!this._ocov && window.oggCover) this._ocov = window.oggCover.makeCover(card);
+      if (this._ocov) { card.style.visibility = ''; this._ocov.update(this._hass); return; }
+      if (this._ocovWait) return;
+      this._ocovWait = true;
+      card.style.visibility = 'hidden';
+      setTimeout(() => { if (!this._ocov && window.oggCover) this._oggCover(); card.style.visibility = ''; if (this._ocov) this._ocov.update(this._hass); }, 3000);
     }
 
     connectedCallback() {

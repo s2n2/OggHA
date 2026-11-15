@@ -43,7 +43,9 @@ PIN_TRIES = 5            # wrong PINs before a pause
 PIN_PAUSE = 60           # s
 FAILS = "ogg_studio_pin_fails"
 DEFAULTS = {"no_history": True, "discreet": False, "discreet_name": "Studio", "users": [], "auto_lock": 15,
-            "his_user": "", "hers_user": ""}
+            "his_user": "", "hers_user": "", "cover_quotes": ""}
+MAX_QUOTES = 200
+MAX_QUOTE_LENGTH = 400
 # Ogg options that belong to the studio (changing them does not reconnect Ogg).
 STUDIO_OPTIONS = (*DEFAULTS, "pin_hash", "pin_salt", "studio_taken")
 
@@ -77,8 +79,10 @@ def card_settings(entry: ConfigEntry, names: dict[str, str] | None = None) -> di
         user_id = option(entry, f"{who}_user")
         if isinstance(user_id, str) and user_id:
             people[who] = {"id": user_id, "name": str(names.get(user_id) or "")[:40]}
+    quotes = [" ".join(line.split())[:MAX_QUOTE_LENGTH] for line in str(option(entry, "cover_quotes") or "").splitlines()]
     return {
         "people": people,
+        "quotes": [q for q in quotes if q][:MAX_QUOTES],
         "discreet": bool(option(entry, "discreet")),
         "name": str(option(entry, "discreet_name") or "Studio")[:40],
         "users": list(option(entry, "users") or []),

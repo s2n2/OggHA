@@ -93,7 +93,7 @@ export class PlayPart {
     $('tghead').addEventListener('click', () => this._mediaFold('t', !this._mfold.t, true));
     $('toolhead').addEventListener('click', () => { this._mediaFold('p', !this._mfold.p, true); if (!this._mfold.p) this._toolsUpdate(); });
     $('lockhead').addEventListener('click', () => this._mediaFold('l', !this._mfold.l, true));
-    $('locknow').addEventListener('click', () => { if (this._needsLock) this._lock(); else this._toast('Set a PIN or discreet mode first (⚙ PIN settings).'); });
+    $('locknow').addEventListener('click', () => { if (this._needsLock || (this._privacy && this._privacy.discreet)) this._lockAll(); else this._toast('Set a PIN or discreet mode first (⚙ PIN settings).'); });
     $('lockset').addEventListener('click', () => {
       // The PIN is kept by Home Assistant: its OggStudio settings (admins).
       history.pushState(null, '', '/config/integrations/integration/ogg');

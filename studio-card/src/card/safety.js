@@ -2,6 +2,8 @@
 import { esc } from '../lib/core.js';
 import { isLimited, limitsFor, limitsText } from '../lib/limits.js';
 
+import { closeAll, makeCover } from '../lib/cover.js';
+
 const PRIVACY_KEY = 'oggstudio_privacy';       // the last known settings, so a locked card opens covered
 const UNLOCK_KEY = 'oggstudio_unlocked';       // when this tab was last used unlocked
 const PANIC_HOLD_MS = 3000;
@@ -17,7 +19,7 @@ export class SafetyPart {
     $('stopall').addEventListener('click', () => this._panic());
     $('coverstop').addEventListener('click', () => this._panic());
     $('limbtn').addEventListener('click', () => { $('limbox').hidden = !$('limbox').hidden; this._limRender(true); });
-    $('lockbtn').addEventListener('click', () => this._lock());
+    $('lockbtn').addEventListener('click', () => this._lockAll());
     $('coveropen').addEventListener('click', () => this._unlocked());
     $('pingo').addEventListener('click', () => this._pinTry());
     $('pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') this._pinTry(); });
@@ -101,7 +103,7 @@ export class SafetyPart {
     this._limitsAll = attrs.limits || {};
     if (saved && attrs.settings) {
       const s = attrs.settings;
-      const next = { pin: Boolean(s.pin), discreet: Boolean(s.discreet), name: s.name || 'Studio', users: s.users || [], auto_lock: Number(s.auto_lock) || 0 };
+      const next = { pin: Boolean(s.pin), discreet: Boolean(s.discreet), name: s.name || 'Studio', users: s.users || [], auto_lock: Number(s.auto_lock) || 0, quotes: s.quotes || [] };
       if (JSON.stringify(next) !== JSON.stringify(this._privacy)) {
         this._privacy = next;
         try { localStorage.setItem(PRIVACY_KEY, JSON.stringify(next)); } catch (_) { /* private mode */ }
@@ -165,7 +167,8 @@ export class SafetyPart {
   // ---------------------------------------------------------- privacy
   // A PIN or discreet mode covers the card until it is opened; it locks
   // again after a while unused. The PIN is checked by Home Assistant.
-  get _needsLock() { return Boolean(this._privacy && (this._privacy.pin || this._privacy.discreet)); }
+  // Discreet cards wear the shared cover (lib/cover.js) instead: a saying and More.
+  get _needsLock() { return Boolean(this._privacy && this._privacy.pin && !this._privacy.discreet); }
 
   _lockedNow() {
     if (!this._needsLock) return false;
@@ -193,6 +196,12 @@ export class SafetyPart {
     this._privacyShow();
   }
 
+  // Lock now: discreet covers every Ogg card again; a PIN locks this one.
+  _lockAll() {
+    if (this._privacy && this._privacy.discreet) closeAll();
+    else this._lock();
+  }
+
   _lock() {
     this._unlockAt = 0;
     try { sessionStorage.removeItem(UNLOCK_KEY); } catch (_) { /* private mode */ }
@@ -216,11 +225,15 @@ export class SafetyPart {
     if (!this._el) return;
     const $ = this._el;
     const p = this._privacy || {};
-    // Not one of the chosen users: no card at all.
-    const me = this._hass && this._hass.user && this._hass.user.id;
-    const hide = Boolean(p.users && p.users.length && me && !p.users.includes(me));
-    if (this.hidden !== hide) { this.hidden = hide; this.style.display = hide ? 'none' : ''; }
     const cardEl = this.shadowRoot.querySelector('ha-card');
+    // Not one of the chosen users, or discreet and not opened: only a saying.
+    if (!this._ocov) { this._ocov = makeCover(cardEl); this._ocov.onChange = () => this._privacyShow(); }
+    if (this._ocov.update(this._hass)) {
+      cardEl.classList.remove('locked');
+      $('cover').hidden = true;
+      this._isLocked = true;
+      return;
+    }
     if (this._claimed.size) this._touched();        // driving a device counts as in use
     const locked = this._lockedNow();
     this._isLocked = locked;
@@ -231,7 +244,7 @@ export class SafetyPart {
     if ($('title').textContent !== title) $('title').textContent = title;
     if ($('covername').textContent !== (p.name || 'Studio')) $('covername').textContent = p.name || 'Studio';
     $('sub').hidden = Boolean(p.discreet);
-    $('lockbtn').hidden = !this._needsLock;
+    $('lockbtn').hidden = !this._needsLock && !p.discreet;
     $('coverpin').hidden = !p.pin;
     $('coveropen').hidden = Boolean(p.pin);
     if (this._needsLock && !this._lockTimer) this._lockTimer = setInterval(() => this._privacyShow(), 20000);

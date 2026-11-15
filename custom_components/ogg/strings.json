@@ -72,17 +72,19 @@
           "remove_pin": "Remove the PIN",
           "auto_lock": "Lock again after (minutes idle)",
           "his_user": "His is",
-          "hers_user": "Hers is"
+          "hers_user": "Hers is",
+          "cover_quotes": "Cover sayings"
         },
         "data_description": {
           "no_history": "Clears what the recorder kept about these entities, at start and every half hour. To have nothing written at all, also exclude them in configuration.yaml (see the README).",
-          "discreet": "Cards open covered, with a neutral title, no device names and no version line.",
+          "discreet": "Every Ogg card shows only a saying until More is pressed (and the PIN, if set); More opens all of them in that browser for two hours.",
           "discreet_name": "The title shown on a discreet or locked card.",
-          "users": "Leave empty for everyone. Others do not see the cards and cannot call OggStudio's services. Stopping always works.",
+          "users": "Leave empty for everyone. Others see only a saying on Ogg's cards and cannot call OggStudio's services. Stopping always works.",
           "pin": "4 to 32 characters. Leave empty to keep the current one.",
           "auto_lock": "0 keeps a card unlocked until the browser tab closes.",
           "his_user": "The Home Assistant user his toys and his queue belong to. The Queue card then shows names, and says who sent what to whom.",
-          "hers_user": "The Home Assistant user her toys and her queue belong to."
+          "hers_user": "The Home Assistant user her toys and her queue belong to.",
+          "cover_quotes": "One per line. A covered card (discreet, or someone not chosen above) shows one of these at random. Leave empty for Ogg's own."
         }
       }
     },

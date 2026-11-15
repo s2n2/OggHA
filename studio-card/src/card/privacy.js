@@ -5,6 +5,7 @@
 // Assistant; whoever turned it on still sees everything as usual, on every
 // device they are signed in on (lib/private.js, custom_components/ogg/private.py).
 import { oggPrivate } from '../lib/private.js';
+import { makeCover } from '../lib/cover.js';
 
 export const PRIVACY_TAG = 'ogg-privacy-card';
 
@@ -60,6 +61,8 @@ export class OggPrivacyCard extends HTMLElement {
       </div></ha-card>`;
       this.shadowRoot.getElementById('sw').addEventListener('click', () => this._toggle());
     }
+    if (!this._ocov) this._ocov = makeCover(this.shadowRoot.querySelector('ha-card'));
+    if (this._hass) this._ocov.update(this._hass);
     const $ = (id) => this.shadowRoot.getElementById(id);
     const p = oggPrivate();
     const mineOn = p.on && p.mine;
