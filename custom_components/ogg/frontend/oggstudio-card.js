@@ -8862,8 +8862,13 @@ button.small{min-height:36px;border-radius:11px;padding:0 10px;font-size:12px;fl
 .seg{display:flex;border:1px solid var(--edge);border-radius:14px;overflow:hidden}
 .seg button{flex:1;border:0;border-radius:0;background:transparent;color:var(--muted);min-height:40px}
 .seg button.on{background:#23405f;color:#e9fffb}
-.steps{display:flex;flex-direction:column;gap:8px}
-.step{border:1px solid var(--edge);border-radius:16px;background:#121b31;padding:8px;display:flex;flex-direction:column;gap:6px;transition:transform .12s}
+.steps{display:flex;flex-direction:column;gap:12px}
+.step{--k:#67e0c8;--kt:rgba(103,224,200,.12);border:1px solid var(--edge);border-left:5px solid var(--k);border-radius:16px;
+  background:linear-gradient(100deg,var(--kt),#111a2f 55%);box-shadow:0 3px 12px rgba(0,0,0,.28);padding:9px 9px 9px 8px;display:flex;flex-direction:column;gap:6px;transition:transform .12s}
+.step.k-pattern{--k:#31c6b8;--kt:rgba(49,198,184,.16)}
+.step.k-mood{--k:#ff8fc0;--kt:rgba(255,143,192,.15)}
+.step.k-script{--k:#7aa8ff;--kt:rgba(122,168,255,.15)}
+.step.k-pause{--k:#8b97b3;--kt:rgba(139,151,179,.12)}
 .step.drag{opacity:.85;box-shadow:0 10px 30px rgba(0,0,0,.45);border-color:#67e0c8;transition:none;position:relative;z-index:2}
 .step .top{display:flex;gap:6px;align-items:center}
 .step .top select{padding:8px 10px;border-radius:11px;font-size:13px}
@@ -8872,7 +8877,7 @@ button.small{min-height:36px;border-radius:11px;padding:0 10px;font-size:12px;fl
 .kind{flex:0 0 auto;font-size:15px}
 .handle{flex:0 0 34px;height:38px;display:grid;place-items:center;border-radius:10px;color:var(--muted);cursor:grab;touch-action:none;font-size:18px;user-select:none}
 .handle:active{cursor:grabbing}
-.num{flex:0 0 auto;font-size:11px;color:var(--muted);font-weight:800;width:16px;text-align:center}
+.num{flex:0 0 22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11.5px;font-weight:850;color:#0b1022;background:var(--k)}
 .x{flex:0 0 34px;min-height:34px;padding:0;border-radius:10px;background:transparent;border-color:transparent;color:var(--muted);font-size:15px}
 .sl{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted)}
 .sl span{flex:0 0 58px}.sl b{flex:0 0 36px;text-align:right;color:#d5dcf7;font-variant-numeric:tabular-nums}
@@ -8898,6 +8903,9 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
 .gift{border:1px solid rgba(255,130,190,.45);background:linear-gradient(110deg,rgba(230,90,160,.16),rgba(143,125,255,.14));border-radius:16px;padding:10px 12px;display:flex;align-items:center;gap:10px}
 .gift .info{flex:1;font-size:13px}
 .toast{min-height:16px;font-size:12.5px;color:#ffcf8a}
+ha-card.embedded{background:transparent;border:0;border-radius:0}
+ha-card.embedded .wrap{padding:0}
+ha-card.embedded .head{display:none}
 [hidden]{display:none!important}
 `;
   var keepGet = () => {
@@ -8971,6 +8979,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
       oggPrivate().attach(hass, this);
       this._hass = oggPrivate().wrap(hass);
       if (!this.shadowRoot) this._build();
+      if (this._config && this._config.embedded) this.shadowRoot.querySelector("ha-card").classList.add("embedded");
       if (!this._ocov) this._ocov = makeCover(this.shadowRoot.querySelector("ha-card"));
       this._ocov.update(this._hass);
       if (!this._regLoaded) {
@@ -9071,7 +9080,13 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
     // The toys Play uses (connected ones only): the ones picked here, else his
     // (or hers) for a script from his (or hers) queue, else every connected
     // toy. None: Play simulates (the player runs, nothing is sent).
+    // Embedded in the Easy card, it plays on the toys picked there (stop entities).
+    set externalTargets(stops) {
+      this._external = Array.isArray(stops) ? stops : null;
+      if (this._$) this._showDevs();
+    }
     _targets() {
+      if (this._external) return this._devices.filter((d) => this._online(d) && this._external.includes(d.stop));
       const online = this._devices.filter((d) => this._online(d));
       if (this._pick) return online.filter((d) => this._pick.has(d.stop));
       const who = this._cur && this._cur.for;
@@ -9247,6 +9262,15 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
     }
     _showDevs() {
       const $ = this._$;
+      if (this._external) {
+        const n = this._targets().length;
+        const html2 = n ? `<span class="src">Plays on the ${n === 1 ? "toy" : `${n} toys`} picked above.</span>` : '<span class="sim">⚠️ No toy picked above: Play simulates (nothing is sent to a toy).</span>';
+        if ($("devs").dataset.html !== html2) {
+          $("devs").innerHTML = html2;
+          $("devs").dataset.html = html2;
+        }
+        return;
+      }
       const targets = new Set(this._targets().map((d) => d.stop));
       const online = this._devices.filter((d) => this._online(d));
       const note = !targets.size ? '<span class="sim">⚠️ No toy selected: Play simulates (the player runs, nothing is sent to a toy).</span>' : `<span class="src">${this._pick ? "Plays on the toys you picked." : "Plays on his toys for his queue, hers for hers, else every connected toy. Tap to choose."}</span>`;
@@ -9641,7 +9665,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
       if (full || box.children.length !== this._steps.length) {
         box.innerHTML = this._steps.map((s, i) => {
           const sliders = s.type === "pattern" ? `<label class="sl"><span>Strength</span><input type="range" min="5" max="100" step="5" value="${s.level ?? 70}" data-f="level"><b>${s.level ?? 70}%</b></label><label class="sl"><span>Speed</span><input type="range" min="0" max="100" step="5" value="${s.speed ?? 50}" data-f="speed"><b>${s.speed ?? 50}%</b></label>` : s.type === "mood" ? `<label class="sl"><span>Strength</span><input type="range" min="20" max="100" step="5" value="${s.level ?? 100}" data-f="level"><b>${s.level ?? 100}%</b></label>` : "";
-          return `<div class="step" data-id="${s.id}">
+          return `<div class="step k-${s.type}" data-id="${s.id}">
           <div class="top"><div class="handle" tabindex="0" role="button" aria-label="Drag to move step ${i + 1} (or use the arrow keys)">⠿</div><span class="num">${i + 1}</span>
             <span class="kind" title="${KIND[s.type][1]}">${KIND[s.type][0]}</span>
             <select class="what" data-f="what" aria-label="${KIND[s.type][1]}"${s.type === "pause" ? " disabled" : ""}>${this._whatOptions(s)}</select>
@@ -10183,7 +10207,8 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       for (const m of ["play", "queue", "other"]) this._$(`p-${m}`).hidden = m !== mode;
       if (mode === "queue" && !this._queueCard) {
         this._queueCard = document.createElement("ogg-queue-card");
-        this._queueCard.setConfig({});
+        this._queueCard.setConfig({ embedded: true });
+        this._queueCard.externalTargets = this._targets().map((d) => d.stop);
         this._$("p-queue").appendChild(this._queueCard);
         if (this._rawHass) this._queueCard.hass = this._rawHass;
       }
@@ -10261,6 +10286,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         sc.dataset.h = html;
         if (names.includes(v)) sc.value = v;
       }
+      if (this._queueCard) this._queueCard.externalTargets = this._targets().map((d) => d.stop);
       const key = JSON.stringify(this._channels().map.map((x) => [x.d.stop, x.ch]));
       if (key !== this._chKey) {
         this._chKey = key;

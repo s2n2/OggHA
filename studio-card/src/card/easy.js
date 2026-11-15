@@ -256,7 +256,8 @@ export class OggEasyCard extends HTMLElement {
     // The Queue card and the media sections join when first wanted.
     if (mode === 'queue' && !this._queueCard) {
       this._queueCard = document.createElement('ogg-queue-card');
-      this._queueCard.setConfig({});
+      this._queueCard.setConfig({ embedded: true });
+      this._queueCard.externalTargets = this._targets().map((d) => d.stop);
       this._$('p-queue').appendChild(this._queueCard);
       if (this._rawHass) this._queueCard.hass = this._rawHass;
     }
@@ -321,6 +322,7 @@ export class OggEasyCard extends HTMLElement {
     const sc = $('scsel');
     const html = names.length ? names.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('') : '<option value="">No saved scripts yet</option>';
     if (sc.dataset.h !== html) { const v = sc.value; sc.innerHTML = html; sc.dataset.h = html; if (names.includes(v)) sc.value = v; }
+    if (this._queueCard) this._queueCard.externalTargets = this._targets().map((d) => d.stop);
     const key = JSON.stringify(this._channels().map.map((x) => [x.d.stop, x.ch]));
     if (key !== this._chKey) { this._chKey = key; this._showPads(); if (this._mode === 'other') this._media(); }
   }
