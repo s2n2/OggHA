@@ -1,3 +1,8 @@
+## 3.3.1 - Queue card: the Play card's toys, live levels
+- The Queue card's Play uses the toys chosen under **Devices** on the Play card (in the same browser), including a stroker set to stroke. Without them it works as before: his toys for his queue, hers for hers, or the ones you tap.
+- Each toy shows its live level (vibration, both motors) or stroke position.
+- Step times now start at 5 and 10 seconds, and **Custom…** takes any time, like 7, 45s, 1:30 or 2m.
+
 ## 3.3.0 - Queue card: make one, send it
 - **Queue card** (`type: custom:ogg-queue-card`), a card on its own:
   - **Make a queue:** patterns, moods, saved scripts and pauses, each for a set time (15 s to an hour), with strength and speed. Drag the handle to reorder. Built for vibrators or for a stroker.

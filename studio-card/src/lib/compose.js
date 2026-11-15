@@ -14,7 +14,7 @@ import { simplify } from '../card/screenoff.js';
 export const STEP_MS = 50;                       // patterns are worked out every 50 ms
 export const MAX_STEP_MS = 60 * 60 * 1000;       // one step: up to an hour
 export const MAX_TOTAL_MS = 6 * 60 * 60 * 1000;  // a whole script: up to six hours (Ogg's limit)
-export const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600];   // s
+export const DURATIONS = [5, 10, 15, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600];   // s
 
 const clamp = (v) => Math.min(100, Math.max(0, v));
 const isDual = (key) => key in PATTERNS_DUAL;
@@ -25,6 +25,18 @@ export function clock(ms) {
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
   const two = (n) => String(n).padStart(2, '0');
   return h ? `${h}:${two(m)}:${two(r)}` : `${m}:${two(r)}`;
+}
+
+// A typed time: "90", "1:30", "1:02:03", "2m", "45s", "1m30s", "1.5 min".
+// Seconds, or null when it cannot be read.
+export function parseTime(text) {
+  const s = String(text || '').trim().toLowerCase().replace(/\s+/g, '');
+  if (!s) return null;
+  if (/^\d+(:\d{1,2}){1,2}$/.test(s)) return s.split(':').reduce((n, x) => n * 60 + Number(x), 0);
+  if (/^\d+(\.\d+)?$/.test(s)) return Number(s);
+  const m = /^(?:(\d+(?:\.\d+)?)h(?:ours?|rs?)?)?(?:(\d+(?:\.\d+)?)m(?:in(?:ute)?s?)?)?(?:(\d+(?:\.\d+)?)s(?:ec(?:ond)?s?)?)?$/.exec(s);
+  if (!m || (!m[1] && !m[2] && !m[3])) return null;
+  return Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0);
 }
 
 // The default name: its length, then the date and time it was made.

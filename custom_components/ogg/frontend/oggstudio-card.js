@@ -8510,7 +8510,7 @@ h2{margin:0;font-size:19px;letter-spacing:-.03em;font-weight:780}
   var STEP_MS = 50;
   var MAX_STEP_MS = 60 * 60 * 1e3;
   var MAX_TOTAL_MS = 6 * 60 * 60 * 1e3;
-  var DURATIONS = [15, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600];
+  var DURATIONS = [5, 10, 15, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600];
   var clamp2 = (v) => Math.min(100, Math.max(0, v));
   var isDual = (key) => key in PATTERNS_DUAL;
   function clock(ms) {
@@ -8518,6 +8518,15 @@ h2{margin:0;font-size:19px;letter-spacing:-.03em;font-weight:780}
     const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = s % 60;
     const two = (n) => String(n).padStart(2, "0");
     return h ? `${h}:${two(m)}:${two(r)}` : `${m}:${two(r)}`;
+  }
+  function parseTime(text) {
+    const s = String(text || "").trim().toLowerCase().replace(/\s+/g, "");
+    if (!s) return null;
+    if (/^\d+(:\d{1,2}){1,2}$/.test(s)) return s.split(":").reduce((n, x) => n * 60 + Number(x), 0);
+    if (/^\d+(\.\d+)?$/.test(s)) return Number(s);
+    const m = /^(?:(\d+(?:\.\d+)?)h(?:ours?|rs?)?)?(?:(\d+(?:\.\d+)?)m(?:in(?:ute)?s?)?)?(?:(\d+(?:\.\d+)?)s(?:ec(?:ond)?s?)?)?$/.exec(s);
+    if (!m || !m[1] && !m[2] && !m[3]) return null;
+    return Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0);
   }
   function defaultName(ms, now = /* @__PURE__ */ new Date()) {
     const day = now.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
@@ -8705,6 +8714,15 @@ button.small{min-height:36px;border-radius:11px;padding:0 10px;font-size:12px;fl
 .dev{flex:0 0 auto;min-height:36px;border-radius:20px;padding:0 12px;font-size:12px;background:transparent;border-color:var(--edge);color:var(--muted)}
 .dev.on{background:#23405f;border-color:#67e0c8;color:#e9fffb}
 .dev.off{opacity:.55}
+.dev{display:inline-flex;align-items:center;gap:6px}
+.lv{display:inline-flex;flex-direction:column;justify-content:center;gap:2px;width:38px;height:14px}
+.lv i{display:block;height:4px;border-radius:2px;background:#22304d;overflow:hidden;position:relative}
+.lv i b{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#2fbfa9,#8ff0dc);transition:width .2s linear}
+.lv.lin i b{width:8px!important;left:var(--p,0%);margin-left:-4px;border-radius:2px;background:#ffb3d9;transition:left .25s linear}
+.lv.lin i{height:6px}
+.pct{font-size:11px;font-weight:800;color:#e9fffb;font-variant-numeric:tabular-nums;min-width:28px;text-align:right}
+.dev.off .lv,.dev.off .pct{display:none}
+.src{font-size:11.5px;color:var(--muted);align-self:center;flex:1 1 100%}
 .chip{display:inline-block;font-size:10px;font-weight:850;letter-spacing:.06em;text-transform:uppercase;border-radius:8px;padding:1px 6px;margin-left:5px;border:1px solid}
 .chip.his{color:#bcd3ff;border-color:rgba(120,170,255,.45)}
 .chip.hers{color:#ffc4e2;border-color:rgba(255,130,190,.45)}
@@ -8869,7 +8887,11 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
           if (u.endsWith(":owner")) d.owner = e.entity_id;
           if (u.endsWith(":connected")) d.connected = e.entity_id;
           if (u.endsWith(":motor_level_1")) d.dual = true;
-          if (u.endsWith(":linear_0")) d.linear = true;
+          if (u.endsWith(":linear_0")) {
+            d.linear = true;
+            d.position = e.entity_id;
+          }
+          if (u.endsWith(":status")) d.status = e.entity_id;
           if (u.endsWith(":intensity") || u.endsWith(":motor_level_0")) d.vibe = true;
           by.set(e.device_id, d);
         }
@@ -8887,9 +8909,38 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
       const s = d.connected && this._hass.states[d.connected];
       return !s || s.state === "on";
     }
-    // The toys Play uses: the ones picked here, else his (or hers) for a
-    // script from his (or hers) queue, else every connected toy.
+    // The toys the Play card (in this browser) has under Devices, switched on:
+    // [{dev, as: 'linear' | 'vibrate'}], or null when it has none.
+    _playCardPicks() {
+      let saved = null;
+      try {
+        saved = JSON.parse(localStorage.getItem(OUT_KEY) || "null");
+      } catch (_) {
+        saved = null;
+      }
+      if (!saved || !Array.isArray(saved.t)) return null;
+      const on = Array.isArray(saved.on) ? saved.on : [];
+      const out = /* @__PURE__ */ new Map();
+      saved.t.forEach((target, i) => {
+        const pt = on[i] !== false && parseTarget(target);
+        const dev = pt && this._devices.find((d) => d.id === pt.id);
+        if (!dev) return;
+        const as = pt.motor === "l" ? "linear" : "vibrate";
+        const had = out.get(dev.id);
+        out.set(dev.id, { ...dev, as: had && had.as !== as ? "both" : as });
+      });
+      return out.size ? [...out.values()] : null;
+    }
+    // Where Play's toys come from: the Play card, picked here, or auto.
+    get _source() {
+      return this._playCardPicks() ? "play" : this._pick ? "mine" : "auto";
+    }
+    // The toys Play uses: the Play card's Devices, else the ones picked here,
+    // else his (or hers) for a script from his (or hers) queue, else every
+    // connected toy.
     _targets() {
+      const fromPlay = this._playCardPicks();
+      if (fromPlay) return fromPlay;
       if (this._pick) return this._devices.filter((d) => this._pick.has(d.stop));
       const who = this._cur && this._cur.for;
       const theirs = who ? this._devices.filter((d) => this._whose(d) === who) : [];
@@ -9039,17 +9090,48 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
     _showDevs() {
       const $ = this._$;
       const targets = new Set(this._targets().map((d) => d.stop));
-      const html = this._devices.length ? `<span class="hint" style="align-self:center">Play on</span>` + this._devices.map((d) => {
+      const source = this._source;
+      const note = { play: "Plays on the toys chosen under Devices on the Play card.", mine: "Plays on the toys you picked here.", auto: "Plays on his toys for his queue, hers for hers, else every connected toy. Tap a toy to choose." }[source];
+      const html = this._devices.length ? this._devices.map((d) => {
         const w = this._whose(d);
-        return `<button type="button" class="dev${targets.has(d.stop) ? " on" : ""}${this._online(d) ? "" : " off"}" data-stop="${esc(d.stop)}" aria-pressed="${targets.has(d.stop)}">${esc(d.name)}${w ? `<span class="chip ${w}">${WHO[w]}</span>` : ""}</button>`;
-      }).join("") + (this._pick ? '<button type="button" class="dev" data-auto="1">Auto</button>' : "") : '<span class="hint">No Ogg toys found yet.</span>';
+        const lin = d.linear && !d.vibe;
+        return `<button type="button" class="dev${targets.has(d.stop) ? " on" : ""}${this._online(d) ? "" : " off"}" data-stop="${esc(d.stop)}" aria-pressed="${targets.has(d.stop)}">${esc(d.name)}${w ? `<span class="chip ${w}">${WHO[w]}</span>` : ""}<span class="lv${lin ? " lin" : ""}" data-lv="${esc(d.stop)}" aria-hidden="true"><i><b></b></i>${!lin && d.dual ? "<i><b></b></i>" : ""}</span><span class="pct" data-pct="${esc(d.stop)}"></span></button>`;
+      }).join("") + (source === "mine" ? '<button type="button" class="dev" data-auto="1">Auto</button>' : "") + `<span class="src">${note}</span>` : '<span class="hint">No Ogg toys found yet.</span>';
       if ($("devs").dataset.html !== html) {
         $("devs").innerHTML = html;
         $("devs").dataset.html = html;
       }
+      this._showLevels();
+    }
+    // Live: each connected toy's level (vibration) or position (stroker).
+    _showLevels() {
+      const root = this.shadowRoot;
+      for (const d of this._devices) {
+        const lv = root.querySelector(`[data-lv="${CSS.escape(d.stop)}"]`);
+        const pct = root.querySelector(`[data-pct="${CSS.escape(d.stop)}"]`);
+        if (!lv || !pct) continue;
+        if (d.linear && !d.vibe) {
+          const s = d.position && this._hass.states[d.position];
+          const v = s ? Math.max(0, Math.min(100, Number(s.state) || 0)) : 0;
+          lv.style.setProperty("--p", `${v}%`);
+          pct.textContent = `↕${Math.round(v)}`;
+          continue;
+        }
+        const st = d.status && this._hass.states[d.status];
+        const out = (st && Array.isArray(st.attributes.output) ? st.attributes.output : []).map((x) => Math.max(0, Math.min(100, Number(x) || 0)));
+        const bars = lv.querySelectorAll("b");
+        bars.forEach((b, i) => {
+          b.style.width = `${out[i] ?? out[0] ?? 0}%`;
+        });
+        pct.textContent = `${Math.round(Math.max(0, ...out))}%`;
+      }
     }
     _toggleDev(b) {
       if (!b) return;
+      if (this._source === "play") {
+        this._toast("Play uses the toys chosen under Devices on the Play card: change them there.");
+        return;
+      }
       if (b.dataset.auto) {
         this._pick = null;
         keepSet({ devices: null });
@@ -9145,7 +9227,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
     // The script for one toy, inside its limits, from `from` ms.
     _forDevice(d, script) {
       const lim = limitsFor(this._saved && this._saved.attributes.limits, d.stop);
-      if (d.linear && !d.vibe) {
+      if (d.as ? d.as === "linear" : d.linear && !d.vibe) {
         let prev = null;
         const actions = script.actions.map((a, i) => {
           const dur = i ? a.at - script.actions[i - 1].at : 500;
@@ -9364,7 +9446,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
     _lenOptions(step) {
       const s = Math.round((step.ms || 6e4) / 1e3);
       const all = DURATIONS.includes(s) ? DURATIONS : [...DURATIONS, s].sort((a, b) => a - b);
-      return all.map((v) => `<option value="${v}"${v === s ? " selected" : ""}>${clock(v * 1e3)}</option>`).join("");
+      return all.map((v) => `<option value="${v}"${v === s ? " selected" : ""}>${clock(v * 1e3)}</option>`).join("") + '<option value="custom">Custom…</option>';
     }
     _showSteps(full) {
       const box = this._$("steps");
@@ -9411,6 +9493,14 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
         if (f === "what") {
           if (step.type === "script") step.name = e.target.value;
           else step.key = e.target.value;
+        }
+        if (f === "ms" && e.target.value === "custom") {
+          const typed = window.prompt("How long? For example 7, 45s, 1:30 or 2m", clock(step.ms || 6e4));
+          const sec = typed === null ? null : parseTime(typed);
+          if (typed !== null && (sec === null || sec < 1 || sec * 1e3 > MAX_STEP_MS)) this._toast("Type a time from 1 second to an hour, like 7, 45s, 1:30 or 2m.");
+          if (sec !== null && sec >= 1 && sec * 1e3 <= MAX_STEP_MS) step.ms = Math.round(sec) * 1e3;
+          this._stepsChanged(true);
+          return;
         }
         if (f === "ms") step.ms = Number(e.target.value) * 1e3;
         this._stepsChanged(false);

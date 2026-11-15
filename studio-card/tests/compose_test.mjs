@@ -1,6 +1,6 @@
 // The Queue card's builder: steps made into one script.
 import assert from 'assert';
-import { clock, composeScript, defaultName, renderMood, renderPattern, stepsMs } from '../src/lib/compose.js';
+import { clock, composeScript, defaultName, parseTime, renderMood, renderPattern, stepsMs } from '../src/lib/compose.js';
 import { duration } from '../src/lib/core.js';
 
 const sorted = (t) => t.every((p, i) => i === 0 || p.at > t[i - 1].at);
@@ -55,5 +55,11 @@ assert.strictEqual(duration(st), 115000);
 // A missing saved script says so; an empty list says so.
 assert.throws(() => composeScript([{ type: 'script', name: 'Gone', ms: 1000 }]), /Gone/);
 assert.throws(() => composeScript([]), /step/);
+
+// Typed times.
+for (const [text, sec] of [['7', 7], ['45s', 45], ['1:30', 90], ['2m', 120], ['1m30s', 90], ['1.5 min', 90], ['1:02:03', 3723], ['1h', 3600], ['10 sec', 10]]) {
+  assert.strictEqual(parseTime(text), sec, text);
+}
+for (const bad of ['', 'soon', '1:2:3:4', 'm']) assert.strictEqual(parseTime(bad), null, bad);
 
 console.log('compose ok');
