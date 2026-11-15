@@ -1,3 +1,7 @@
+## 3.5.0 - Together: both switches on both screens
+- **Sync both is shared:** your partner can switch it on their Together page as well, and whoever changes it, both screens show the same.
+- **Your partner's consent:** their page has "Let my partner play my toys" for the toys they picked. Off, your controls leave their toys alone and your card says they have paused it.
+
 ## 3.4.1 - Queue card layout; one place for queues
 - Queue card: **His & hers queues** now sits above **Make a queue**, and both have a heading you can tap to fold (remembered in each browser).
 - The Play card's own ☰ Queue section is gone: the Queue card does more (his and hers queues, a played list, timed steps, Send). Saved playlists stay in Ogg and still play with the `ogg.studio_*` services.

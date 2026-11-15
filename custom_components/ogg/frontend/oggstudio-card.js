@@ -4982,7 +4982,7 @@ ${STYLES}
       let targets = this._outs.map((o, i) => this._outTargetValue(i));
       values = values.map((v, i) => this._outs[i] && this._outs[i].on === false ? null : v);
       const tg = this._tg;
-      const partner = tg && tg.joined && tg.partner && tg.partner.length ? tg.partner : null;
+      const partner = tg && tg.joined && tg.partnerAllow !== false && tg.partner && tg.partner.length ? tg.partner : null;
       if (partner) {
         const pv = partner.map((t, j) => {
           const v = values[j % 2];
@@ -6451,6 +6451,7 @@ ${STYLES}
         offer: {},
         offerKey: "",
         partner: [],
+        partnerAllow: true,
         sync: false,
         rec: null,
         outLevel: 0
@@ -6507,7 +6508,7 @@ ${STYLES}
       const name = !discreet && this._hass && this._hass.user && String(this._hass.user.name || "").trim();
       if (name) this._tgSend({ name: name.slice(0, 30) });
       tg.offerKey = "";
-      if (tg.sync) this._tgSend({ sync: true });
+      this._tgSend({ sync: Boolean(tg.sync) });
     }
     // Toys I am not using, offered to my partner as theirs to pick (his/hers shown).
     _tgOffer() {
@@ -6626,7 +6627,18 @@ ${STYLES}
           this._toast(tg.partner.length ? "Your partner picked their toys: your controls now play them." : "Your partner put their toys back.");
         }
       }
-      if (typeof d.sync === "boolean" && tg.role === "guest") tg.sync = d.sync;
+      if (typeof d.sync === "boolean" && d.sync !== tg.sync) {
+        tg.sync = d.sync;
+        if (tg.role === "host") {
+          this._outStop();
+          this._toast(d.sync ? "Your partner turned Sync on: you both feel the same." : "Your partner turned Sync off.");
+        }
+      }
+      if (typeof d.allow === "boolean" && tg.role === "host" && d.allow !== tg.partnerAllow) {
+        tg.partnerAllow = d.allow;
+        this._outStop();
+        this._toast(d.allow ? "Your partner lets you play their toys again." : "Your partner paused you playing their toys.");
+      }
       if (typeof d.rec === "boolean" && tg.role === "guest") this._toast(d.rec ? "Your partner is recording what you send." : "Your partner stopped recording.");
       if (d.stop === true) {
         this._tgStopLocal(false);
@@ -6765,7 +6777,7 @@ ${STYLES}
       const mineList = (this._outs || []).map((o, i) => this._outDevice(i)).filter(Boolean);
       const theirs = tg.partner.map((t) => this._devices.find((d) => d.id === t.split("|")[0])).filter(Boolean);
       const row = (label, list, empty) => `<div class="tgrow"><span class="tglab">${label}</span>${list.length ? list.map((d) => `<span class="tgtoy">${esc2(d.name)}${chip(d)}</span>`).join("") : `<span class="tgnone">${empty}</span>`}</div>`;
-      const html = tg.role !== "host" ? "" : row("Your toys", mineList, "none chosen under Devices") + row("Their toys", theirs, tg.joined ? "they can pick theirs on their page" : "when they join");
+      const html = tg.role !== "host" ? "" : row("Your toys", mineList, "none chosen under Devices") + row("Their toys", theirs, tg.joined ? "they can pick theirs on their page" : "when they join") + (theirs.length && tg.partnerAllow === false ? '<div class="tgrow"><span class="tglab"></span><span class="tgnone">⏸ they have paused you playing their toys</span></div>' : "");
       if ($("tgtoys").innerHTML !== html) $("tgtoys").innerHTML = html;
       $("tgsync").checked = tg.sync;
       $("tgsync").disabled = !tg.joined;

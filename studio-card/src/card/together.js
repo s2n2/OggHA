@@ -31,7 +31,7 @@ export class TogetherPart {
   _tgNew(role) {
     if (this._tg) this._tgEnd();
     const tg = { role, joined: false, theirs: false, name: '', in: null, link: '', token: null, sentAccept: null, lastOut: 0, outAt: 0, pingAt: 0, driving: false,
-      offer: {}, offerKey: '', partner: [], sync: false, rec: null, outLevel: 0 };
+      offer: {}, offerKey: '', partner: [], partnerAllow: true, sync: false, rec: null, outLevel: 0 };
     this._tg = tg;
     clearInterval(this._tgTimer);
     this._tgTimer = setInterval(() => this._tgTick(), 100);
@@ -75,7 +75,7 @@ export class TogetherPart {
     const name = !discreet && this._hass && this._hass.user && String(this._hass.user.name || '').trim();
     if (name) this._tgSend({ name: name.slice(0, 30) });
     tg.offerKey = '';               // the tick offers them the toys I am not using
-    if (tg.sync) this._tgSend({ sync: true });
+    this._tgSend({ sync: Boolean(tg.sync) });     // the same on both screens
   }
 
   // Toys I am not using, offered to my partner as theirs to pick (his/hers shown).
@@ -166,7 +166,16 @@ export class TogetherPart {
       tg.partner = d.mine.map((k) => tg.offer[k]).filter(Boolean).slice(0, 4);
       if (tg.partner.join() !== before) { this._outStop(); this._toast(tg.partner.length ? 'Your partner picked their toys: your controls now play them.' : 'Your partner put their toys back.'); }
     }
-    if (typeof d.sync === 'boolean' && tg.role === 'guest') tg.sync = d.sync;
+    if (typeof d.sync === 'boolean' && d.sync !== tg.sync) {
+      // Either of us may switch Sync: both screens show the same.
+      tg.sync = d.sync;
+      if (tg.role === 'host') { this._outStop(); this._toast(d.sync ? 'Your partner turned Sync on: you both feel the same.' : 'Your partner turned Sync off.'); }
+    }
+    if (typeof d.allow === 'boolean' && tg.role === 'host' && d.allow !== tg.partnerAllow) {
+      tg.partnerAllow = d.allow;
+      this._outStop();
+      this._toast(d.allow ? 'Your partner lets you play their toys again.' : 'Your partner paused you playing their toys.');
+    }
     if (typeof d.rec === 'boolean' && tg.role === 'guest') this._toast(d.rec ? 'Your partner is recording what you send.' : 'Your partner stopped recording.');
     if (d.stop === true) { this._tgStopLocal(false); this._toast('Your partner stopped both sides.'); }
   }
@@ -277,7 +286,8 @@ export class TogetherPart {
     const theirs = tg.partner.map((t) => this._devices.find((d) => d.id === t.split('|')[0])).filter(Boolean);
     const row = (label, list, empty) => `<div class="tgrow"><span class="tglab">${label}</span>${list.length ? list.map((d) => `<span class="tgtoy">${esc(d.name)}${chip(d)}</span>`).join('') : `<span class="tgnone">${empty}</span>`}</div>`;
     const html = tg.role !== 'host' ? '' : row('Your toys', mineList, 'none chosen under Devices')
-      + row('Their toys', theirs, tg.joined ? 'they can pick theirs on their page' : 'when they join');
+      + row('Their toys', theirs, tg.joined ? 'they can pick theirs on their page' : 'when they join')
+      + (theirs.length && tg.partnerAllow === false ? '<div class="tgrow"><span class="tglab"></span><span class="tgnone">⏸ they have paused you playing their toys</span></div>' : '');
     if ($('tgtoys').innerHTML !== html) $('tgtoys').innerHTML = html;
     $('tgsync').checked = tg.sync;
     $('tgsync').disabled = !tg.joined;

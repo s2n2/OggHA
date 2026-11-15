@@ -1183,6 +1183,13 @@
   var tapAt = 0;
   var offer = [];
   var mine = /* @__PURE__ */ new Set();
+  var allow = true;
+  var sync = false;
+  var theyLet = false;
+  try {
+    allow = localStorage.getItem("ogg_together_allow") !== "0";
+  } catch (_) {
+  }
   var state = (text, live) => {
     $2("state").textContent = text;
     $2("state").classList.toggle("wait", !live);
@@ -1238,6 +1245,13 @@
     $2("ptgo").classList.toggle("on", Boolean(pt));
     for (const b of document.querySelectorAll("#moods button")) b.classList.toggle("on", Boolean(mood && b.dataset.mood === mood.key));
     $2("moodinfo").textContent = mood ? `${MOODS[mood.key].icon} ${MOODS[mood.key].label}: ${mood.name || ""}` : "";
+    $2("allow").checked = allow;
+    $2("allow").disabled = !mine.size;
+    $2("allowhint").textContent = !mine.size ? "Pick your toys above first." : allow ? "They can play your toys now." : "Paused: your toys do not follow them.";
+    $2("sync").checked = sync;
+    $2("synchint").textContent = sync ? "On: you both feel the same. It shows on their screen too." : "Off: you play their toys, they play yours.";
+    $2("syncnote").hidden = !sync;
+    $2("ctlh").textContent = sync ? "Both of your toys" : "Your partner's toys";
     $2("toyhint").textContent = offer.length ? "Tap yours: your partner can then play them." : "None free yet: your partner is using every connected toy. If one of them is yours, ask them to take it out of their Devices, and it shows up here.";
     $2("toys").replaceChildren(...offer.map((d) => {
       const b = document.createElement("button");
@@ -1290,7 +1304,10 @@
         $2("in").style.width = `${incoming}%`;
       }
       if (data.name) $2("inlbl").textContent = `From ${data.name}`;
-      if (typeof data.accept === "boolean") state(data.accept ? "You are playing their toys" : "Connected: waiting for them to let you play", data.accept);
+      if (typeof data.accept === "boolean") {
+        theyLet = data.accept;
+        state(data.accept ? "You are playing their toys" : "Connected: waiting for them to let you play", data.accept);
+      }
       if (Array.isArray(data.devices)) {
         offer = data.devices;
         mine = new Set([...mine].filter((k) => offer.some((d) => d.k === k)));
@@ -1298,8 +1315,8 @@
       }
       if (typeof data.rec === "boolean") $2("recnote").hidden = !data.rec;
       if (typeof data.sync === "boolean") {
-        $2("syncnote").hidden = !data.sync;
-        $2("ctlh").textContent = data.sync ? "Both of your toys" : "Your partner's toys";
+        sync = data.sync;
+        show2();
       }
     };
     ws.onclose = () => {
@@ -1318,9 +1335,24 @@
     const name = $2("name").value.trim();
     if (name) send({ name });
     send({ accept: false });
+    send({ allow });
     if (mine.size) send({ mine: [...mine] });
   }
   $2("name").addEventListener("change", hello);
+  $2("allow").addEventListener("change", () => {
+    allow = $2("allow").checked;
+    try {
+      localStorage.setItem("ogg_together_allow", allow ? "1" : "0");
+    } catch (_) {
+    }
+    send({ allow });
+    show2();
+  });
+  $2("sync").addEventListener("change", () => {
+    sync = $2("sync").checked;
+    send({ sync });
+    show2();
+  });
   for (const b of document.querySelectorAll(".tabs button")) b.addEventListener("click", () => {
     tab = b.dataset.tab;
     if (tab === "queue") refresh();

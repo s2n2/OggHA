@@ -170,8 +170,9 @@ async def main():
         await guest.send_str("not json")
         await guest.send_str('{"v":[1],"pad":"' + "x" * 600 + '"}')         # too long: dropped
         await guest.send_json({"stop": True})
+        await guest.send_json({"sync": True, "allow": False, "evil": 1})
         await asyncio.sleep(0.05)
-        assert [e["data"] for e in events if e["event"] == "msg"] == [{"v": [42.0]}, {"stop": True}]
+        assert [e["data"] for e in events if e["event"] == "msg"] == [{"v": [42.0]}, {"stop": True}, {"sync": True, "allow": False}]
 
         # the rate limit
         before = len(events)

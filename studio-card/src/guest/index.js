@@ -31,6 +31,10 @@ let lastIn = 0;
 let tapAt = 0;
 let offer = [];                // toys the host offers
 let mine = new Set();          // the ones picked as mine
+let allow = true;              // may my partner play my toys?
+let sync = false;              // both feel the same (either of us may switch it)
+let theyLet = false;           // may I play theirs (their switch)?
+try { allow = localStorage.getItem('ogg_together_allow') !== '0'; } catch (_) { /* private browsing */ }
 
 const state = (text, live) => { $('state').textContent = text; $('state').classList.toggle('wait', !live); };
 const send = (data) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(data)); };
@@ -83,6 +87,14 @@ function show() {
   for (const b of document.querySelectorAll('#moods button')) b.classList.toggle('on', Boolean(mood && b.dataset.mood === mood.key));
   $('moodinfo').textContent = mood ? `${MOODS[mood.key].icon} ${MOODS[mood.key].label}: ${mood.name || ''}` : '';
   // Their toys: offered by the host, picked here.
+  // The switches: mine (my toys), and Sync (shared by both of us).
+  $('allow').checked = allow;
+  $('allow').disabled = !mine.size;
+  $('allowhint').textContent = !mine.size ? 'Pick your toys above first.' : allow ? 'They can play your toys now.' : 'Paused: your toys do not follow them.';
+  $('sync').checked = sync;
+  $('synchint').textContent = sync ? 'On: you both feel the same. It shows on their screen too.' : 'Off: you play their toys, they play yours.';
+  $('syncnote').hidden = !sync;
+  $('ctlh').textContent = sync ? 'Both of your toys' : "Your partner's toys";
   $('toyhint').textContent = offer.length ? 'Tap yours: your partner can then play them.'
     : 'None free yet: your partner is using every connected toy. If one of them is yours, ask them to take it out of their Devices, and it shows up here.';
   $('toys').replaceChildren(...offer.map((d) => {
@@ -119,13 +131,10 @@ function connect() {
     if (data.stop) { stopAll(false); state('Your partner pressed Stop', true); }
     if (Array.isArray(data.v)) { incoming = Math.max(...data.v); lastIn = Date.now(); $('in').style.width = `${incoming}%`; }
     if (data.name) $('inlbl').textContent = `From ${data.name}`;
-    if (typeof data.accept === 'boolean') state(data.accept ? 'You are playing their toys' : 'Connected: waiting for them to let you play', data.accept);
+    if (typeof data.accept === 'boolean') { theyLet = data.accept; state(data.accept ? 'You are playing their toys' : 'Connected: waiting for them to let you play', data.accept); }
     if (Array.isArray(data.devices)) { offer = data.devices; mine = new Set([...mine].filter((k) => offer.some((d) => d.k === k))); show(); }
     if (typeof data.rec === 'boolean') $('recnote').hidden = !data.rec;
-    if (typeof data.sync === 'boolean') {
-      $('syncnote').hidden = !data.sync;
-      $('ctlh').textContent = data.sync ? 'Both of your toys' : "Your partner's toys";
-    }
+    if (typeof data.sync === 'boolean') { sync = data.sync; show(); }
   };
   ws.onclose = () => {
     ws = null;
@@ -140,11 +149,19 @@ function hello() {
   const name = $('name').value.trim();
   if (name) send({ name });
   send({ accept: false });
+  send({ allow });
   if (mine.size) send({ mine: [...mine] });
 }
 
 // ---------------------------------------------------------- controls
 $('name').addEventListener('change', hello);
+$('allow').addEventListener('change', () => {
+  allow = $('allow').checked;
+  try { localStorage.setItem('ogg_together_allow', allow ? '1' : '0'); } catch (_) { /* private browsing */ }
+  send({ allow });
+  show();
+});
+$('sync').addEventListener('change', () => { sync = $('sync').checked; send({ sync }); show(); });
 for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => { tab = b.dataset.tab; if (tab === 'queue') queueRefresh(); show(); });
 const pad = $('pad');
 const at = (e) => { const r = pad.getBoundingClientRect(); level = Math.min(100, Math.max(0, (r.bottom - e.clientY) / r.height * 100)); show(); };

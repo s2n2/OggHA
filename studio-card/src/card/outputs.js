@@ -180,7 +180,7 @@ export class OutputsPart {
     // Together, with my partner's toys picked: my controls play theirs and
     // what they send plays mine; with Sync, both play both.
     const tg = this._tg;
-    const partner = tg && tg.joined && tg.partner && tg.partner.length ? tg.partner : null;
+    const partner = tg && tg.joined && tg.partnerAllow !== false && tg.partner && tg.partner.length ? tg.partner : null;
     if (partner) {
       const pv = partner.map((t, j) => { const v = values[j % 2]; return v === undefined || v === null ? (values[0] ?? null) : v; });
       if (path !== 'partner') {

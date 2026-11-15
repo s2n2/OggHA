@@ -7,7 +7,8 @@ Assistant over one websocket that needs no sign-in, and can do nothing else
 with it:
 
 * only tiny messages pass, with known keys: ``v`` (one or two levels 0-100),
-  ``stop``, ``accept``, ``name`` and ``ping``;
+  ``stop``, ``accept``, ``allow``, ``sync``, ``name``, ``ping`` and the
+  toys offered and picked;
 * they go to the host's card and nowhere else. The card decides what to do
   with them (its own limits, its own Stop, and only while the host has
   switched on "let my partner control my toys");
@@ -79,7 +80,9 @@ def clean_message(data: Any) -> dict[str, Any] | None:
     if data.get("ping") is True:
         out["ping"] = True
     # The host offers the toys it is not using (his/hers), the guest picks
-    # theirs; the host also says when it syncs both or records them.
+    # theirs; either side may switch Sync (both feel the same); the guest
+    # says whether the host may play their toys (allow); the host says when
+    # it records them.
     devices = data.get("devices")
     if isinstance(devices, list) and len(devices) <= MAX_OFFER:
         offer = []
@@ -99,7 +102,7 @@ def clean_message(data: Any) -> dict[str, Any] | None:
     mine = data.get("mine")
     if isinstance(mine, list) and len(mine) <= MAX_MINE and all(isinstance(k, str) and KEY.fullmatch(k) for k in mine):
         out["mine"] = list(dict.fromkeys(mine))
-    for flag in ("sync", "rec"):
+    for flag in ("sync", "rec", "allow"):
         if isinstance(data.get(flag), bool):
             out[flag] = data[flag]
     return out or None
@@ -439,6 +442,15 @@ button.on .chip{color:#072a2d;border-color:rgba(7,42,45,.35);background:rgba(255
 #qhis{background:rgba(70,140,230,.14);border-color:rgba(110,180,255,.45);color:#cfe3ff}
 #qhers{background:rgba(230,90,160,.14);border-color:rgba(255,130,190,.45);color:#ffd0e8}
 .sub{margin:14px 0 4px;font-size:13px;font-weight:760}
+.opt{display:flex;flex-direction:column;gap:2px;margin-top:10px}
+.opt:first-of-type{margin-top:4px}
+.sw{display:flex;align-items:center;gap:10px;font-weight:760;font-size:14px;cursor:pointer;user-select:none;-webkit-user-select:none}
+.sw input{appearance:none;-webkit-appearance:none;flex:0 0 50px;width:50px;height:30px;border-radius:16px;background:#1b2741;border:1px solid #364563;position:relative;margin:0;cursor:pointer}
+.sw input::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#c9cfe4;transition:transform .15s}
+.sw input:checked{background:linear-gradient(110deg,#31c6b8,#54d4bc);border-color:transparent}
+.sw input:checked::after{transform:translateX(20px);background:#fff}
+.sw input:disabled{opacity:.4;cursor:default}
+.opt .muted{padding-left:60px}
 .qmsg{min-height:16px;font-size:12px;color:#ffcf8a;margin-top:6px}
 [hidden]{display:none!important}
 </style></head><body><main>
@@ -447,6 +459,10 @@ button.on .chip{color:#072a2d;border-color:rgba(7,42,45,.35);background:rgba(255
 <div class="note" id="recnote" hidden>● Your partner is recording what you send, to play again later.</div>
 <div class="note sync" id="syncnote" hidden>⇄ Synced: you both feel the same.</div>
 <section id="toysec"><h2>Which toys are yours?</h2><div class="muted" id="toyhint">Tap yours: your partner can then play them.</div><div class="toys" id="toys" style="margin-top:8px"></div></section>
+<section id="optsec"><h2>Together</h2>
+  <div class="opt"><label class="sw"><input type="checkbox" id="allow" checked> Let my partner play my toys</label><div class="muted" id="allowhint"></div></div>
+  <div class="opt"><label class="sw"><input type="checkbox" id="sync"> ⇄ Sync both</label><div class="muted" id="synchint">Off: you play their toys, they play yours.</div></div>
+</section>
 <section><h2 id="ctlh">Your partner's toys</h2>
   <div class="tabs"><button data-tab="manual" class="on">✋ Manual</button><button data-tab="pattern">〰 Pattern</button><button data-tab="mood">◎ Mood</button><button data-tab="queue">📋 Queue</button></div>
   <div id="t-manual"><div id="pad"><div id="fill"></div><div id="pct">0%</div></div><div class="muted" style="margin-top:6px">Slide up and down. Double-tap to drop to zero.</div></div>
