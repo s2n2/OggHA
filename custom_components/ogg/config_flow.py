@@ -143,6 +143,8 @@ class OggOptionsFlow(config_entries.OptionsFlow):
             vol.Optional("pin"): cv.string,
             vol.Optional("remove_pin", default=False): cv.boolean,
             vol.Required("auto_lock", default=now("auto_lock")): vol.All(vol.Coerce(int), vol.Range(min=0, max=240)),
+            vol.Optional("his_user", default=now("his_user") if now("his_user") in users else ""): vol.In({"": "Nobody", **users}),
+            vol.Optional("hers_user", default=now("hers_user") if now("hers_user") in users else ""): vol.In({"": "Nobody", **users}),
         })
         return self.async_show_form(
             step_id="studio", data_schema=schema, errors=errors,

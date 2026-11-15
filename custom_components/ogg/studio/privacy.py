@@ -42,7 +42,8 @@ PIN_ROUNDS = 120_000
 PIN_TRIES = 5            # wrong PINs before a pause
 PIN_PAUSE = 60           # s
 FAILS = "ogg_studio_pin_fails"
-DEFAULTS = {"no_history": True, "discreet": False, "discreet_name": "Studio", "users": [], "auto_lock": 15}
+DEFAULTS = {"no_history": True, "discreet": False, "discreet_name": "Studio", "users": [], "auto_lock": 15,
+            "his_user": "", "hers_user": ""}
 # Ogg options that belong to the studio (changing them does not reconnect Ogg).
 STUDIO_OPTIONS = (*DEFAULTS, "pin_hash", "pin_salt", "studio_taken")
 
@@ -68,9 +69,16 @@ def _entry(hass: HomeAssistant) -> ConfigEntry | None:
     return None
 
 
-def card_settings(entry: ConfigEntry) -> dict[str, Any]:
-    """What the cards need to know (never the PIN)."""
+def card_settings(entry: ConfigEntry, names: dict[str, str] | None = None) -> dict[str, Any]:
+    """What the cards need to know (never the PIN). names: user id -> name."""
+    names = names or {}
+    people = {}
+    for who in ("his", "hers"):
+        user_id = option(entry, f"{who}_user")
+        if isinstance(user_id, str) and user_id:
+            people[who] = {"id": user_id, "name": str(names.get(user_id) or "")[:40]}
     return {
+        "people": people,
         "discreet": bool(option(entry, "discreet")),
         "name": str(option(entry, "discreet_name") or "Studio")[:40],
         "users": list(option(entry, "users") or []),
@@ -125,11 +133,23 @@ def async_setup_privacy_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         library = hass.data.get(LIBRARY)
         if library is not None:
             library.set_settings(card_settings(entry))
+            hass.async_create_task(named())
         if not option(entry, "no_history"):
             return
         state["stop"] = async_track_time_interval(hass, purge, PURGE_EVERY)
         if hass.state is CoreState.running:
             hass.async_create_task(purge())
+
+    async def named() -> None:
+        """The same, with the names of the people his and hers are."""
+        library = hass.data.get(LIBRARY)
+        if library is None:
+            return
+        try:
+            names = {u.id: u.name or "" for u in await hass.auth.async_get_users()}
+        except Exception:  # noqa: BLE001 - names are a nicety
+            return
+        library.set_settings(card_settings(entry, names))
 
     async def changed(_hass: HomeAssistant, _entry_: ConfigEntry) -> None:
         apply()

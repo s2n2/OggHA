@@ -162,7 +162,8 @@ async def async_setup_studio(hass: HomeAssistant) -> None:
         if call.context.user_id:
             user = await hass.auth.async_get_user(call.context.user_id)
             by = user.name if user and user.name else ""
-        item_id = studio_queues(hass).add(call.data["for"], call.data["name"], call.data["script"], by)
+        item_id = studio_queues(hass).add(call.data["for"], call.data["name"], call.data["script"], by,
+                                          call.context.user_id or "")
         return {"id": item_id, "name": studio_queues(hass).items[item_id]["name"]}
 
     async def queue_get(call: ServiceCall) -> ServiceResponse:

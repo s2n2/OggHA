@@ -66,6 +66,7 @@ class Queues:
                     "by": str(record.get("by") or "")[:40],
                     "played": record.get("played"),
                     "plays": int(record.get("plays") or 0),
+                    "by_id": str(record.get("by_id") or "")[:64],
                 }
             except (HomeAssistantError, AttributeError, TypeError, ValueError):
                 continue
@@ -89,7 +90,7 @@ class Queues:
             raise HomeAssistantError("That one is no longer in the queue")
         return record
 
-    def add(self, who: Any, name: Any, script: Any, by: str = "") -> str:
+    def add(self, who: Any, name: Any, script: Any, by: str = "", by_id: str = "") -> str:
         who, name = _who(who), _name(name)
         clean = clean_script(script)
         clean.setdefault("metadata", {})["title"] = name
@@ -99,7 +100,7 @@ class Queues:
             raise HomeAssistantError("The queues are full; delete some first")
         item_id = secrets.token_hex(6)
         self.items[item_id] = {"name": name, "for": who, "script": clean, "made": dt_util.utcnow().isoformat(),
-                               "by": by[:40], "played": None, "plays": 0}
+                               "by": by[:40], "by_id": by_id[:64], "played": None, "plays": 0}
         self._changed()
         return item_id
 
@@ -146,7 +147,7 @@ class Queues:
         out = {}
         for item_id, r in self.items.items():
             info = script_info(r["script"])
-            out[item_id] = {"name": r["name"], "for": r["for"], "made": r["made"], "by": r["by"],
+            out[item_id] = {"name": r["name"], "for": r["for"], "made": r["made"], "by": r["by"], "by_id": r.get("by_id", ""),
                             "played": r["played"], "plays": r["plays"],
                             "duration_ms": info["duration_ms"], "kind": info["kind"], "motors": info["motors"]}
         return out

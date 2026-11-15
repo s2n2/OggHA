@@ -1,3 +1,8 @@
+## 3.6.0 - His and hers are people
+- **Who his and hers are:** Ogg's options (Configure > Studio) gain "His is" and "Hers is", each a Home Assistant user.
+- **Queue card with names:** the queue tabs and buttons use their names ("Add to Sam's queue"), and it opens on the queue of whoever is signed in.
+- **A Send link reads right for each person:** the one it is for sees "Alex sent you…", the sender sees "You sent Sam…", and anyone else sees "Alex sent Sam…". Queued scripts now remember which user sent them.
+
 ## 3.5.0 - Together: both switches on both screens
 - **Sync both is shared:** your partner can switch it on their Together page as well, and whoever changes it, both screens show the same.
 - **Your partner's consent:** their page has "Let my partner play my toys" for the toys they picked. Off, your controls leave their toys alone and your card says they have paused it.

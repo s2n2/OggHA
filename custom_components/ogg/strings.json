@@ -70,7 +70,9 @@
           "users": "Who may use OggStudio",
           "pin": "New PIN",
           "remove_pin": "Remove the PIN",
-          "auto_lock": "Lock again after (minutes idle)"
+          "auto_lock": "Lock again after (minutes idle)",
+          "his_user": "His is",
+          "hers_user": "Hers is"
         },
         "data_description": {
           "no_history": "Clears what the recorder kept about these entities, at start and every half hour. To have nothing written at all, also exclude them in configuration.yaml (see the README).",
@@ -78,7 +80,9 @@
           "discreet_name": "The title shown on a discreet or locked card.",
           "users": "Leave empty for everyone. Others do not see the cards and cannot call OggStudio's services. Stopping always works.",
           "pin": "4 to 32 characters. Leave empty to keep the current one.",
-          "auto_lock": "0 keeps a card unlocked until the browser tab closes."
+          "auto_lock": "0 keeps a card unlocked until the browser tab closes.",
+          "his_user": "The Home Assistant user his toys and his queue belong to. The Queue card then shows names, and says who sent what to whom.",
+          "hers_user": "The Home Assistant user her toys and her queue belong to."
         }
       }
     },

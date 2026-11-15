@@ -229,6 +229,15 @@ export class OggQueueCard extends HTMLElement {
     this._refresh();
   }
 
+  // His and hers as people (Ogg's options: Configure > Studio), or just his/hers.
+  get _people() { const s = this._saved; return (s && s.attributes.settings && s.attributes.settings.people) || {}; }
+  get _me() { return (this._rawHass && this._rawHass.user && this._rawHass.user.id) || ''; }
+  _person(who) { const p = this._people[who]; return p && p.name ? p.name : ''; }
+  // "Sam's queue" / "hers queue"; "Sam" / "Hers".
+  _queueOf(who) { const n = this._person(who); return n ? `${n}'s queue` : `${WHO[who].toLowerCase()} queue`; }
+  _label(who) { return this._person(who) || WHO[who]; }
+  _isMe(who) { const p = this._people[who]; return Boolean(p && p.id && p.id === this._me); }
+
   _whose(d) { const s = d.owner && this._hass.states[d.owner]; return s && WHO[s.state] ? s.state : ''; }
   _online(d) { const s = d.connected && this._hass.states[d.connected]; return !s || s.state === 'on'; }
 
@@ -346,7 +355,15 @@ export class OggQueueCard extends HTMLElement {
     if (!this._$ || !this._hass) return;
     const $ = this._$;
     if (this._config && this._config.title) $('title').textContent = this._config.title;
-    const key = JSON.stringify([this._names, this._queues]);
+    const people = this._people;
+    $('tohis').textContent = `♂ Add to ${this._queueOf('his')}`;
+    $('tohers').textContent = `♀ Add to ${this._queueOf('hers')}`;
+    if (!this._tabSet) {
+      // Open on your own queue once Ogg knows who you are (his or hers).
+      const mine = this._isMe('his') ? 'his' : this._isMe('hers') ? 'hers' : null;
+      if (mine) { this._tabSet = true; if (!this._gift) this._tab = mine; this._key = null; }
+    }
+    const key = JSON.stringify([this._names, this._queues, people]);
     if (key !== this._key) {
       this._key = key;
       this._fillPick();
@@ -506,7 +523,7 @@ export class OggQueueCard extends HTMLElement {
     const len = c ? duration(c.script) : 0;
     const t = c ? this._now() : 0;
     $('cursor').style.width = len ? `${(100 * t / len).toFixed(2)}%` : '0';
-    $('time').textContent = c ? `${clock(t)} / ${clock(len)} · ${kindOf(c.script)} script${c.for ? ` · ${WHO[c.for].toLowerCase()} queue` : ''}` : 'Choose one above, try what you are making, or play one from a queue.';
+    $('time').textContent = c ? `${clock(t)} / ${clock(len)} · ${kindOf(c.script)} script${c.for ? ` · ${this._queueOf(c.for)}` : ''}` : 'Choose one above, try what you are making, or play one from a queue.';
     $('play').disabled = !c;
     $('code').disabled = !c;
     $('del').disabled = !c || c.src === 'code';
@@ -647,6 +664,20 @@ export class OggQueueCard extends HTMLElement {
     return u.toString();
   }
 
+  // Who sent it to whom, as the person looking sees it.
+  _giftLine(r) {
+    const me = this._me;
+    const sender = r.by ? `<b>${esc(r.by)}</b>` : 'Someone';
+    const fromMe = Boolean(me && r.by_id && r.by_id === me);
+    const toMe = this._isMe(r.for);
+    const them = this._person(r.for) ? `<b>${esc(this._person(r.for))}</b>` : `${WHO[r.for].toLowerCase()} queue`;
+    if (fromMe && toMe) return 'You saved for yourself:';
+    if (fromMe) return `You sent ${them}`;
+    if (toMe) return `${sender} sent you`;
+    if (this._person(r.for)) return `${sender} sent ${them}`;
+    return r.by ? `${sender} sent` : 'For you:';
+  }
+
   // Opened from a Send link: offer it at the top.
   _link() {
     if (window.__oggQueueLink === undefined) {
@@ -659,7 +690,7 @@ export class OggQueueCard extends HTMLElement {
     this._gifted = true;
     if (!r) { this._toast('The script in that link is no longer in the queue.'); return; }
     this._gift = id;
-    $('giftinfo').innerHTML = `💌 ${r.by ? `<b>${esc(r.by)}</b> sent you` : 'For you:'} <b>${esc(r.name)}</b> · ${clock(r.duration_ms)}${r.played ? ' · played before' : ''}`;
+    $('giftinfo').innerHTML = `💌 ${this._giftLine(r)} <b>${esc(r.name)}</b> · ${clock(r.duration_ms)}${r.played ? ' · played before' : ''}`;
     $('gift').hidden = false;
     this._tab = r.played ? 'played' : r.for;
     this._loadQueued(id, false);
@@ -862,7 +893,7 @@ export class OggQueueCard extends HTMLElement {
       this._$('name').value = '';
       this._tab = who; keepSet({ tab: who });
       this._lastAdded = res.response.id;
-      this._toast(`Added "${res.response.name}" to ${WHO[who].toLowerCase()} queue. Tap Send on it to share the link.`);
+      this._toast(`Added "${res.response.name}" to ${this._queueOf(who)}. Tap Send on it to share the link.`);
     } catch (e) { this._toast(e.message || String(e)); }
   }
 
@@ -898,7 +929,7 @@ export class OggQueueCard extends HTMLElement {
     const of = (tab) => all.filter(([, r]) => (tab === 'played' ? r.played : !r.played && r.for === tab));
     for (const b of this.shadowRoot.querySelectorAll('.tabs button')) {
       const t = b.dataset.tab, n = of(t).length;
-      b.textContent = `${t === 'his' ? '♂ His' : t === 'hers' ? '♀ Hers' : '✓ Played'}${n ? ` (${n})` : ''}`;
+      b.textContent = `${t === 'his' ? `♂ ${this._label('his')}` : t === 'hers' ? `♀ ${this._label('hers')}` : '✓ Played'}${n ? ` (${n})` : ''}`;
       b.classList.toggle('on', t === this._tab);
     }
     const waiting = of('his').length + of('hers').length;
@@ -907,11 +938,11 @@ export class OggQueueCard extends HTMLElement {
     const cur = this._cur && this._cur.src === 'queue' ? this._cur.id : null;
     $('list').innerHTML = rows.map(([id, r]) => {
       const meta = [clock(r.duration_ms), r.kind === 'stroke' ? 'stroker' : r.motors > 1 ? 'two motors' : '',
-        r.by ? `from ${esc(r.by)}` : '', this._tab === 'played' ? `played ${when(r.played)}${r.plays > 1 ? ` (${r.plays}×)` : ''} · ${WHO[r.for].toLowerCase()}` : when(r.made)].filter(Boolean).join(' · ');
-      const again = this._tab === 'played' ? `<button type="button" class="small" data-act="again" title="Back into ${WHO[r.for].toLowerCase()} queue">↺</button>` : '';
+        r.by_id && r.by_id === this._me ? 'from you' : r.by ? `from ${esc(r.by)}` : '', this._tab === 'played' ? `played ${when(r.played)}${r.plays > 1 ? ` (${r.plays}×)` : ''} · ${esc(this._label(r.for))}` : when(r.made)].filter(Boolean).join(' · ');
+      const again = this._tab === 'played' ? `<button type="button" class="small" data-act="again" title="Back into ${esc(this._queueOf(r.for))}">↺</button>` : '';
       return `<div class="item${id === cur ? ' cur' : ''}" data-id="${esc(id)}"><div class="info"><div class="nm">${esc(r.name)}</div><div class="meta">${meta}</div></div>
         <button type="button" class="go small" data-act="play" aria-label="Play">▶</button>${again}<button type="button" class="small" data-act="send">Send</button><button type="button" class="small x" data-act="del" aria-label="Delete">✕</button></div>`;
-    }).join('') || `<div class="empty">${this._tab === 'played' ? 'Nothing played yet.' : `Nothing in ${WHO[this._tab].toLowerCase()} queue yet: make one above and add it.`}</div>`;
+    }).join('') || `<div class="empty">${this._tab === 'played' ? 'Nothing played yet.' : `Nothing in ${esc(this._queueOf(this._tab))} yet: make one below and add it.`}</div>`;
   }
 
   async _listAction(b) {
@@ -922,7 +953,7 @@ export class OggQueueCard extends HTMLElement {
     if (act === 'play') { await this._loadQueued(id, true); return; }
     if (act === 'send') { this._copyText(this._linkFor(id), `Link to "${r.name}" copied: send it to your partner. It opens this dashboard with it ready to play.`); return; }
     try {
-      if (act === 'again') { await this._hass.callService('ogg', 'studio_queue_requeue', { id }); this._toast(`"${r.name}" is back in ${WHO[r.for].toLowerCase()} queue.`); }
+      if (act === 'again') { await this._hass.callService('ogg', 'studio_queue_requeue', { id }); this._toast(`"${r.name}" is back in ${this._queueOf(r.for)}.`); }
       if (act === 'del' && confirm(`Delete "${r.name}"?`)) {
         await this._hass.callService('ogg', 'studio_queue_delete', { id });
         if (this._cur && this._cur.src === 'queue' && this._cur.id === id) { if (this._play) this._halt(true); this._cur = null; paint(this._$('heat'), null, 240); this._showPlayer(); }
