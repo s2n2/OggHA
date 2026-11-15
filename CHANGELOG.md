@@ -1,3 +1,11 @@
+## 3.8.0 - The Easy card
+- **Ogg Easy** (`type: custom:ogg-easy-card`), the simple one:
+  - **Connect now** switches IntiHA and Ogg on; **Disconnect** switches both off so toys can sleep.
+  - The connected toys, with their live level; tap to choose which play.
+  - **Play now:** one or two sliders (as the toys and motors need), Ogg's patterns and moods, saved scripts; **Record** and **Save** ("His save" / "Hers save" with the date and time).
+  - **Queue & replay:** the Queue card. **Other:** video and sound, folded.
+- The Play card can show just its video and sound (`media_only: true`), as the Easy card's Other does.
+
 ## 3.7.3 - Real names once opened
 - Discreet cards no longer rename toys "Device A, B…" or hide the title: they are covered until More, and then show everything as usual.
 

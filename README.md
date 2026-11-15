@@ -97,6 +97,15 @@ drag them into order. Then add it to his or hers queue, save it, or copy its
 code. **Send** copies a link that opens the dashboard with it ready to play.
 Played ones go to a Played list to play again.
 
+**The Easy card (3.8):** the simple one for everyday use:
+
+```yaml
+type: custom:ogg-easy-card
+```
+
+Connect now, pick your toys, then Play now (sliders, patterns, moods, scripts,
+record and save), Queue & replay, or Other (video and sound).
+
 ### Ogg Control Deck: bundled dashboard card (v0.1.9+)
 
 The gear beside **HA Server** opens IntiHA in Devices & services, and the gear beside **Ogg** opens Ogg in Devices & services. These links are separate from the on/off switches.

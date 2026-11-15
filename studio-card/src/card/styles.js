@@ -94,6 +94,8 @@ button.vrec.on{background:linear-gradient(110deg,#ff5c7a,#ff8aa0);color:#2a0710}
 .head h2{flex:1;margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .head button{flex:0 0 auto;min-height:36px;padding:0 12px;font-size:13px}
 ha-card.locked > :not(#cover){display:none!important}
+ha-card.mediaonly{background:transparent;border:0;padding:0}
+ha-card.mediaonly > :not(#videobox):not(#sndbox):not(.toast):not(.ogg-cover){display:none!important}
 .cover{display:flex;flex-direction:column;gap:10px;padding:8px 0}
 .cover[hidden]{display:none}
 .cover .stop{align-self:flex-start;min-height:36px;padding:0 12px;font-size:13px}

@@ -176,7 +176,7 @@ export class OggStudioCard extends HTMLElement {
       <style>
 ${STYLES}
       </style>
-      <ha-card class="${simple ? 'simple' : ''}${this._variant.together ? 'tg' : ''}">
+      <ha-card class="${simple ? 'simple' : ''}${this._variant.together ? 'tg' : ''}${this._config && this._config.media_only ? ' mediaonly' : ''}">
         <div class="cover" id="cover" hidden>
           <h2 id="covername">Studio</h2>
           <div id="coverpin"><label>PIN</label><div class="row"><input id="pin" type="password" inputmode="numeric" autocomplete="off" aria-label="PIN"><button id="pingo" type="button" style="flex:0 0 auto">Open</button></div></div>

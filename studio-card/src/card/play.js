@@ -84,8 +84,10 @@ export class PlayPart {
     let mf = { c: false, v: true, s: true, x: true, t: true, p: true, q: true, l: true };
     try { mf = { ...mf, ...(JSON.parse(localStorage.getItem(MEDIA_FOLD_KEY) || '{}') || {}) }; } catch (_) { /* private mode */ }
     this._mediaFold('c', Boolean(mf.c));
-    this._mediaFold('v', Boolean(mf.v));
-    this._mediaFold('s', Boolean(mf.s));
+    // Embedded (the Easy card's Other): video and sound start folded.
+    const embedded = Boolean(this._config && this._config.media_only);
+    this._mediaFold('v', embedded || Boolean(mf.v));
+    this._mediaFold('s', embedded || Boolean(mf.s));
     $('ctlhead').addEventListener('click', () => this._mediaFold('c', !this._mfold.c, true));
     this._mediaFold('x', mf.x !== false);
     $('extrahead').addEventListener('click', () => this._mediaFold('x', !this._mfold.x, true));

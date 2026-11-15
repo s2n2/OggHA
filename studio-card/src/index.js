@@ -19,6 +19,7 @@ import { PlayPart } from './card/play.js';
 import { ScreenOffPart } from './card/screenoff.js';
 import { OggPrivacyCard, PRIVACY_TAG } from './card/privacy.js';
 import { OggQueueCard, QUEUE_TAG } from './card/queuecard.js';
+import { EASY_TAG, OggEasyCard } from './card/easy.js';
 import { privateHass } from './lib/private.js';
 
 // Each part's methods join the card (later parts win on a shared name).
@@ -41,6 +42,12 @@ if (!customElements.get(QUEUE_TAG)) {
   customElements.define(QUEUE_TAG, OggQueueCard);
   window.customCards = window.customCards || [];
   window.customCards.push({ type: QUEUE_TAG, name: 'Ogg Queue', description: 'Make a queue of patterns, moods and scripts, each for a set time; add it to his or hers queue and send your partner a link to play it.', preview: true });
+}
+
+if (!customElements.get(EASY_TAG)) {
+  customElements.define(EASY_TAG, OggEasyCard);
+  window.customCards = window.customCards || [];
+  window.customCards.push({ type: EASY_TAG, name: 'Ogg Easy', description: 'The simple one: Connect now, pick your toys, then Play now, Queue & replay, or Other (video and sound).', preview: true });
 }
 
 if (!customElements.get(TAG)) {
