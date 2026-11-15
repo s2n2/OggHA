@@ -1,6 +1,6 @@
 ## 3.3.1 - Queue card: connected toys, live levels
 - The Queue card lists only connected toys, each with its live level (vibration, both motors) or stroke position.
-- With no toy selected (or none connected), Play simulates: the player runs, nothing is sent, and the card says so.
+- With no toy selected (or none connected), Play simulates: the player runs, nothing is sent, the card says so, and a simulated toy shows the level or position the script would play.
 - Step times now start at 5 and 10 seconds, and **Custom…** takes any time, like 7, 45s, 1:30 or 2m.
 
 ## 3.3.0 - Queue card: make one, send it

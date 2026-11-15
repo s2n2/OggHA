@@ -8722,6 +8722,7 @@ button.small{min-height:36px;border-radius:11px;padding:0 10px;font-size:12px;fl
 .lv.lin i{height:6px}
 .pct{font-size:11px;font-weight:800;color:#e9fffb;font-variant-numeric:tabular-nums;min-width:28px;text-align:right}
 .dev.off .lv,.dev.off .pct{display:none}
+.dev.simdev{cursor:default;border-style:dashed;border-color:rgba(255,190,90,.5);background:rgba(255,190,90,.07);color:#ffe2b0}
 .src{font-size:11.5px;color:var(--muted);align-self:center;flex:1 1 100%}
 .sim{flex:1 1 100%;font-size:12px;font-weight:700;color:#ffcf8a;background:rgba(255,190,90,.08);border:1px solid rgba(255,190,90,.3);border-radius:12px;padding:7px 10px}
 .chip{display:inline-block;font-size:10px;font-weight:850;letter-spacing:.06em;text-transform:uppercase;border-radius:8px;padding:1px 6px;margin-left:5px;border:1px solid}
@@ -9066,11 +9067,14 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
       const targets = new Set(this._targets().map((d) => d.stop));
       const online = this._devices.filter((d) => this._online(d));
       const note = !targets.size ? '<span class="sim">⚠️ No toy selected: Play simulates (the player runs, nothing is sent to a toy).</span>' : `<span class="src">${this._pick ? "Plays on the toys you picked." : "Plays on his toys for his queue, hers for hers, else every connected toy. Tap to choose."}</span>`;
+      const c = this._cur;
+      const simLin = Boolean(c && isStroke(c.script)), simDual = Boolean(c && !simLin && c.script.channels && c.script.channels.V1);
+      const sim = targets.size ? "" : `<span class="dev on simdev" role="img" aria-label="Simulated toy">🧪 Simulated<span class="lv${simLin ? " lin" : ""}" data-lv="__sim" aria-hidden="true"><i><b></b></i>${simDual ? "<i><b></b></i>" : ""}</span><span class="pct" data-pct="__sim"></span></span>`;
       const html = online.length ? online.map((d) => {
         const w = this._whose(d);
         const lin = d.linear && !d.vibe;
         return `<button type="button" class="dev${targets.has(d.stop) ? " on" : ""}${this._online(d) ? "" : " off"}" data-stop="${esc(d.stop)}" aria-pressed="${targets.has(d.stop)}">${esc(d.name)}${w ? `<span class="chip ${w}">${WHO[w]}</span>` : ""}<span class="lv${lin ? " lin" : ""}" data-lv="${esc(d.stop)}" aria-hidden="true"><i><b></b></i>${!lin && d.dual ? "<i><b></b></i>" : ""}</span><span class="pct" data-pct="${esc(d.stop)}"></span></button>`;
-      }).join("") + (this._pick ? '<button type="button" class="dev" data-auto="1">Auto</button>' : "") + note : '<span class="sim">⚠️ No toys connected: Play simulates (the player runs, nothing is sent to a toy).</span>';
+      }).join("") + (this._pick ? '<button type="button" class="dev" data-auto="1">Auto</button>' : "") + sim + note : sim + '<span class="sim">⚠️ No toys connected: Play simulates (the player runs, nothing is sent to a toy).</span>';
       if ($("devs").dataset.html !== html) {
         $("devs").innerHTML = html;
         $("devs").dataset.html = html;
@@ -9080,6 +9084,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
     // Live: each connected toy's level (vibration) or position (stroker).
     _showLevels() {
       const root = this.shadowRoot;
+      this._showSim();
       for (const d of this._devices) {
         const lv = root.querySelector(`[data-lv="${CSS.escape(d.stop)}"]`);
         const pct = root.querySelector(`[data-pct="${CSS.escape(d.stop)}"]`);
@@ -9099,6 +9104,26 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
         });
         pct.textContent = `${Math.round(Math.max(0, ...out))}%`;
       }
+    }
+    // The simulated toy follows the script as it plays (as a toy would).
+    _showSim() {
+      const root = this.shadowRoot;
+      const lv = root.querySelector('[data-lv="__sim"]'), pct = root.querySelector('[data-pct="__sim"]');
+      if (!lv || !pct) return;
+      const c = this._cur, p = this._play;
+      const t = this._now();
+      const at = (acts) => p && c ? Math.max(0, Math.min(100, sampleAt(acts, t))) : 0;
+      if (c && isStroke(c.script)) {
+        const v = c ? Math.max(0, Math.min(100, sampleAt(c.script.actions, t))) : 0;
+        lv.style.setProperty("--p", `${v}%`);
+        pct.textContent = `↕${Math.round(v)}`;
+        return;
+      }
+      const levels = c ? [at(c.script.actions), ...c.script.channels && c.script.channels.V1 ? [at(c.script.channels.V1.actions)] : []] : [0];
+      lv.querySelectorAll("b").forEach((b, i) => {
+        b.style.width = `${levels[i] ?? levels[0]}%`;
+      });
+      pct.textContent = `${Math.round(Math.max(...levels))}%`;
     }
     _toggleDev(b) {
       if (!b) return;
@@ -9179,6 +9204,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
       $("code").disabled = !c;
       $("del").disabled = !c || c.src === "code";
       $("play").textContent = this._play ? "↻ Restart" : "▶ Play";
+      this._showSim();
       if (this._play && !this._play.loop && t >= len) this._ended();
     }
     _bindBar(bar) {
@@ -9242,7 +9268,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
       });
       this._play = { t0: Date.now(), from, factor, loop: loop && from === 0, loopLater: loop && from > 0, script: c.script, devs };
       clearInterval(this._tick);
-      this._tick = setInterval(() => this._showPlayer(), 250);
+      this._tick = setInterval(() => this._showPlayer(), devs.length ? 250 : 100);
       this._showPlayer();
       try {
         await Promise.all(calls);
