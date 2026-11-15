@@ -420,13 +420,13 @@ assert.strictEqual(runScript(two, 'speed'), two, 'vibration scripts play unchang
   card._pickDevice = new Function(body('_pickDevice'));
   card._devices = [
     { id: 'a', name: 'Aardvark (old)', connected: 'binary_sensor.old' },
-    { id: 's', name: 'Sync 2', connected: 'binary_sensor.sync' },
+    { id: 's', name: 'Toy B', connected: 'binary_sensor.sync' },
     { id: 'b', name: 'Toy A', connected: 'binary_sensor.old' },
   ];
   assert.strictEqual(card._pickDevice(), 's', 'defaults to a connected device');
   card._remembered = { id: 'b', name: 'Toy A' };
   assert.strictEqual(card._pickDevice(), 'b', 'remembered choice wins even while offline');
-  card._remembered = { id: 'gone', name: 'Sync 2' };
+  card._remembered = { id: 'gone', name: 'Toy B' };
   assert.strictEqual(card._pickDevice(), 's', 're-paired device found by name');
   card._remembered = null; card._config = { device: 'Toy A' };
   assert.strictEqual(card._pickDevice(), 'b', 'configured device used when nothing remembered');

@@ -34,7 +34,7 @@ class FakeServer:
         self.server_info = {"ServerName": "IntiHA" if "ha" in url else "Intiface Server"}
         self.connected = True
         self.peer_ip = url.split("//")[1].split(":")[0]
-        name = "Example Toy A" if "ha" in url else "WeVibe Sync 2"
+        name = "Example Toy A" if "ha" in url else "Example Toy B"
         self.devices = {0: {"DeviceIndex": 0, "DeviceName": name, "DeviceMessages": {}}}
 
     async def scalar(self, index, values):
@@ -81,7 +81,7 @@ def test_merges_devices_and_routes_commands():
         multi, _ = _setup(["ws://ha:12345/", "ws://phone:12345/"], {"ws://ha:12345/": True, "ws://phone:12345/": True})
         await multi.connect_any()
         assert set(multi.devices) == {0, SLOT_STRIDE}
-        assert multi.devices[SLOT_STRIDE]["DeviceName"] == "WeVibe Sync 2"
+        assert multi.devices[SLOT_STRIDE]["DeviceName"] == "Example Toy B"
         assert multi.peer_ip == "ha + phone"
         ha, phone = FakeServer.instances
         await multi.scalar(SLOT_STRIDE, [{"Index": 0, "Scalar": 0.5}])
@@ -147,7 +147,7 @@ def test_slots_follow_server_identity_not_address_order():
         multi, _ = _setup(urls, {u: True for u in urls})
         await multi.connect_any()
         names = {i: d["DeviceName"] for i, d in multi.devices.items()}
-        assert names == {0: "Example Toy A", SLOT_STRIDE: "WeVibe Sync 2"}
+        assert names == {0: "Example Toy A", SLOT_STRIDE: "Example Toy B"}
         assert dict(multi.endpoints) == {0: "ws://ha:12345/", 1: "ws://phone-vpn:12345/"}
         # The phone's second address was identified and not kept connected.
         wifi = [s for s in FakeServer.instances if s.url == "ws://phone-wifi:12345/"]

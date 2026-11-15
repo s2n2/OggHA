@@ -373,8 +373,8 @@ For devices whose names differ between Ogg and IntiHA, configure the card with a
 ```yaml
 type: custom:ogg-control-deck-card
 reported_intensity_entities:
-  Toy A: sensor.toya_device_reported_intensity
-  Ditto: sensor.ditto_device_reported_intensity
+  Toy A: sensor.toy_a_device_reported_intensity
+  Toy B: sensor.toy_b_device_reported_intensity
 ```
 
 The card otherwise auto-matches only when a name uniquely identifies an IntiHA device. A generic name or ambiguous match is not trusted. It never adds an extension to public Buttplug messages and does not change the pulse safety logic.

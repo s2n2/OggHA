@@ -13,7 +13,7 @@
  const registry = [];
  const states = {};
  const devs = [{id:'h1',name:'Ogg'},{id:'s1',name:'IntiHA'},
- {id:'d1',name:'Toy A'},{id:'d2',name:'Ditto'},{id:'d3',name:'Jive'},{id:'d4',name:'Toy D'},{id:'d5',name:'Sync 2'},{id:'i-toya',name:'Toy A'},{id:'i-ditto',name:'Ditto'},{id:'i-jive',name:'Jive'}];
+ {id:'d1',name:'Toy A'},{id:'d2',name:'Toy B'},{id:'d3',name:'Toy C'},{id:'d4',name:'Toy D'},{id:'d5',name:'Toy E'},{id:'i-toya',name:'Toy A'},{id:'i-toyb',name:'Toy B'},{id:'i-toyc',name:'Toy C'}];
  const add = (id, value, attr={}) => {states[id] = {entity_id:id,state:String(value),attributes:attr};};
  const hub = (platform,unique_id,entity_id,device_id) => registry.push({platform,unique_id,entity_id,device_id});
  hub('intiha','serverid_server_enabled','switch.intiha_server_enabled','s1');add('switch.intiha_server_enabled','on');
@@ -21,10 +21,10 @@
  ['pulse_all','button.ogg_pulse_all','2026-11-07'],['stop_all','button.ogg_stop_all','2026-11-07']];
  for (const [suffix, id, value] of global){hub('ogg',`abc:${suffix}`,id,'h1');add(id,value)}
  const data = [{key:'toya',name:'Toy A',online:true,running:true,mode:'continuous',pattern:'heartbeat',cycle:'3',battery:'78',enabled:true},
- {key:'ditto',name:'Ditto',online:true,running:true,mode:'continuous',pattern:'wave',cycle:'5',battery:'92',enabled:true},
- {key:'jive',name:'Jive',online:true,running:false,mode:'pulse',pattern:'steps',cycle:'2',remaining:'2.8',battery:'65',enabled:true},
+ {key:'toyb',name:'Toy B',online:true,running:true,mode:'continuous',pattern:'wave',cycle:'5',battery:'92',enabled:true},
+ {key:'toyc',name:'Toy C',online:true,running:false,mode:'pulse',pattern:'steps',cycle:'2',remaining:'2.8',battery:'65',enabled:true},
  {key:'spot',name:'Toy D',online:true,running:false,mode:'idle',pattern:'breath',cycle:'10',battery:'53',enabled:true},
- {key:'sync2',name:'Sync 2',online:false,running:false,mode:'disconnected',pattern:'pulse',cycle:'1',battery:'50',enabled:false}];
+ {key:'sync2',name:'Toy E',online:false,running:false,mode:'disconnected',pattern:'pulse',cycle:'1',battery:'50',enabled:false}];
  const opts = ['steady','pulse','wave','breath','ramp','heartbeat','double_pulse','steps','echo','surge','peak','tide','surf','bounce','massage','tease'];
  for(let i=0;i<data.length;i++){
    const d = data[i], did='d'+(i+1);
@@ -32,11 +32,11 @@
    reg('connected','binary_sensor',d.online?'on':'off');reg('run','switch',d.running?'on':'off');
    reg('pulse','button','2026-11-07');reg('stop','button','2026-11-07');
    reg('connect_this_device','switch',d.enabled?'on':'off');
-   reg('pattern','select',d.pattern,{options:opts});reg('period','number',d.cycle);reg('intensity','number',d.key==='toya'?'80':d.key==='ditto'?'65':'50');
+   reg('pattern','select',d.pattern,{options:opts});reg('period','number',d.cycle);reg('intensity','number',d.key==='toya'?'80':d.key==='toyb'?'65':'50');
    reg('status','sensor',d.mode);reg('remaining','sensor',d.remaining||'0');reg('battery','sensor',d.battery);
  }
  // A few genuinely device-reported readings from an IntiHA-like state feed.
- for (const [deviceId, alias, level] of [['i-toya','Toy A','45'],['i-ditto','Ditto','65'],['i-jive','Jive','20']]) {
+ for (const [deviceId, alias, level] of [['i-toya','Toy A','45'],['i-toyb','Toy B','65'],['i-toyc','Toy C','20']]) {
    const id = `sensor.intiha_${alias.toLowerCase()}_reported_intensity`;
    hub('intiha', `abc_${alias}_reported_intensity`, id, deviceId);
    add(id,level,{last_read:new Date().toISOString(),sensor_source:'wevibe_info_characteristic'});

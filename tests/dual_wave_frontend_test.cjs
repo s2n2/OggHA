@@ -17,26 +17,26 @@ const deviceEntities=[
   {device_id:'ogg-1',platform:'ogg',entity_id:'binary_sensor.ogg_toya_connected',unique_id:'config:toya:connected'},
   {device_id:'ogg-1',platform:'ogg',entity_id:'button.ogg_toya_pulse',unique_id:'config:toya:pulse'},
   {device_id:'ogg-1',platform:'ogg',entity_id:'switch.ogg_toya_run',unique_id:'config:toya:run'},
-  {device_id:'ogg-2',platform:'ogg',entity_id:'binary_sensor.ogg_ditto_connected',unique_id:'config:ditto:connected'},
-  {device_id:'ogg-2',platform:'ogg',entity_id:'button.ogg_ditto_pulse',unique_id:'config:ditto:pulse'},
-  {device_id:'ogg-2',platform:'ogg',entity_id:'switch.ogg_ditto_run',unique_id:'config:ditto:run'},
+  {device_id:'ogg-2',platform:'ogg',entity_id:'binary_sensor.ogg_ditto_connected',unique_id:'config:toyb:connected'},
+  {device_id:'ogg-2',platform:'ogg',entity_id:'button.ogg_ditto_pulse',unique_id:'config:toyb:pulse'},
+  {device_id:'ogg-2',platform:'ogg',entity_id:'switch.ogg_ditto_run',unique_id:'config:toyb:run'},
   {device_id:'inti-1',platform:'intiha',entity_id:'sensor.intiha_toya_device_reported_intensity',unique_id:'abc_AA:BB:CC:DD:EE:FF_reported_intensity'},
   {device_id:'inti-2',platform:'intiha',entity_id:'sensor.intiha_second_reported_intensity',unique_id:'abc_11:22:33:44:55:66_reported_intensity'},
 ];
 card._registryEntities=deviceEntities;
-card._registryDevices=[{id:'ogg-1',name:'Toy A'}, {id:'ogg-2',name:'Ditto'}, {id:'inti-1',name:'Toy A'}, {id:'inti-2',name:'Other Device'}];
+card._registryDevices=[{id:'ogg-1',name:'ToyA'}, {id:'ogg-2',name:'ToyB'}, {id:'inti-1',name:'ToyA'}, {id:'inti-2',name:'Other Device'}];
 card._autoCache=null;
 let data=card._autoEntities();
 assert.equal(data.devices.length,2);
-assert.equal(data.devices.find(v=>v.name==='Toy A').reported_intensity,'sensor.intiha_toya_device_reported_intensity');
-assert.equal(data.devices.find(v=>v.name==='Ditto').reported_intensity,undefined);
-card._config={reported_intensity_entities:{Ditto:'sensor.intiha_second_reported_intensity'}};
-assert.equal(card._resolve().devices.find(v=>v.name==='Ditto').reported_intensity,'sensor.intiha_second_reported_intensity');
+assert.equal(data.devices.find(v=>v.name==='ToyA').reported_intensity,'sensor.intiha_toya_device_reported_intensity');
+assert.equal(data.devices.find(v=>v.name==='ToyB').reported_intensity,undefined);
+card._config={reported_intensity_entities:{ToyB:'sensor.intiha_second_reported_intensity'}};
+assert.equal(card._resolve().devices.find(v=>v.name==='ToyB').reported_intensity,'sensor.intiha_second_reported_intensity');
 // A duplicate name must never be guessed.
 card._registryEntities=[...deviceEntities,{device_id:'inti-3',platform:'intiha',entity_id:'sensor.intiha_duplicate_reported_intensity',unique_id:'abc_77:88:99:00:11:22_reported_intensity'}];
-card._registryDevices.push({id:'inti-3',name:'Toy A'});
+card._registryDevices.push({id:'inti-3',name:'ToyA'});
 card._autoCache=null;
-assert.equal(card._autoEntities().devices.find(v=>v.name==='Toy A').reported_intensity,undefined);
+assert.equal(card._autoEntities().devices.find(v=>v.name==='ToyA').reported_intensity,undefined);
 assert.equal(card._nameKey('We-Vibe'), '');
 // Report absent: bright line is blank; target graph continues.
 let paths={};

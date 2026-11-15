@@ -6,5 +6,5 @@ recorder:
   exclude:
     entity_globs:
       - "*.ogg_*"
-      - "*.wevibe_chorus_*"
+      - "*.my_toy_*"
       - "*.wevibe_moxie_*"

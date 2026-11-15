@@ -27,9 +27,9 @@ def device(hass, entry, key, **kwargs):
     return dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, f"{entry.entry_id}:{key}")},
-        name="We-Vibe Chorus",
+        name="Example Dual Toy",
         manufacturer="Ogg",
-        model="We-Vibe Chorus",
+        model="Example Dual Toy",
         **kwargs,
     )
 
@@ -116,7 +116,7 @@ async def test_unset_original_metadata_is_recovered_from_duplicate(hass):
     await hass.async_block_till_done()
 
     migrated = devices.async_get(original.id)
-    assert migrated.name == "We-Vibe Chorus"
+    assert migrated.name == "Example Dual Toy"
     assert migrated.name_by_user == "Saved name"
     assert migrated.area_id == area.id
     assert devices.async_get(duplicate.id) is None

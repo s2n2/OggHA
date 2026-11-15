@@ -1,3 +1,7 @@
+## 3.7.1 - Covers fixed
+- A covered card no longer shows an empty PIN box (or More for someone not chosen): the PIN box appears only after More, when a PIN is set.
+- Examples and tests use made-up names.
+
 ## 3.7.0 - A saying on every covered card
 - **Someone not chosen** under "Who may use OggStudio" now sees only a saying on every Ogg card (Play, Queue, Privacy, Control Deck), not the card.
 - **Discreet cards** show the same saying with **More**; More (and the PIN, when set) opens every Ogg card in that browser for two hours, then they cover again. Lock now covers them all at once.
@@ -97,12 +101,12 @@
 - Includes everything since 0.1.13: device identity and duplicate cleanup, connection feedback, two-motor patterns, Random mode, compact server tiles and the two-line sparkline.
 
 ## 0.1.19 - Two-motor control
-- **Two-motor devices** (e.g. Sync 2) now use a full two-motor pattern set instead of the single-motor list: Steady/Pulse/Wave (both), Ping-pong, Chase, Counter wave, Breath (offset), Heartbeat and Double pulse (in, then out), Echo bounce, Ramp swap, Steps cross, Tease pulse, Rumble pulse and Surge layer, plus Random. Saved single-motor patterns switch to Steady (both).
+- **Two-motor devices** (e.g. a two-motor We-Vibe) now use a full two-motor pattern set instead of the single-motor list: Steady/Pulse/Wave (both), Ping-pong, Chase, Counter wave, Breath (offset), Heartbeat and Double pulse (in, then out), Echo bounce, Ramp swap, Steps cross, Tease pulse, Rumble pulse and Surge layer, plus Random. Saved single-motor patterns switch to Steady (both).
 - **Pulse in / Pulse out** buttons (new entities) pulse just the inner or outer motor; the card shows **In / Out / Both** instead of a single Pulse button for two-motor devices. Random on two-motor devices uses the two-motor set and steps the motors out of phase.
 - **Card:** two-motor devices show both motors in the sparkline (teal = in, violet = out). Server tiles show the real state (Disabled, Connected, Connected · searching, Engine offline, Searching, Reconnecting, …). A **Search** button under the connected count starts a device search on whichever server Ogg is connected to. The Motors selector is replaced by the In/Out/Both buttons.
 
 ## 0.1.17 - Two-motor patterns, Random mode
-- **Two-motor patterns** (shown only for two-motor devices such as Sync 2): Ping-pong, Chase, Counter wave, Tease pulse and Rumble pulse, each driving the two motors differently.
+- **Two-motor patterns** (shown only for two-motor devices such as a two-motor We-Vibe): Ping-pong, Chase, Counter wave, Tease pulse and Rumble pulse, each driving the two motors differently.
 - **Random mode** for every device: intensity sets how often it runs (about intensity squared: 100% almost continuously with brief silent gaps, 50% about a quarter of the time, 10% about 1%). Each burst has a random pattern or step sequence (including silent steps), speed, cycle time and length; two-motor devices also get random motor combinations.
 - **Card:** a **Motors** selector (Together / Alternating / Motor 1 only / Motor 2 only) appears for two-motor devices. In Random mode the card shows **How often** instead of Intensity and hides Cycle time. Status colour fix for the server tiles.
 

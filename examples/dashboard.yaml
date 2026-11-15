@@ -1,5 +1,5 @@
 # Built-in cards only. Paste into a new dashboard's Raw configuration editor.
-# Replace wevibe_chorus with your device prefix and check actual hub entity IDs.
+# Replace my_toy with your device prefix and check actual hub entity IDs.
 # Remove motor controls for single-motor devices; duplicate sections as needed.
 title: Ogg
 views:
@@ -73,69 +73,69 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: WeVibe Chorus
+            heading: Two-motor toy
             heading_style: title
           - type: tile
-            entity: switch.wevibe_chorus_run
+            entity: switch.my_toy_run
             name: Run
             color: purple
             features:
               - type: toggle
           - type: tile
-            entity: button.wevibe_chorus_pulse
+            entity: button.my_toy_pulse
             name: Timed burst
             color: purple
             features:
               - type: button
                 action_name: Pulse
           - type: tile
-            entity: button.wevibe_chorus_stop
+            entity: button.my_toy_stop
             name: Stop
             color: red
             features:
               - type: button
                 action_name: Stop
           - type: tile
-            entity: sensor.wevibe_chorus_pulse_remaining
+            entity: sensor.my_toy_pulse_remaining
             name: Time remaining
           - type: tile
-            entity: number.wevibe_chorus_intensity
+            entity: number.my_toy_intensity
             name: Intensity
             color: purple
             features:
               - type: numeric-input
                 style: slider
           - type: tile
-            entity: select.wevibe_chorus_pattern
+            entity: select.my_toy_pattern
             name: Pattern
             color: purple
             features:
               - type: select-options
           - type: tile
-            entity: number.wevibe_chorus_cycle_period
+            entity: number.my_toy_cycle_period
             name: Cycle length
             features:
               - type: numeric-input
                 style: slider
           - type: tile
-            entity: sensor.wevibe_chorus_pattern_engine
+            entity: sensor.my_toy_pattern_engine
             name: Pattern engine
           - type: heading
             heading: Motors
             icon: mdi:tune-vertical
           - type: tile
-            entity: select.wevibe_chorus_motor_mode
+            entity: select.my_toy_motor_mode
             name: Motor mode
             features:
               - type: select-options
           - type: tile
-            entity: number.wevibe_chorus_motor_1_level
+            entity: number.my_toy_motor_1_level
             name: Motor 1 level
             features:
               - type: numeric-input
                 style: slider
           - type: tile
-            entity: number.wevibe_chorus_motor_2_level
+            entity: number.my_toy_motor_2_level
             name: Motor 2 level
             features:
               - type: numeric-input

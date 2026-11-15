@@ -100,7 +100,7 @@ export function sayingFor(settings, pick = page().pick) {
 const STYLE = `
 .ogg-covered > :not(.ogg-cover){display:none!important}
 .ogg-cover{display:flex;flex-direction:column;gap:12px;padding:20px 18px;color:#eef1ff;font:14px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
-.ogg-cover[hidden]{display:none!important}
+.ogg-cover[hidden],.ogg-cover [hidden]{display:none!important}
 .ogg-cover .oc-name{font-size:10px;font-weight:850;letter-spacing:.19em;text-transform:uppercase;color:#b8b0ff}
 .ogg-cover blockquote{margin:0;font-size:16px;line-height:1.5;font-style:italic;color:#e9ecfb}
 .ogg-cover blockquote::before{content:"“";font-size:28px;line-height:0;vertical-align:-10px;margin-right:2px;color:#8f7dff}
