@@ -1,3 +1,6 @@
+## 3.8.2 - Drop to 0 on the Easy card
+- Easy card: "Drop to 0 when I let go" under the sliders (remembered in each browser).
+
 ## 3.8.1 - Clearer queue steps
 - Queue card: each step stands apart, with a coloured edge, tint and numbered badge for its kind (pattern, mood, script, pause).
 - In the Easy card, Queue & replay has no heading of its own and plays on the toys picked at the top.

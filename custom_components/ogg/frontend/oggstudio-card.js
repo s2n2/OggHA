@@ -10121,7 +10121,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       <div class="modes"><button type="button" data-mode="play"><span>▶</span>Play now</button><button type="button" data-mode="queue"><span>📋</span>Queue &amp; replay</button><button type="button" data-mode="other"><span>⋯</span>Other</button></div>
       <div class="panel" id="p-play">
         <div class="kinds"><button type="button" data-kind="manual">✋ Manual</button><button type="button" data-kind="pattern">〰️ Pattern</button><button type="button" data-kind="mood">🎭 Mood</button><button type="button" data-kind="script">📜 Script</button></div>
-        <div id="k-manual" class="panel"><div class="pads" id="pads"></div><div class="hint" id="padhint">Slide up and down. Double-tap to drop to zero.</div></div>
+        <div id="k-manual" class="panel"><div class="pads" id="pads"></div><label class="sw"><input type="checkbox" id="spring"> Drop to 0 when I let go</label><div class="hint" id="padhint">Slide up and down. Double-tap to drop to zero.</div></div>
         <div id="k-pattern" class="panel">
           <select id="ptsel" aria-label="Pattern">${ptOpts}</select>
           <label class="sl"><span>Strength</span><input type="range" id="ptstr" min="5" max="100" step="5" value="70"><b id="ptstrv">70%</b></label>
@@ -10405,6 +10405,18 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         const pad = e.target.closest(".pad");
         if (pad && (e.buttons || e.pointerType === "touch")) set(pad, e);
       });
+      const spring = this._$("spring");
+      spring.checked = Boolean(keepGet2().spring);
+      spring.addEventListener("change", () => keepSet2({ spring: spring.checked }));
+      const release = (e) => {
+        const pad = e.target.closest(".pad");
+        if (!pad || !spring.checked) return;
+        this._pads[Number(pad.dataset.i)] = 0;
+        this._showPads();
+        this._manual();
+      };
+      box.addEventListener("pointerup", release);
+      box.addEventListener("pointercancel", release);
       box.addEventListener("keydown", (e) => {
         const pad = e.target.closest(".pad");
         if (!pad || !["ArrowUp", "ArrowDown"].includes(e.key)) return;
