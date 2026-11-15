@@ -71,3 +71,6 @@ export const fmt = (ms) => `${(ms / 1000).toFixed(1)} s`;
 export const LIB_TAKE = '\u0001take';
 export const LIB_FILE = '\u0001file';
 export const LIB_LOADED = '\u0001loaded';
+
+// A his/hers queue item in the video's script list: this prefix and its id.
+export const VIDEO_QUEUE = 'queue:';

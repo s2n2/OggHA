@@ -1,7 +1,7 @@
 // Part of the OggStudio card. Built into custom_components/ogg/frontend/oggstudio-card.js (npm run build).
 import { FOLLOW_AI } from '../lib/ai.js';
 import { RUN_MODES, RUN_MODE_DEFAULT, fileKind, fileTitle, isStroke, normalise } from '../lib/convert.js';
-import { SAMPLE_MS, SPEEDS, TAKE_SRC, decodeText, duration, encodeCode, fmt } from '../lib/core.js';
+import { SAMPLE_MS, SPEEDS, TAKE_SRC, VIDEO_QUEUE, decodeText, duration, encodeCode, fmt } from '../lib/core.js';
 import { limitLevels, limitMove } from '../lib/limits.js';
 import { FOLLOW_STROKER, OUT_KEY, outLevels, parseTarget } from '../lib/outputs.js';
 
@@ -515,15 +515,32 @@ export class OutputsPart {
     this._toast(`Script "${match}" goes with this video.`);
   }
 
+  // A queued script in the video's list: its value is this prefix and its id.
   _fillVideoScripts() {
     const sel = this._el('vsrc');
     const savedState = this._studio && this._studio.saved && this._hass.states[this._studio.saved];
     const names = ((savedState && savedState.attributes.options) || []).filter((n) => n && !/^\(.*\)$/.test(n));
     const take = this._take ? `Current take (${isStroke(this._take) ? 'stroke' : 'vibration'}, ${fmt(duration(this._take))})` : null;
-    const key = JSON.stringify([names, take]);
+    // His and hers queues and the played list (the Queue card's), as there.
+    const queues = (savedState && savedState.attributes.queues) || {};
+    const people = (savedState && savedState.attributes.settings && savedState.attributes.settings.people) || {};
+    const whose = (w) => (people[w] && people[w].name ? `${people[w].name}'s queue` : `${w === 'his' ? 'His' : 'Hers'} queue`);
+    const rows = Object.entries(queues);
+    const groups = [['his', whose('his')], ['hers', whose('hers')], ['played', 'Played']].map(([k, label]) => {
+      const list = rows.filter(([, r]) => (k === 'played' ? r.played : !r.played && r.for === k));
+      if (!list.length) return null;
+      const g = document.createElement('optgroup');
+      g.label = label;
+      const mmss = (ms) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+      g.append(...list.map(([id, r]) => new Option(`${r.name} (${mmss(r.duration_ms || 0)})`, `${VIDEO_QUEUE}${id}`)));
+      return g;
+    }).filter(Boolean);
+    const lib = names.length ? Object.assign(document.createElement('optgroup'), { label: 'Saved scripts' }) : null;
+    if (lib) lib.append(...names.map((n) => new Option(n, n)));
+    const key = JSON.stringify([names, take, rows.map(([id, r]) => [id, r.name, r.for, Boolean(r.played)]), people]);
     if (sel.dataset.key === key) return;
     const current = sel.value;
-    sel.replaceChildren(new Option('From a file on this device…', ''), ...(take ? [new Option(take, TAKE_SRC)] : []), ...names.map((n) => new Option(`Library: ${n}`, n)));
+    sel.replaceChildren(new Option('From a file on this device…', ''), ...(take ? [new Option(take, TAKE_SRC)] : []), ...groups, ...(lib ? [lib] : []));
     sel.dataset.key = key;
     if ([...sel.options].some((o) => o.value === current)) sel.value = current;
     else if (current === TAKE_SRC) { sel.value = ''; this._loadVideoScript(); }   // the take went (saved or discarded)

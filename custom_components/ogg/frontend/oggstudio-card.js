@@ -75,6 +75,7 @@
   var LIB_TAKE = "take";
   var LIB_FILE = "file";
   var LIB_LOADED = "loaded";
+  var VIDEO_QUEUE = "queue:";
 
   // studio-card/src/lib/convert.js
   var RUN_MODES = {
@@ -3110,13 +3111,18 @@ ${STYLES}
           }
           this._vraw = this._take;
           this._vscriptName = "Current take";
+        } else if ($("vsrc").value.startsWith(VIDEO_QUEUE)) {
+          const id = $("vsrc").value.slice(VIDEO_QUEUE.length);
+          const res = await this._hass.callWS({ type: "call_service", domain: "ogg", service: "studio_queue_get", service_data: { id }, return_response: true });
+          this._vraw = res.response.script;
+          this._vscriptName = res.response.name || "Queued script";
         } else {
           this._vraw = await this._getSaved($("vsrc").value);
           this._vscriptName = $("vsrc").value;
         }
         this._vscript = this._vraw;
         this._vconvs = {};
-        if (!fromFile && $("vsrc").value !== TAKE_SRC) this._useRemembered($("vsrc").value, this._vraw);
+        if (!fromFile && $("vsrc").value !== TAKE_SRC && !$("vsrc").value.startsWith(VIDEO_QUEUE)) this._useRemembered($("vsrc").value, this._vraw);
         this._outRender();
         this._videoSend(true);
       } catch (e) {
@@ -5391,15 +5397,34 @@ ${STYLES}
       }
       this._toast(`Script "${match}" goes with this video.`);
     }
+    // A queued script in the video's list: its value is this prefix and its id.
     _fillVideoScripts() {
       const sel = this._el("vsrc");
       const savedState = this._studio && this._studio.saved && this._hass.states[this._studio.saved];
       const names = (savedState && savedState.attributes.options || []).filter((n) => n && !/^\(.*\)$/.test(n));
       const take = this._take ? `Current take (${isStroke(this._take) ? "stroke" : "vibration"}, ${fmt(duration(this._take))})` : null;
-      const key = JSON.stringify([names, take]);
+      const queues = savedState && savedState.attributes.queues || {};
+      const people = savedState && savedState.attributes.settings && savedState.attributes.settings.people || {};
+      const whose = (w) => people[w] && people[w].name ? `${people[w].name}'s queue` : `${w === "his" ? "His" : "Hers"} queue`;
+      const rows = Object.entries(queues);
+      const groups = [["his", whose("his")], ["hers", whose("hers")], ["played", "Played"]].map(([k, label]) => {
+        const list = rows.filter(([, r]) => k === "played" ? r.played : !r.played && r.for === k);
+        if (!list.length) return null;
+        const g = document.createElement("optgroup");
+        g.label = label;
+        const mmss = (ms) => {
+          const s = Math.round(ms / 1e3);
+          return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+        };
+        g.append(...list.map(([id, r]) => new Option(`${r.name} (${mmss(r.duration_ms || 0)})`, `${VIDEO_QUEUE}${id}`)));
+        return g;
+      }).filter(Boolean);
+      const lib = names.length ? Object.assign(document.createElement("optgroup"), { label: "Saved scripts" }) : null;
+      if (lib) lib.append(...names.map((n) => new Option(n, n)));
+      const key = JSON.stringify([names, take, rows.map(([id, r]) => [id, r.name, r.for, Boolean(r.played)]), people]);
       if (sel.dataset.key === key) return;
       const current = sel.value;
-      sel.replaceChildren(new Option("From a file on this device…", ""), ...take ? [new Option(take, TAKE_SRC)] : [], ...names.map((n) => new Option(`Library: ${n}`, n)));
+      sel.replaceChildren(new Option("From a file on this device…", ""), ...take ? [new Option(take, TAKE_SRC)] : [], ...groups, ...lib ? [lib] : []);
       sel.dataset.key = key;
       if ([...sel.options].some((o) => o.value === current)) sel.value = current;
       else if (current === TAKE_SRC) {

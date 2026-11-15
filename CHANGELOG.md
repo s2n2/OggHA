@@ -1,3 +1,6 @@
+## 3.8.4 - Queues for videos
+- The video's script list includes his and hers queues and the played list (as on the Queue card), above the saved scripts.
+
 ## 3.8.3 - Rename on the Easy card
 - Easy card: ✏️ Rename beside the chosen script under Script.
 

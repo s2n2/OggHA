@@ -1,7 +1,7 @@
 // Part of the OggStudio card. Built into custom_components/ogg/frontend/oggstudio-card.js (npm run build).
 import { FOLLOW_AI } from '../lib/ai.js';
 import { RUN_MODE_DEFAULT, fileKind, isStroke, liveIntensity, normalise } from '../lib/convert.js';
-import { DEVICE_KEY, LIB_FILE, LIB_LOADED, LIB_TAKE, LIVE_MS, NO_DEVICE, SPEEDS, TAKE_SRC, VIDEO_OFFSET_KEY, VIDEO_TICK_MS, capture, decodeText, duration, fmt } from '../lib/core.js';
+import { DEVICE_KEY, LIB_FILE, LIB_LOADED, LIB_TAKE, LIVE_MS, NO_DEVICE, SPEEDS, TAKE_SRC, VIDEO_QUEUE, VIDEO_OFFSET_KEY, VIDEO_TICK_MS, capture, decodeText, duration, fmt } from '../lib/core.js';
 import { FOLLOW_STROKER, mergePasses, parseTarget, sampleAt } from '../lib/outputs.js';
 
 // Methods mixed into OggStudioCard.
@@ -86,13 +86,19 @@ export class VideoPart {
         if (!this._take) { this._vscript = null; this._videoStatus(); return; }
         this._vraw = this._take;
         this._vscriptName = 'Current take';
+      } else if ($('vsrc').value.startsWith(VIDEO_QUEUE)) {
+        // From his or hers queue (or played): fetched by its id.
+        const id = $('vsrc').value.slice(VIDEO_QUEUE.length);
+        const res = await this._hass.callWS({ type: 'call_service', domain: 'ogg', service: 'studio_queue_get', service_data: { id }, return_response: true });
+        this._vraw = res.response.script;
+        this._vscriptName = res.response.name || 'Queued script';
       } else {
         this._vraw = await this._getSaved($('vsrc').value);
         this._vscriptName = $('vsrc').value;
       }
       this._vscript = this._vraw;      // mapped per device as it plays
       this._vconvs = {};
-      if (!fromFile && $('vsrc').value !== TAKE_SRC) this._useRemembered($('vsrc').value, this._vraw);
+      if (!fromFile && $('vsrc').value !== TAKE_SRC && !$('vsrc').value.startsWith(VIDEO_QUEUE)) this._useRemembered($('vsrc').value, this._vraw);
       this._outRender();
       this._videoSend(true);
     } catch (e) {
