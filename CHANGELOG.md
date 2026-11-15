@@ -1,6 +1,6 @@
-## 3.3.1 - Queue card: the Play card's toys, live levels
-- The Queue card's Play uses the toys chosen under **Devices** on the Play card (in the same browser), including a stroker set to stroke. Without them it works as before: his toys for his queue, hers for hers, or the ones you tap.
-- Each toy shows its live level (vibration, both motors) or stroke position.
+## 3.3.1 - Queue card: connected toys, live levels
+- The Queue card lists only connected toys, each with its live level (vibration, both motors) or stroke position.
+- With no toy selected (or none connected), Play simulates: the player runs, nothing is sent, and the card says so.
 - Step times now start at 5 and 10 seconds, and **Custom…** takes any time, like 7, 45s, 1:30 or 2m.
 
 ## 3.3.0 - Queue card: make one, send it

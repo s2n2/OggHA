@@ -8723,6 +8723,7 @@ button.small{min-height:36px;border-radius:11px;padding:0 10px;font-size:12px;fl
 .pct{font-size:11px;font-weight:800;color:#e9fffb;font-variant-numeric:tabular-nums;min-width:28px;text-align:right}
 .dev.off .lv,.dev.off .pct{display:none}
 .src{font-size:11.5px;color:var(--muted);align-self:center;flex:1 1 100%}
+.sim{flex:1 1 100%;font-size:12px;font-weight:700;color:#ffcf8a;background:rgba(255,190,90,.08);border:1px solid rgba(255,190,90,.3);border-radius:12px;padding:7px 10px}
 .chip{display:inline-block;font-size:10px;font-weight:850;letter-spacing:.06em;text-transform:uppercase;border-radius:8px;padding:1px 6px;margin-left:5px;border:1px solid}
 .chip.his{color:#bcd3ff;border-color:rgba(120,170,255,.45)}
 .chip.hers{color:#ffc4e2;border-color:rgba(255,130,190,.45)}
@@ -8909,42 +8910,15 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
       const s = d.connected && this._hass.states[d.connected];
       return !s || s.state === "on";
     }
-    // The toys the Play card (in this browser) has under Devices, switched on:
-    // [{dev, as: 'linear' | 'vibrate'}], or null when it has none.
-    _playCardPicks() {
-      let saved = null;
-      try {
-        saved = JSON.parse(localStorage.getItem(OUT_KEY) || "null");
-      } catch (_) {
-        saved = null;
-      }
-      if (!saved || !Array.isArray(saved.t)) return null;
-      const on = Array.isArray(saved.on) ? saved.on : [];
-      const out = /* @__PURE__ */ new Map();
-      saved.t.forEach((target, i) => {
-        const pt = on[i] !== false && parseTarget(target);
-        const dev = pt && this._devices.find((d) => d.id === pt.id);
-        if (!dev) return;
-        const as = pt.motor === "l" ? "linear" : "vibrate";
-        const had = out.get(dev.id);
-        out.set(dev.id, { ...dev, as: had && had.as !== as ? "both" : as });
-      });
-      return out.size ? [...out.values()] : null;
-    }
-    // Where Play's toys come from: the Play card, picked here, or auto.
-    get _source() {
-      return this._playCardPicks() ? "play" : this._pick ? "mine" : "auto";
-    }
-    // The toys Play uses: the Play card's Devices, else the ones picked here,
-    // else his (or hers) for a script from his (or hers) queue, else every
-    // connected toy.
+    // The toys Play uses (connected ones only): the ones picked here, else his
+    // (or hers) for a script from his (or hers) queue, else every connected
+    // toy. None: Play simulates (the player runs, nothing is sent).
     _targets() {
-      const fromPlay = this._playCardPicks();
-      if (fromPlay) return fromPlay;
-      if (this._pick) return this._devices.filter((d) => this._pick.has(d.stop));
+      const online = this._devices.filter((d) => this._online(d));
+      if (this._pick) return online.filter((d) => this._pick.has(d.stop));
       const who = this._cur && this._cur.for;
-      const theirs = who ? this._devices.filter((d) => this._whose(d) === who) : [];
-      return theirs.length ? theirs : this._devices.filter((d) => this._online(d));
+      const theirs = who ? online.filter((d) => this._whose(d) === who) : [];
+      return theirs.length ? theirs : online;
     }
     // ------------------------------------------------------------ layout
     _build() {
@@ -9090,13 +9064,13 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
     _showDevs() {
       const $ = this._$;
       const targets = new Set(this._targets().map((d) => d.stop));
-      const source = this._source;
-      const note = { play: "Plays on the toys chosen under Devices on the Play card.", mine: "Plays on the toys you picked here.", auto: "Plays on his toys for his queue, hers for hers, else every connected toy. Tap a toy to choose." }[source];
-      const html = this._devices.length ? this._devices.map((d) => {
+      const online = this._devices.filter((d) => this._online(d));
+      const note = !targets.size ? '<span class="sim">⚠️ No toy selected: Play simulates (the player runs, nothing is sent to a toy).</span>' : `<span class="src">${this._pick ? "Plays on the toys you picked." : "Plays on his toys for his queue, hers for hers, else every connected toy. Tap to choose."}</span>`;
+      const html = online.length ? online.map((d) => {
         const w = this._whose(d);
         const lin = d.linear && !d.vibe;
         return `<button type="button" class="dev${targets.has(d.stop) ? " on" : ""}${this._online(d) ? "" : " off"}" data-stop="${esc(d.stop)}" aria-pressed="${targets.has(d.stop)}">${esc(d.name)}${w ? `<span class="chip ${w}">${WHO[w]}</span>` : ""}<span class="lv${lin ? " lin" : ""}" data-lv="${esc(d.stop)}" aria-hidden="true"><i><b></b></i>${!lin && d.dual ? "<i><b></b></i>" : ""}</span><span class="pct" data-pct="${esc(d.stop)}"></span></button>`;
-      }).join("") + (source === "mine" ? '<button type="button" class="dev" data-auto="1">Auto</button>' : "") + `<span class="src">${note}</span>` : '<span class="hint">No Ogg toys found yet.</span>';
+      }).join("") + (this._pick ? '<button type="button" class="dev" data-auto="1">Auto</button>' : "") + note : '<span class="sim">⚠️ No toys connected: Play simulates (the player runs, nothing is sent to a toy).</span>';
       if ($("devs").dataset.html !== html) {
         $("devs").innerHTML = html;
         $("devs").dataset.html = html;
@@ -9128,10 +9102,6 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
     }
     _toggleDev(b) {
       if (!b) return;
-      if (this._source === "play") {
-        this._toast("Play uses the toys chosen under Devices on the Play card: change them there.");
-        return;
-      }
       if (b.dataset.auto) {
         this._pick = null;
         keepSet({ devices: null });
@@ -9227,7 +9197,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
     // The script for one toy, inside its limits, from `from` ms.
     _forDevice(d, script) {
       const lim = limitsFor(this._saved && this._saved.attributes.limits, d.stop);
-      if (d.as ? d.as === "linear" : d.linear && !d.vibe) {
+      if (d.linear && !d.vibe) {
         let prev = null;
         const actions = script.actions.map((a, i) => {
           const dur = i ? a.at - script.actions[i - 1].at : 500;
@@ -9247,10 +9217,6 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
       const c = this._cur;
       if (!c || !this._hass) return;
       const devs = this._targets();
-      if (!devs.length) {
-        this._toast("Choose a toy to play on.");
-        return;
-      }
       const len = duration(c.script);
       let script = c.script;
       from = from >= len - 100 ? 0 : Math.max(0, from);
@@ -9282,7 +9248,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
         await Promise.all(calls);
         if (c.src === "queue") this._hass.callService("ogg", "studio_queue_played", { id: c.id }).catch(() => {
         });
-        this._toast(`Playing "${c.name}" on ${devs.map((d) => d.name).join(", ")}.`);
+        this._toast(devs.length ? `Playing "${c.name}" on ${devs.map((d) => d.name).join(", ")}.` : `Simulating "${c.name}": no toy is selected, so nothing is sent.`);
       } catch (e) {
         this._toast("Could not play: " + (e.message || e));
         this._halt(true);
