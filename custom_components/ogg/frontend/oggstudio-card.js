@@ -9974,6 +9974,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
 .sw{display:flex;align-items:center;gap:8px;font-weight:750;font-size:13.5px;color:#d5dcf7;flex:0 0 auto}
 .sw input{width:22px;height:22px;accent-color:#67e0c8}
 .toast{min-height:16px;font-size:12.5px;color:#ffcf8a}
+.row > .ren{flex:0 0 auto;min-height:48px;padding:0 14px;font-size:13.5px}
 .embed{margin:0 -4px}
 [hidden]{display:none!important}
 `;
@@ -10133,7 +10134,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
           <label class="sl"><span>Strength</span><input type="range" id="moodstr" min="20" max="100" step="5" value="100"><b id="moodstrv">100%</b></label>
         </div>
         <div id="k-script" class="panel">
-          <select id="scsel" aria-label="Saved script"></select>
+          <div class="row"><select id="scsel" aria-label="Saved script"></select><button type="button" id="scren" class="ren" aria-label="Rename this script" title="Rename">✏️ Rename</button></div>
           <div class="row"><button class="go" id="scgo" type="button">▶ Play</button><label class="sw"><input type="checkbox" id="scloop"> Loop</label></div>
         </div>
         <div class="recrow"><button class="rec" id="rec" type="button">● Record</button><button id="save" type="button" disabled>💾 Save</button><span class="recinfo" id="recinfo">Record what plays, then save it.</span></div>
@@ -10181,6 +10182,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         if (this._playing && this._playing.kind === "script") this._halt();
         else this._playScript();
       });
+      $("scren").addEventListener("click", () => this._rename());
       $("rec").addEventListener("click", () => this._recToggle());
       $("save").addEventListener("click", () => this._save());
       $("stopall").addEventListener("click", () => {
@@ -10281,11 +10283,15 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       const sc = $("scsel");
       const html = names.length ? names.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join("") : '<option value="">No saved scripts yet</option>';
       if (sc.dataset.h !== html) {
-        const v = sc.value;
+        const v = this._wantScript && names.includes(this._wantScript) ? this._wantScript : sc.value;
         sc.innerHTML = html;
         sc.dataset.h = html;
-        if (names.includes(v)) sc.value = v;
+        if (names.includes(v)) {
+          sc.value = v;
+          if (v === this._wantScript) this._wantScript = null;
+        }
       }
+      this._$("scren").disabled = !names.length;
       if (this._queueCard) this._queueCard.externalTargets = this._targets().map((d) => d.stop);
       const key = JSON.stringify(this._channels().map.map((x) => [x.d.stop, x.ch]));
       if (key !== this._chKey) {
@@ -10607,6 +10613,23 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       const me = this._rawHass && this._rawHass.user && this._rawHass.user.id;
       const who = people.his && people.his.id === me ? "His" : people.hers && people.hers.id === me ? "Hers" : "My";
       return `${who} save · ${stamp()}`;
+    }
+    async _rename() {
+      const sel = this._$("scsel");
+      const name = sel.value;
+      if (!name) {
+        this._toast("There are no saved scripts yet.");
+        return;
+      }
+      const next = (window.prompt("New name for this script:", name) || "").trim();
+      if (!next || next === name) return;
+      try {
+        await this._hass.callService("ogg", "studio_rename", { name, new_name: next });
+        this._wantScript = next;
+        this._toast(`Renamed to "${next}".`);
+      } catch (e) {
+        this._toast(e.message || String(e));
+      }
     }
     async _save() {
       if (!this._take) return;

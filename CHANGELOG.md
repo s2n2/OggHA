@@ -1,3 +1,6 @@
+## 3.8.3 - Rename on the Easy card
+- Easy card: ✏️ Rename beside the chosen script under Script.
+
 ## 3.8.2 - Drop to 0 on the Easy card
 - Easy card: "Drop to 0 when I let go" under the sliders (remembered in each browser).
 
