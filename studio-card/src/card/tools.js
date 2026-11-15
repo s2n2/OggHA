@@ -57,6 +57,16 @@ export class ToolsPart {
       this._plKeep(); this._plShow();
     });
     this._plShow();
+    if (!this._queueListen) {
+      this._queueListen = (e) => {
+        const d = e.detail;
+        if (!this.isConnected || !d || !d.script || !this._rp) return;
+        this._take = d.script;
+        if (!this._rp.playing) this._rpLoad(d.script, 'Current take', null);
+        this._update();
+      };
+      window.addEventListener('ogg-queue-load', this._queueListen);
+    }
   }
 
   _savedNames() {

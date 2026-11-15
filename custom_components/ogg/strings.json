@@ -562,6 +562,82 @@
           "description": "Playlist name."
         }
       }
+    },
+    "studio_queue_add": {
+      "name": "Add to his or hers queue",
+      "description": "Save a script to his or hers queue, for them to play.",
+      "fields": {
+        "for": {
+          "name": "For",
+          "description": "his or hers queue."
+        },
+        "name": {
+          "name": "Name",
+          "description": "What it is called in the queue."
+        },
+        "script": {
+          "name": "Script",
+          "description": "Funscript object (actions, optional channels.V1)."
+        }
+      }
+    },
+    "studio_queue_get": {
+      "name": "Get queued script",
+      "description": "Return a queued (or played) script.",
+      "fields": {
+        "id": {
+          "name": "ID",
+          "description": "The queued script's id (from the saved-script entity's queues attribute)."
+        }
+      }
+    },
+    "studio_queue_played": {
+      "name": "Mark queued script played",
+      "description": "Move a queued script to the played list.",
+      "fields": {
+        "id": {
+          "name": "ID",
+          "description": "The queued script's id (from the saved-script entity's queues attribute)."
+        }
+      }
+    },
+    "studio_queue_requeue": {
+      "name": "Queue again",
+      "description": "Put a played script back in a queue (its own, or the other one).",
+      "fields": {
+        "id": {
+          "name": "ID",
+          "description": "The queued script's id (from the saved-script entity's queues attribute)."
+        },
+        "for": {
+          "name": "For",
+          "description": "his or hers queue."
+        }
+      }
+    },
+    "studio_queue_rename": {
+      "name": "Rename queued script",
+      "description": "Give a queued script a new name.",
+      "fields": {
+        "id": {
+          "name": "ID",
+          "description": "The queued script's id (from the saved-script entity's queues attribute)."
+        },
+        "name": {
+          "name": "Name",
+          "description": "New name."
+        }
+      }
+    },
+    "studio_queue_delete": {
+      "name": "Delete queued script",
+      "description": "Delete a queued or played script.",
+      "fields": {
+        "id": {
+          "name": "ID",
+          "description": "The queued script's id (from the saved-script entity's queues attribute)."
+        }
+      }
     }
   },
   "issues": {

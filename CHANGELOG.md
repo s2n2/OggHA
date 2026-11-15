@@ -1,3 +1,12 @@
+## 3.3.0 - Queue card: make one, send it
+- **Queue card** (`type: custom:ogg-queue-card`), a card on its own:
+  - **Make a queue:** patterns, moods, saved scripts and pauses, each for a set time (15 s to an hour), with strength and speed. Drag the handle to reorder. Built for vibrators or for a stroker.
+  - **Save it:** to his or hers queue, to your scripts, or copy its code. The name defaults to its length plus the date and time.
+  - **His and hers queues and a played list:** play one and it moves to Played, where you can play it again or put it back in a queue.
+  - **Send:** copies a link that opens the dashboard with that script ready to play, and says who sent it.
+  - **Player:** speed, loop, tap the bar to jump, and pick the toys to play on (by default his toys for his queue, hers for hers). Ogg plays it in Home Assistant, so it carries on with the screen off. It also becomes the current take on any Play card on the page.
+- New services `ogg.studio_queue_add`, `_get`, `_played`, `_requeue`, `_rename` and `_delete`. The queues are stored apart from the library.
+
 ## 3.2.0 - Private mode
 - **Private mode:** a new Privacy card (`type: custom:ogg-privacy-card`) with one switch. On, Ogg's toys stop showing their status to everyone else in Home Assistant: other users, history, the logbook and automations keep seeing what was there when it was turned on. Whoever turned it on still sees everything live on the Play card and the Control Deck, on every device they are signed in on. Only they (or the Home Assistant owner) can turn it off; it stays on across restarts. The toys keep working for everyone.
 

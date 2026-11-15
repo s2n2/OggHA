@@ -86,6 +86,17 @@ type: custom:ogg-privacy-card
 and switch it on: Ogg's toys stop showing their status to other users (and to
 history), while you keep seeing them live on all your devices.
 
+**Queue card (3.3):** make something for your partner and send it:
+
+```yaml
+type: custom:ogg-queue-card
+```
+
+Line up patterns, moods, saved scripts and pauses, each for a set time, and
+drag them into order. Then add it to his or hers queue, save it, or copy its
+code. **Send** copies a link that opens the dashboard with it ready to play.
+Played ones go to a Played list to play again.
+
 ### Ogg Control Deck: bundled dashboard card (v0.1.9+)
 
 The gear beside **HA Server** opens IntiHA in Devices & services, and the gear beside **Ogg** opens Ogg in Devices & services. These links are separate from the on/off switches.

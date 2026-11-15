@@ -13,8 +13,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from ..private import PrivateStateMixin
-from .const import LIBRARY, NO_SCRIPT, OGG_DOMAIN, SPEEDS
+from .const import LIBRARY, NO_SCRIPT, OGG_DOMAIN, QUEUES, SPEEDS
 from .library import Library, script_info
+from .queues import Queues
 from .safety import async_panic
 
 
@@ -25,7 +26,9 @@ def _device(entry: ConfigEntry) -> DeviceInfo:
 
 def studio_selects(hass: HomeAssistant, entry: ConfigEntry) -> list[SelectEntity]:
     library: Library | None = hass.data.get(LIBRARY)
-    return [] if library is None else [ScriptSelect(entry, library), SpeedSelect(entry, library)]
+    if library is None:
+        return []
+    return [ScriptSelect(entry, library, hass.data.get(QUEUES)), SpeedSelect(entry, library)]
 
 
 def studio_buttons(hass: HomeAssistant, entry: ConfigEntry) -> list[ButtonEntity]:
@@ -51,10 +54,17 @@ class ScriptSelect(_Base):
 
     _attr_icon = "mdi:playlist-music"
     # Kept out of the recorder: none of this belongs in the history database.
-    _unrecorded_attributes = frozenset({"scripts", "controllers", "limits", "playlists", "panic", "settings", "options"})
+    _unrecorded_attributes = frozenset({"scripts", "controllers", "limits", "playlists", "panic", "settings", "options",
+                                       "queues"})
 
-    def __init__(self, entry: ConfigEntry, library: Library) -> None:
+    def __init__(self, entry: ConfigEntry, library: Library, queues: Queues | None = None) -> None:
         super().__init__(entry, library, "saved_script")
+        self.queues = queues
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if self.queues is not None:
+            self.async_on_remove(self.queues.add_listener(self.async_write_ha_state))
 
     @property
     def options(self) -> list[str]:
@@ -72,7 +82,8 @@ class ScriptSelect(_Base):
                              "mode": record.get("mode")}
         return {"scripts": details, "controllers": self.library.controllers, "limits": self.library.limits,
                 "playlists": self.library.playlists, "panic": self.library.panic_at,
-                "settings": self.library.settings}
+                "settings": self.library.settings,
+                "queues": self.queues.summary if self.queues is not None else {}}
 
     async def async_select_option(self, option: str) -> None:
         self.library.select(option)

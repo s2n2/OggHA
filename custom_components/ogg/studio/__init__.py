@@ -17,10 +17,11 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import issue_registry as ir
 
-from .const import LIBRARY, OGG_DOMAIN, OLD_DOMAIN, SPEEDS
+from .const import LIBRARY, OGG_DOMAIN, OLD_DOMAIN, QUEUES, SPEEDS
 from .convert import RUN_MODES, run_script
 from .library import Library, clean_script, limit_script, script_info
 from .privacy import STUDIO_OPTIONS, async_setup_privacy, async_setup_privacy_entry, require_user
+from .queues import WHO, Queues
 from .safety import async_panic, async_setup_safety, device_limits
 from .together import async_setup_together
 from .video import async_setup_video
@@ -62,6 +63,18 @@ LIMITS_SCHEMA = vol.Schema(
 )
 PLAYLIST_SCHEMA = vol.Schema({vol.Required("name"): cv.string, vol.Required("items"): list,
                               vol.Optional("loop", default=False): cv.boolean})
+QUEUE_ADD_SCHEMA = vol.Schema({vol.Required("for"): vol.In(WHO), vol.Required("name"): cv.string,
+                               vol.Required("script"): dict})
+QUEUE_ID_SCHEMA = vol.Schema({vol.Required("id"): cv.string})
+QUEUE_REQUEUE_SCHEMA = vol.Schema({vol.Required("id"): cv.string, vol.Optional("for"): vol.In(WHO)})
+QUEUE_RENAME_SCHEMA = vol.Schema({vol.Required("id"): cv.string, vol.Required("name"): cv.string})
+
+
+def studio_queues(hass: HomeAssistant) -> Queues:
+    queues = hass.data.get(QUEUES)
+    if queues is None:
+        raise HomeAssistantError("Set up Ogg first")
+    return queues
 
 
 def studio_library(hass: HomeAssistant) -> Library:
@@ -143,6 +156,32 @@ async def async_setup_studio(hass: HomeAssistant) -> None:
             blocking=True,
         )
 
+    # His and hers queues (the Queue card).
+    async def queue_add(call: ServiceCall) -> ServiceResponse:
+        by = ""
+        if call.context.user_id:
+            user = await hass.auth.async_get_user(call.context.user_id)
+            by = user.name if user and user.name else ""
+        item_id = studio_queues(hass).add(call.data["for"], call.data["name"], call.data["script"], by)
+        return {"id": item_id, "name": studio_queues(hass).items[item_id]["name"]}
+
+    async def queue_get(call: ServiceCall) -> ServiceResponse:
+        queues = studio_queues(hass)
+        script = queues.script(call.data["id"])
+        return {"id": call.data["id"], "script": script, **queues.summary[call.data["id"]]}
+
+    async def queue_played(call: ServiceCall) -> None:
+        studio_queues(hass).played(call.data["id"])
+
+    async def queue_requeue(call: ServiceCall) -> None:
+        studio_queues(hass).requeue(call.data["id"], call.data.get("for"))
+
+    async def queue_rename(call: ServiceCall) -> None:
+        studio_queues(hass).rename(call.data["id"], call.data["name"])
+
+    async def queue_delete(call: ServiceCall) -> None:
+        studio_queues(hass).delete(call.data["id"])
+
     async def stop(call: ServiceCall) -> None:
         await hass.services.async_call(OGG_DOMAIN, "stop_script", {"entity_id": call.data["entity_id"]}, blocking=True)
 
@@ -159,6 +198,14 @@ async def async_setup_studio(hass: HomeAssistant) -> None:
     reg(OGG_DOMAIN, "studio_save_playlist", guarded(save_playlist), schema=PLAYLIST_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL)
     reg(OGG_DOMAIN, "studio_delete_playlist", guarded(delete_playlist), schema=NAME_SCHEMA)
+    reg(OGG_DOMAIN, "studio_queue_add", guarded(queue_add), schema=QUEUE_ADD_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL)
+    reg(OGG_DOMAIN, "studio_queue_get", guarded(queue_get), schema=QUEUE_ID_SCHEMA,
+        supports_response=SupportsResponse.ONLY)
+    reg(OGG_DOMAIN, "studio_queue_played", guarded(queue_played), schema=QUEUE_ID_SCHEMA)
+    reg(OGG_DOMAIN, "studio_queue_requeue", guarded(queue_requeue), schema=QUEUE_REQUEUE_SCHEMA)
+    reg(OGG_DOMAIN, "studio_queue_rename", guarded(queue_rename), schema=QUEUE_RENAME_SCHEMA)
+    reg(OGG_DOMAIN, "studio_queue_delete", guarded(queue_delete), schema=QUEUE_ID_SCHEMA)
     # Stopping is never refused.
     reg(OGG_DOMAIN, "studio_stop", stop, schema=STOP_SCHEMA)
     reg(OGG_DOMAIN, "studio_panic", panic, schema=vol.Schema({}), supports_response=SupportsResponse.OPTIONAL)
@@ -170,6 +217,9 @@ async def async_setup_studio_entry(hass: HomeAssistant, entry: ConfigEntry) -> N
     library = Library(hass)
     await library.async_load()
     hass.data[LIBRARY] = library
+    queues = Queues(hass)
+    await queues.async_load()
+    hass.data[QUEUES] = queues
     async_setup_privacy_entry(hass, entry)
     if hass.config_entries.async_entries(OLD_DOMAIN):
         # The separate OggStudio integration is still installed: ask to remove it.
@@ -197,3 +247,4 @@ async def _async_take_old_settings(hass: HomeAssistant, entry: ConfigEntry) -> N
 
 def async_unload_studio_entry(hass: HomeAssistant) -> None:
     hass.data.pop(LIBRARY, None)
+    hass.data.pop(QUEUES, None)

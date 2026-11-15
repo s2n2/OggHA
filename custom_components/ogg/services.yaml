@@ -170,3 +170,25 @@ studio_save_playlist:
 studio_delete_playlist:
   fields:
     name: {required: true, selector: {text: {}}}
+studio_queue_add:
+  fields:
+    for: {required: true, selector: {select: {options: ["his", "hers"]}}}
+    name: {required: true, selector: {text: {}}}
+    script: {required: true, selector: {object: {}}}
+studio_queue_get:
+  fields:
+    id: {required: true, selector: {text: {}}}
+studio_queue_played:
+  fields:
+    id: {required: true, selector: {text: {}}}
+studio_queue_requeue:
+  fields:
+    id: {required: true, selector: {text: {}}}
+    for: {required: false, selector: {select: {options: ["his", "hers"]}}}
+studio_queue_rename:
+  fields:
+    id: {required: true, selector: {text: {}}}
+    name: {required: true, selector: {text: {}}}
+studio_queue_delete:
+  fields:
+    id: {required: true, selector: {text: {}}}
