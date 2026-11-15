@@ -149,6 +149,11 @@ def async_setup_privacy_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
             names = {u.id: u.name or "" for u in await hass.auth.async_get_users()}
         except Exception:  # noqa: BLE001 - names are a nicety
             return
+        # A person's name (as shown in Home Assistant) wins over the user's login name.
+        for person in hass.states.async_all("person"):
+            user_id = person.attributes.get("user_id")
+            if user_id and person.name:
+                names[user_id] = person.name
         library.set_settings(card_settings(entry, names))
 
     async def changed(_hass: HomeAssistant, _entry_: ConfigEntry) -> None:

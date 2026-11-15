@@ -1,5 +1,5 @@
 ## 3.6.0 - His and hers are people
-- **Who his and hers are:** Ogg's options (Configure > Studio) gain "His is" and "Hers is", each a Home Assistant user.
+- **Who his and hers are:** Ogg's options (Configure > Studio) gain "His is" and "Hers is", each a Home Assistant user (shown by their person name).
 - **Queue card with names:** the queue tabs and buttons use their names ("Add to Sam's queue"), and it opens on the queue of whoever is signed in.
 - **A Send link reads right for each person:** the one it is for sees "Alex sent you…", the sender sees "You sent Sam…", and anyone else sees "Alex sent Sam…". Queued scripts now remember which user sent them.
 
