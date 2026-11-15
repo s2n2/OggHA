@@ -112,9 +112,6 @@ ha-card.locked > :not(#cover){display:none!important}
 .pkheat{flex:0 0 100%;width:100%;height:5px;border-radius:3px;margin:2px 0 4px;image-rendering:pixelated}
 .plitem{display:flex;gap:6px;margin-bottom:6px}
 .plitem button{flex:0 0 40px;min-height:40px;padding:0}
-.plitem .plname{flex:1;text-align:left;padding:0 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#18233d}
-.plitem.on .plname{box-shadow:inset 0 0 0 2px #67e0c8}
-#plbtn.on{box-shadow:inset 0 0 0 2px #67e0c8}
 #auel{width:100%;margin-top:6px}
 #tgsend,#tgshare,#tglink{width:100%}
 .moodgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px}

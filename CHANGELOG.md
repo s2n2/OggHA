@@ -1,3 +1,7 @@
+## 3.4.1 - Queue card layout; one place for queues
+- Queue card: **His & hers queues** now sits above **Make a queue**, and both have a heading you can tap to fold (remembered in each browser).
+- The Play card's own ☰ Queue section is gone: the Queue card does more (his and hers queues, a played list, timed steps, Send). Saved playlists stay in Ogg and still play with the `ogg.studio_*` services.
+
 ## 3.4.0 - Together: the queue on the partner's page
 - **Queue tab on the Together page:** your partner can play anything from his or hers queue or the played list, and make their own from patterns, moods and pauses (any time, drag to reorder) to play now or add to his or hers queue. It plays on your toys like their patterns do, inside your limits. Your card tells you when they add one.
 - **Their toys:** the "Which toys are yours?" picker is always shown. When none are free it says why: you are using every connected toy.

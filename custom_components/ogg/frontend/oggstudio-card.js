@@ -1431,9 +1431,6 @@ ha-card.locked > :not(#cover){display:none!important}
 .pkheat{flex:0 0 100%;width:100%;height:5px;border-radius:3px;margin:2px 0 4px;image-rendering:pixelated}
 .plitem{display:flex;gap:6px;margin-bottom:6px}
 .plitem button{flex:0 0 40px;min-height:40px;padding:0}
-.plitem .plname{flex:1;text-align:left;padding:0 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#18233d}
-.plitem.on .plname{box-shadow:inset 0 0 0 2px #67e0c8}
-#plbtn.on{box-shadow:inset 0 0 0 2px #67e0c8}
 #auel{width:100%;margin-top:6px}
 #tgsend,#tgshare,#tglink{width:100%}
 .moodgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px}
@@ -1791,7 +1788,7 @@ ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d
         sec.style.order = String(parts.indexOf(sec.dataset.part) + 1);
       }
       this._el("sndbox").style.order = this._el("videobox").style.order;
-      for (const id of ["tgsec", "toolsec", "queuesec", "locksec", "extrabox"]) this._el(id).style.order = this._el("videobox").style.order;
+      for (const id of ["tgsec", "toolsec", "locksec", "extrabox"]) this._el(id).style.order = this._el("videobox").style.order;
       for (const tog of this.shadowRoot.querySelectorAll(".kind")) {
         tog.hidden = !this._canToggleKind;
         for (const b of tog.querySelectorAll("button")) b.classList.toggle("on", b.dataset.kind === this._recKind);
@@ -1965,19 +1962,12 @@ ${STYLES}
               <div class="rpbar" id="rpbar" title="Tap to jump. Colour shows how intense each part is"><canvas id="rpheat" width="240" height="1"></canvas><i id="rpfill"></i></div>
               <div class="rpinfo" id="rpinfo"></div>
               <div class="rprow"><button id="rpplay" type="button" class="go">▶ Replay</button><select id="rpspeed" aria-label="Replay speed"></select><label class="check"><input id="rploop" type="checkbox"> Loop</label></div>
-              <div class="row" id="rptools" style="margin-top:8px"><button id="tlbtn" type="button">✂ Tools</button><button id="plbtn" type="button">☰ Queue</button></div>
+              <div class="row" id="rptools" style="margin-top:8px"><button id="tlbtn" type="button">✂ Tools</button></div>
               <div class="subbox" id="tlbox" hidden>
                 <div class="row"><button id="tlstart" type="button">Cut before here</button><button id="tlend" type="button">Cut after here</button></div>
                 <div class="row"><select id="tln" aria-label="How many times"></select><button id="tlloop" type="button">Repeat</button></div>
                 <div class="row"><select id="tlother" aria-label="Script to add"></select><button id="tlstitch" type="button">Add after</button></div>
                 <div class="hint vhide">Drag the bar to a spot, then cut. Each change becomes the current take; the saved script is not touched.</div>
-              </div>
-              <div class="subbox" id="plbox" hidden>
-                <div id="pllist"></div>
-                <div class="row"><select id="pladd" aria-label="Add to the queue"></select><button id="pladdbtn" type="button" style="flex:0 0 auto">Add</button></div>
-                <div class="row"><button id="plplay" type="button">▶ Play queue</button><label class="check"><input id="plloop" type="checkbox"> Repeat queue</label></div>
-                <div class="row"><select id="plsaved" aria-label="Saved queues"></select><button id="pldel" type="button" style="flex:0 0 auto">Delete</button></div>
-                <div class="row"><input id="plname" type="text" placeholder="Queue name"><button id="plsave" type="button" style="flex:0 0 auto">Save queue</button></div>
               </div>
             </div>
             <div id="aubox" hidden>
@@ -2078,7 +2068,6 @@ ${STYLES}
         <section id="sndbox"><button type="button" class="outhead mhead" id="sndhead" aria-expanded="true"><span class="outtitle">♪ Sound</span><span class="outcount zero" id="sndbadge"><i></i><b></b></span><span class="chev" aria-hidden="true">▾</span></button></section>
         <section id="tgsec" class="psec"><button type="button" class="outhead mhead" id="tghead" aria-expanded="true"><span class="outtitle">🤝 Together</span><span class="outcount zero" id="tgbadge"><i></i><b></b></span><span class="chev" aria-hidden="true">▾</span></button></section>
         <section id="toolsec" class="psec"><button type="button" class="outhead mhead" id="toolhead" aria-expanded="true"><span class="outtitle">✂ Script editing</span><span class="outcount zero" id="toolbadge"><i></i><b></b></span><span class="chev" aria-hidden="true">▾</span></button><div class="hint" id="toolinfo"></div><div id="tlslot"></div></section>
-        <section id="queuesec" class="psec"><button type="button" class="outhead mhead" id="queuehead" aria-expanded="true"><span class="outtitle">☰ Queue</span><span class="outcount zero" id="queuebadge"><i></i><b></b></span><span class="chev" aria-hidden="true">▾</span></button><div id="plslot"></div></section>
         <section id="locksec" class="psec"><button type="button" class="outhead mhead" id="lockhead" aria-expanded="true"><span class="outtitle">🔒 Lock &amp; PIN</span><span class="outcount zero" id="lockbadge"><i></i><b></b></span><span class="chev" aria-hidden="true">▾</span></button><div class="hint" id="lockinfo"></div><div class="row" style="margin-top:8px"><button id="locknow" type="button">🔒 Lock now</button><button id="lockset" type="button">⚙ PIN settings</button></div></section>
         <section id="extrabox"><button type="button" class="outhead mhead" id="extrahead" aria-expanded="true"><span class="outtitle">🧰 Extras</span><span class="outcount zero" id="extrabadge"><i></i><b></b></span><span class="chev" aria-hidden="true">▾</span></button><div class="gpslot" id="xgpslot"></div></section>
         <section data-part="import">
@@ -4360,10 +4349,7 @@ ${STYLES}
         if ($("aubox").parentElement !== home) home.appendChild($("aubox"));
       }
       $("tgbox").hidden = simple ? false : ctl !== "together";
-      if (simple) {
-        $("tlbox").hidden = false;
-        $("plbox").hidden = false;
-      }
+      if (simple) $("tlbox").hidden = false;
       $("urecrow").hidden = true;
       if (simple) {
         for (const sec of this.shadowRoot.querySelectorAll('[data-part="record"],[data-part="stroke"]')) {
@@ -4386,7 +4372,6 @@ ${STYLES}
         if (ctl === "library" && !this._rp.raw && !this._rp.playing && !this._libPick) this._libPreview($("saved").value);
         if ($("tgbox").parentElement !== $("tgsec")) $("tgsec").appendChild($("tgbox"));
         if ($("tlbox").parentElement !== $("tlslot")) $("tlslot").appendChild($("tlbox"));
-        if ($("plbox").parentElement !== $("plslot")) $("plslot").appendChild($("plbox"));
         const imp = this.shadowRoot.querySelector('section[data-part="import"]');
         if (imp.parentElement !== $("extrabox")) $("extrabox").appendChild(imp);
         imp.classList.remove("off");
@@ -5858,7 +5843,6 @@ ${STYLES}
   }
 
   // studio-card/src/card/tools.js
-  var QUEUE_KEY = "oggstudio_queue";
   var TAKE_HEAT = "\0take";
   var paintHeat = (canvas, heat) => {
     canvas.width = heat.length;
@@ -5873,73 +5857,20 @@ ${STYLES}
   var ToolsPart = class {
     // ---------------------------------------------------------- script tools
     // A heatmap on the replay bar and in the picker; trim, repeat and stitch
-    // (each result becomes the current take); and a queue of scripts and moods.
+    // (each result becomes the current take). Queues are the Queue card's now;
+    // what is left of the old queue here (_pl) is never switched on.
     _bindTools() {
       const $ = this._el;
       $("tlbtn").addEventListener("click", () => {
         $("tlbox").hidden = !$("tlbox").hidden;
-        $("plbox").hidden = true;
         this._toolsUpdate();
-      });
-      $("plbtn").addEventListener("click", () => {
-        $("plbox").hidden = !$("plbox").hidden;
-        $("tlbox").hidden = true;
-        this._toolsUpdate();
-        this._plShow();
       });
       $("tlstart").addEventListener("click", () => this._tlTrim(false));
       $("tlend").addEventListener("click", () => this._tlTrim(true));
       $("tlloop").addEventListener("click", () => this._tlEdit((raw) => loopScript(raw, Number($("tln").value)), `Repeated ${$("tln").value} times.`));
       $("tlstitch").addEventListener("click", () => this._tlStitch());
       $("tln").replaceChildren(...[2, 3, 4, 5, 8, 10, 20].map((n) => new Option(`× ${n}`, String(n))));
-      let kept = null;
-      try {
-        kept = JSON.parse(localStorage.getItem(QUEUE_KEY) || "null");
-      } catch (_) {
-      }
-      const items = kept && Array.isArray(kept.items) ? kept.items.filter((it) => it && (typeof it.script === "string" || typeof it.mood === "string")) : [];
-      this._pl = { items, loop: Boolean(kept && kept.loop), i: -1, on: false, run: 0, busy: false };
-      $("plloop").checked = this._pl.loop;
-      $("plloop").addEventListener("change", () => {
-        this._pl.loop = $("plloop").checked;
-        this._plKeep();
-      });
-      $("pladdbtn").addEventListener("click", () => {
-        const v = $("pladd").value;
-        if (!v) return;
-        this._pl.items.push(v.startsWith("m:") ? { mood: v.slice(2) } : { script: v.slice(2) });
-        this._plKeep();
-        this._plShow();
-      });
-      $("plplay").addEventListener("click", () => {
-        if (this._pl.on) {
-          this._plOff();
-          this._rpStop();
-        } else this._plPlay(0);
-      });
-      $("plsaved").addEventListener("change", () => this._plLoadSaved());
-      $("plsave").addEventListener("click", () => this._plSave());
-      $("pldel").addEventListener("click", () => this._plDelete());
-      $("pllist").addEventListener("click", (e) => {
-        const b = e.target.closest("button");
-        if (!b) return;
-        const i = Number(b.parentElement.dataset.i), pl = this._pl;
-        const act = b.dataset.act;
-        if (act === "go") {
-          this._plPlay(i);
-          return;
-        }
-        if (pl.on) {
-          this._plOff();
-          this._rpStop();
-        }
-        if (act === "x") pl.items.splice(i, 1);
-        const j = act === "up" ? i - 1 : act === "down" ? i + 1 : -1;
-        if (j >= 0 && j < pl.items.length) [pl.items[i], pl.items[j]] = [pl.items[j], pl.items[i]];
-        this._plKeep();
-        this._plShow();
-      });
-      this._plShow();
+      this._pl = { items: [], loop: false, i: -1, on: false, run: 0, busy: false };
       if (!this._queueListen) {
         this._queueListen = (e) => {
           const d = e.detail;
@@ -5960,18 +5891,10 @@ ${STYLES}
       if (!this._pl) return;
       const $ = this._el;
       const names = this._savedNames();
-      const saved = this._studio && this._hass.states[this._studio.saved];
-      const lists = Object.keys(saved && saved.attributes.playlists || {}).sort((a, b) => a.localeCompare(b));
-      const key = JSON.stringify([names, lists]);
+      const key = JSON.stringify(names);
       if ($("tlbox").dataset.key === key) return;
       $("tlbox").dataset.key = key;
       $("tlother").replaceChildren(new Option(names.length ? "Choose a saved script…" : "No saved scripts yet", ""), ...names.map((n) => new Option(n, n)));
-      $("pladd").replaceChildren(
-        new Option("Add a script or mood…", ""),
-        ...names.map((n) => new Option(n, `s:${n}`)),
-        ...Object.entries(MOODS).map(([k, m]) => new Option(`${m.icon} Mood: ${m.label}`, `m:${k}`))
-      );
-      $("plsaved").replaceChildren(new Option(lists.length ? "Open a saved queue…" : "No saved queues yet", ""), ...lists.map((n) => new Option(n, n)));
     }
     // ---- heatmap
     _heatShow() {
@@ -6053,12 +5976,6 @@ ${STYLES}
       this._tlEdit((raw) => stitchScripts(raw, other), `Added "${name}" after it.`);
     }
     // ---- queue
-    _plKeep() {
-      try {
-        localStorage.setItem(QUEUE_KEY, JSON.stringify({ items: this._pl.items, loop: this._pl.loop }));
-      } catch (_) {
-      }
-    }
     _plLabel(it) {
       if (it.mood) {
         const m = MOODS[it.mood];
@@ -6067,17 +5984,7 @@ ${STYLES}
       return it.script;
     }
     _plShow() {
-      if (!this._el || !this._pl) return;
       if (this._mediaShow) this._mediaShow();
-      const $ = this._el;
-      const pl = this._pl;
-      const label = pl.items.length ? `☰ Queue (${pl.items.length})` : "☰ Queue";
-      if ($("plbtn").textContent !== label) $("plbtn").textContent = label;
-      $("plbtn").classList.toggle("on", pl.on);
-      $("plplay").textContent = pl.on ? "■ Stop queue" : "▶ Play queue";
-      $("plplay").classList.toggle("stop", pl.on);
-      if ($("plbox").hidden) return;
-      $("pllist").innerHTML = pl.items.map((it, i) => `<div class="plitem${pl.on && i === pl.i ? " on" : ""}" data-i="${i}"><button type="button" class="plname" data-act="go">${i + 1}. ${esc(this._plLabel(it))}</button><button type="button" data-act="up" aria-label="Move up"${i ? "" : " disabled"}>↑</button><button type="button" data-act="down" aria-label="Move down"${i < pl.items.length - 1 ? "" : " disabled"}>↓</button><button type="button" data-act="x" aria-label="Remove">✕</button></div>`).join("") || '<div class="hint">Add scripts and moods; they play in order.</div>';
     }
     // The queue stops following (what is playing carries on).
     _plOff() {
@@ -6156,50 +6063,6 @@ ${STYLES}
       this._rpStop();
       this._plShow();
       this._toast(done ? "The queue has finished." : "Nothing in the queue could be played.");
-    }
-    _plLoadSaved() {
-      const $ = this._el;
-      const name = $("plsaved").value;
-      const saved = this._studio && this._hass.states[this._studio.saved];
-      const list = name && saved && saved.attributes.playlists && saved.attributes.playlists[name];
-      if (!list) return;
-      if (this._pl.on) {
-        this._plOff();
-        this._rpStop();
-      }
-      this._pl.items = (list.items || []).map((it) => ({ ...it }));
-      this._pl.loop = Boolean(list.loop);
-      $("plloop").checked = this._pl.loop;
-      $("plname").value = name;
-      this._plKeep();
-      this._plShow();
-    }
-    async _plSave() {
-      const name = this._el("plname").value.trim();
-      if (!name) {
-        this._toast("Type a name for the queue first.");
-        return;
-      }
-      if (!this._pl.items.length) {
-        this._toast("The queue is empty.");
-        return;
-      }
-      try {
-        await this._hass.callService("ogg", "studio_save_playlist", { name, items: this._pl.items, loop: this._pl.loop });
-        this._toast(`Saved the queue "${name}".`);
-      } catch (e) {
-        this._toast(e.message || String(e));
-      }
-    }
-    async _plDelete() {
-      const name = this._el("plsaved").value || this._el("plname").value.trim();
-      if (!name || !confirm(`Delete the saved queue "${name}"?`)) return;
-      try {
-        await this._hass.callService("ogg", "studio_delete_playlist", { name });
-        this._toast(`Deleted the queue "${name}".`);
-      } catch (e) {
-        this._toast(e.message || String(e));
-      }
     }
   };
 
@@ -7028,18 +6891,11 @@ ${STYLES}
       $("ctlhead").addEventListener("click", () => this._mediaFold("c", !this._mfold.c, true));
       this._mediaFold("x", mf.x !== false);
       $("extrahead").addEventListener("click", () => this._mediaFold("x", !this._mfold.x, true));
-      for (const k of ["t", "p", "q", "l"]) this._mediaFold(k, mf[k] !== false);
+      for (const k of ["t", "p", "l"]) this._mediaFold(k, mf[k] !== false);
       $("tghead").addEventListener("click", () => this._mediaFold("t", !this._mfold.t, true));
       $("toolhead").addEventListener("click", () => {
         this._mediaFold("p", !this._mfold.p, true);
         if (!this._mfold.p) this._toolsUpdate();
-      });
-      $("queuehead").addEventListener("click", () => {
-        this._mediaFold("q", !this._mfold.q, true);
-        if (!this._mfold.q) {
-          this._toolsUpdate();
-          this._plShow();
-        }
       });
       $("lockhead").addEventListener("click", () => this._mediaFold("l", !this._mfold.l, true));
       $("locknow").addEventListener("click", () => {
@@ -7906,11 +7762,11 @@ ${STYLES}
     // Video and Sound fold like Devices: Video open, Sound folded at first.
     _mediaFold(which, folded, save) {
       const $ = this._el;
-      this._mfold = this._mfold || { c: false, v: true, s: true, x: true, t: true, p: true, q: true, l: true };
+      this._mfold = this._mfold || { c: false, v: true, s: true, x: true, t: true, p: true, l: true };
       this._mfold[which] = folded;
-      const box = { c: this.shadowRoot.querySelector("ha-card"), v: $("videobox"), s: $("sndbox"), x: $("extrabox"), t: $("tgsec"), p: $("toolsec"), q: $("queuesec"), l: $("locksec") }[which];
+      const box = { c: this.shadowRoot.querySelector("ha-card"), v: $("videobox"), s: $("sndbox"), x: $("extrabox"), t: $("tgsec"), p: $("toolsec"), l: $("locksec") }[which];
       box.classList.toggle(which === "c" ? "cfold" : "mfold", folded);
-      $({ c: "ctlhead", v: "vidhead", s: "sndhead", x: "extrahead", t: "tghead", p: "toolhead", q: "queuehead", l: "lockhead" }[which]).setAttribute("aria-expanded", String(!folded));
+      $({ c: "ctlhead", v: "vidhead", s: "sndhead", x: "extrahead", t: "tghead", p: "toolhead", l: "lockhead" }[which]).setAttribute("aria-expanded", String(!folded));
       if (save) {
         try {
           localStorage.setItem(MEDIA_FOLD_KEY, JSON.stringify(this._mfold));
@@ -7938,9 +7794,6 @@ ${STYLES}
       badge("toolbadge", Boolean(rpn), rpn ? rpn.slice(0, 18) : "no script");
       const tinfo = rpn ? `Editing "${rpn}": drag the Library's bar to a spot, then cut. Changes become the current take.` : "Choose a script in the Library first.";
       if (this._el("toolinfo").textContent !== tinfo) this._el("toolinfo").textContent = tinfo;
-      const pl = this._pl;
-      const n = pl && pl.items ? pl.items.length : 0;
-      badge("queuebadge", Boolean(pl && pl.on), pl && pl.on ? `playing ${pl.i + 1}/${n}` : n ? `${n} in queue` : "empty");
       const p = this._privacy || {};
       badge("lockbadge", Boolean(p.pin || p.discreet), p.pin ? "PIN set" : p.discreet ? "discreet" : "off");
       const linfo = `PIN ${p.pin ? "set" : "not set"} · discreet ${p.discreet ? "on" : "off"} · auto-lock ${p.auto_lock ? `${p.auto_lock} min` : "off"}. Changed in Home Assistant by an admin.`;
@@ -8691,6 +8544,13 @@ ha-card{display:block;overflow:hidden;border-radius:24px;border:1px solid rgba(1
 h2{margin:0;font-size:19px;letter-spacing:-.03em;font-weight:780}
 h3{margin:0 0 8px;font-size:13px;font-weight:800;color:#d5dcf7;display:flex;align-items:center;gap:8px}
 h3 .n{margin-left:auto;font-size:11px;color:var(--muted);font-weight:600}
+.shead{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:0 2px;border:0;background:none;color:#eef1ff;text-align:left;border-radius:10px}
+.shead .st{flex:1;font-size:14px;font-weight:780;letter-spacing:-.01em}
+.shead .n{font-size:11px;color:var(--muted);font-weight:650}
+.shead .chev{font-size:13px;color:#a8b8da;transition:transform .18s ease}
+.fold.folded .chev{transform:rotate(-90deg)}
+.fold.folded .sbody{display:none}
+.sbody{display:flex;flex-direction:column;gap:10px}
 section{border:1px solid var(--line);border-radius:18px;padding:12px;background:rgba(255,255,255,.03);display:flex;flex-direction:column;gap:10px}
 select,input[type=text],textarea{width:100%;box-sizing:border-box;background:var(--field);color:var(--ink);border:1px solid var(--edge);border-radius:14px;padding:11px 12px;font:inherit;font-size:14px;font-weight:650}
 textarea{min-height:64px;font-family:monospace;font-size:11px;font-weight:400}
@@ -8937,8 +8797,17 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
         <div class="devs" id="devs"></div>
         <div class="row"><button id="play" type="button">▶ Play</button><button id="stop" class="stop" type="button">■ Stop</button><button id="code" type="button">Copy code</button><button id="del" type="button">Delete</button></div>
       </section>
-      <section>
-        <h3>🎨 Make a queue<span class="n" id="count"></span></h3>
+      <section class="fold" id="qsec">
+        <button type="button" class="shead" id="qhead" aria-expanded="true" aria-controls="qbody"><span class="st">📋 His &amp; hers queues</span><span class="n" id="qcount"></span><span class="chev" aria-hidden="true">▾</span></button>
+        <div class="sbody" id="qbody">
+        <div class="tabs"><button type="button" class="his" data-tab="his"></button><button type="button" class="hers" data-tab="hers"></button><button type="button" class="played" data-tab="played"></button></div>
+        <div class="list" id="list"></div>
+        <div class="hint">▶ loads it above and plays it. Send copies a link: it opens this dashboard with that one ready to play.</div>
+        </div>
+      </section>
+      <section class="fold" id="msec">
+        <button type="button" class="shead" id="mhead" aria-expanded="true" aria-controls="mbody"><span class="st">🎨 Make a queue</span><span class="n" id="count"></span><span class="chev" aria-hidden="true">▾</span></button>
+        <div class="sbody" id="mbody">
         <div class="seg" role="radiogroup" aria-label="For"><button type="button" id="forvibe">〰️ For vibrators</button><button type="button" id="forstroke">↕️ For a stroker</button></div>
         <div class="steps" id="steps"></div>
         <div class="adds"><button type="button" data-add="pattern">+ Pattern</button><button type="button" data-add="mood">+ Mood</button><button type="button" data-add="script">+ Script</button><button type="button" data-add="pause">+ Pause</button></div>
@@ -8948,16 +8817,22 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
         <div class="row"><button type="button" id="try">▶ Try it</button><button type="button" id="toscripts">Save to scripts</button><button type="button" id="bcode">Copy code</button></div>
         <div class="row"><button type="button" class="small" id="opencode">Open a code…</button><button type="button" class="small" id="clear">Start again</button><span></span></div>
         <div id="codebox" hidden><textarea id="codein" placeholder="Paste a code (ogg1:…) or funscript"></textarea><div class="row" style="margin-top:6px"><button type="button" class="small" id="codego">Load it</button><span></span></div></div>
-      </section>
-      <section>
-        <div class="tabs"><button type="button" class="his" data-tab="his"></button><button type="button" class="hers" data-tab="hers"></button><button type="button" class="played" data-tab="played"></button></div>
-        <div class="list" id="list"></div>
-        <div class="hint">▶ loads it above and plays it. Send copies a link: it opens this dashboard with that one ready to play.</div>
+        </div>
       </section>
       <div class="toast" id="toast" role="status"></div>
     </div></ha-card>`;
       const $ = (id) => this.shadowRoot.getElementById(id);
       this._$ = $;
+      const fold = (key, sec, head, folded, save) => {
+        $(sec).classList.toggle("folded", folded);
+        $(head).setAttribute("aria-expanded", String(!folded));
+        if (save) keepSet({ fold: { ...keepGet().fold || {}, [key]: folded } });
+      };
+      const kept = keepGet().fold || {};
+      fold("q", "qsec", "qhead", Boolean(kept.q));
+      fold("m", "msec", "mhead", Boolean(kept.m));
+      $("qhead").addEventListener("click", () => fold("q", "qsec", "qhead", !$("qsec").classList.contains("folded"), true));
+      $("mhead").addEventListener("click", () => fold("m", "msec", "mhead", !$("msec").classList.contains("folded"), true));
       $("pick").addEventListener("change", () => this._choose($("pick").value));
       $("speed").addEventListener("change", () => {
         this._speed = $("speed").value;
@@ -9640,6 +9515,8 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:26px;margin:0}
         b.textContent = `${t === "his" ? "♂ His" : t === "hers" ? "♀ Hers" : "✓ Played"}${n ? ` (${n})` : ""}`;
         b.classList.toggle("on", t === this._tab);
       }
+      const waiting = of("his").length + of("hers").length;
+      $("qcount").textContent = `${waiting} waiting · ${of("played").length} played`;
       const rows = of(this._tab).sort((a, b) => String((this._tab === "played" ? b[1].played : a[1].made) || "").localeCompare(String((this._tab === "played" ? a[1].played : b[1].made) || "")));
       const cur = this._cur && this._cur.src === "queue" ? this._cur.id : null;
       $("list").innerHTML = rows.map(([id, r]) => {

@@ -89,7 +89,7 @@ export class ReplayPart {
       if ($('aubox').parentElement !== home) home.appendChild($('aubox'));
     }
     $('tgbox').hidden = simple ? false : ctl !== 'together';
-    if (simple) { $('tlbox').hidden = false; $('plbox').hidden = false; }
+    if (simple) $('tlbox').hidden = false;
     $('urecrow').hidden = true;      // its parts sit elsewhere on the Play card
     if (simple) {
       // Controls (pads or stroke bar), Video and Sound are all there; the
@@ -117,10 +117,9 @@ export class ReplayPart {
       lib.classList.toggle('off', ctl !== 'library');
       // Opening the Library shows the chosen script's preview.
       if (ctl === 'library' && !this._rp.raw && !this._rp.playing && !this._libPick) this._libPreview($('saved').value);
-      // Together, the script tools and the queue have sections of their own.
+      // Together and the script tools have sections of their own.
       if ($('tgbox').parentElement !== $('tgsec')) $('tgsec').appendChild($('tgbox'));
       if ($('tlbox').parentElement !== $('tlslot')) $('tlslot').appendChild($('tlbox'));
-      if ($('plbox').parentElement !== $('plslot')) $('plslot').appendChild($('plbox'));
       const imp = this.shadowRoot.querySelector('section[data-part="import"]');
       if (imp.parentElement !== $('extrabox')) $('extrabox').appendChild(imp);
       imp.classList.remove('off');

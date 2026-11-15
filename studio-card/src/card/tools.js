@@ -3,7 +3,6 @@ import { duration, esc, fmt } from '../lib/core.js';
 import { MOODS } from '../lib/moods.js';
 import { heatColor, heatmap, loopScript, stitchScripts, trimScript } from '../lib/tools.js';
 
-const QUEUE_KEY = 'oggstudio_queue';
 const TAKE_HEAT = '\u0000take';
 
 const paintHeat = (canvas, heat) => {
@@ -18,45 +17,17 @@ const paintHeat = (canvas, heat) => {
 export class ToolsPart {
   // ---------------------------------------------------------- script tools
   // A heatmap on the replay bar and in the picker; trim, repeat and stitch
-  // (each result becomes the current take); and a queue of scripts and moods.
+  // (each result becomes the current take). Queues are the Queue card's now;
+  // what is left of the old queue here (_pl) is never switched on.
   _bindTools() {
     const $ = this._el;
-    $('tlbtn').addEventListener('click', () => { $('tlbox').hidden = !$('tlbox').hidden; $('plbox').hidden = true; this._toolsUpdate(); });
-    $('plbtn').addEventListener('click', () => { $('plbox').hidden = !$('plbox').hidden; $('tlbox').hidden = true; this._toolsUpdate(); this._plShow(); });
+    $('tlbtn').addEventListener('click', () => { $('tlbox').hidden = !$('tlbox').hidden; this._toolsUpdate(); });
     $('tlstart').addEventListener('click', () => this._tlTrim(false));
     $('tlend').addEventListener('click', () => this._tlTrim(true));
     $('tlloop').addEventListener('click', () => this._tlEdit((raw) => loopScript(raw, Number($('tln').value)), `Repeated ${$('tln').value} times.`));
     $('tlstitch').addEventListener('click', () => this._tlStitch());
     $('tln').replaceChildren(...[2, 3, 4, 5, 8, 10, 20].map((n) => new Option(`× ${n}`, String(n))));
-    let kept = null;
-    try { kept = JSON.parse(localStorage.getItem(QUEUE_KEY) || 'null'); } catch (_) { /* private mode */ }
-    const items = kept && Array.isArray(kept.items) ? kept.items.filter((it) => it && (typeof it.script === 'string' || typeof it.mood === 'string')) : [];
-    this._pl = { items, loop: Boolean(kept && kept.loop), i: -1, on: false, run: 0, busy: false };
-    $('plloop').checked = this._pl.loop;
-    $('plloop').addEventListener('change', () => { this._pl.loop = $('plloop').checked; this._plKeep(); });
-    $('pladdbtn').addEventListener('click', () => {
-      const v = $('pladd').value;
-      if (!v) return;
-      this._pl.items.push(v.startsWith('m:') ? { mood: v.slice(2) } : { script: v.slice(2) });
-      this._plKeep(); this._plShow();
-    });
-    $('plplay').addEventListener('click', () => { if (this._pl.on) { this._plOff(); this._rpStop(); } else this._plPlay(0); });
-    $('plsaved').addEventListener('change', () => this._plLoadSaved());
-    $('plsave').addEventListener('click', () => this._plSave());
-    $('pldel').addEventListener('click', () => this._plDelete());
-    $('pllist').addEventListener('click', (e) => {
-      const b = e.target.closest('button');
-      if (!b) return;
-      const i = Number(b.parentElement.dataset.i), pl = this._pl;
-      const act = b.dataset.act;
-      if (act === 'go') { this._plPlay(i); return; }
-      if (pl.on) { this._plOff(); this._rpStop(); }
-      if (act === 'x') pl.items.splice(i, 1);
-      const j = act === 'up' ? i - 1 : act === 'down' ? i + 1 : -1;
-      if (j >= 0 && j < pl.items.length) [pl.items[i], pl.items[j]] = [pl.items[j], pl.items[i]];
-      this._plKeep(); this._plShow();
-    });
-    this._plShow();
+    this._pl = { items: [], loop: false, i: -1, on: false, run: 0, busy: false };
     if (!this._queueListen) {
       this._queueListen = (e) => {
         const d = e.detail;
@@ -79,15 +50,10 @@ export class ToolsPart {
     if (!this._pl) return;
     const $ = this._el;
     const names = this._savedNames();
-    const saved = this._studio && this._hass.states[this._studio.saved];
-    const lists = Object.keys((saved && saved.attributes.playlists) || {}).sort((a, b) => a.localeCompare(b));
-    const key = JSON.stringify([names, lists]);
+    const key = JSON.stringify(names);
     if ($('tlbox').dataset.key === key) return;
     $('tlbox').dataset.key = key;
     $('tlother').replaceChildren(new Option(names.length ? 'Choose a saved script…' : 'No saved scripts yet', ''), ...names.map((n) => new Option(n, n)));
-    $('pladd').replaceChildren(new Option('Add a script or mood…', ''), ...names.map((n) => new Option(n, `s:${n}`)),
-      ...Object.entries(MOODS).map(([k, m]) => new Option(`${m.icon} Mood: ${m.label}`, `m:${k}`)));
-    $('plsaved').replaceChildren(new Option(lists.length ? 'Open a saved queue…' : 'No saved queues yet', ''), ...lists.map((n) => new Option(n, n)));
   }
 
   // ---- heatmap
@@ -155,33 +121,12 @@ export class ToolsPart {
   }
 
   // ---- queue
-  _plKeep() {
-    try { localStorage.setItem(QUEUE_KEY, JSON.stringify({ items: this._pl.items, loop: this._pl.loop })); } catch (_) { /* private mode */ }
-  }
-
   _plLabel(it) {
     if (it.mood) { const m = MOODS[it.mood]; return m ? `${m.icon} Mood: ${m.label}` : `Mood: ${it.mood}`; }
     return it.script;
   }
 
-  _plShow() {
-    if (!this._el || !this._pl) return;
-    if (this._mediaShow) this._mediaShow();      // the Queue section's badge
-    const $ = this._el;
-    const pl = this._pl;
-    const label = pl.items.length ? `☰ Queue (${pl.items.length})` : '☰ Queue';
-    if ($('plbtn').textContent !== label) $('plbtn').textContent = label;
-    $('plbtn').classList.toggle('on', pl.on);
-    $('plplay').textContent = pl.on ? '■ Stop queue' : '▶ Play queue';
-    $('plplay').classList.toggle('stop', pl.on);
-    if ($('plbox').hidden) return;
-    $('pllist').innerHTML = pl.items.map((it, i) => `<div class="plitem${pl.on && i === pl.i ? ' on' : ''}" data-i="${i}">`
-      + `<button type="button" class="plname" data-act="go">${i + 1}. ${esc(this._plLabel(it))}</button>`
-      + `<button type="button" data-act="up" aria-label="Move up"${i ? '' : ' disabled'}>↑</button>`
-      + `<button type="button" data-act="down" aria-label="Move down"${i < pl.items.length - 1 ? '' : ' disabled'}>↓</button>`
-      + '<button type="button" data-act="x" aria-label="Remove">✕</button></div>').join('')
-      || '<div class="hint">Add scripts and moods; they play in order.</div>';
-  }
+  _plShow() { if (this._mediaShow) this._mediaShow(); }
 
   // The queue stops following (what is playing carries on).
   _plOff() {
@@ -241,36 +186,5 @@ export class ToolsPart {
     this._rpStop();
     this._plShow();
     this._toast(done ? 'The queue has finished.' : 'Nothing in the queue could be played.');
-  }
-
-  _plLoadSaved() {
-    const $ = this._el;
-    const name = $('plsaved').value;
-    const saved = this._studio && this._hass.states[this._studio.saved];
-    const list = name && saved && saved.attributes.playlists && saved.attributes.playlists[name];
-    if (!list) return;
-    if (this._pl.on) { this._plOff(); this._rpStop(); }
-    this._pl.items = (list.items || []).map((it) => ({ ...it }));
-    this._pl.loop = Boolean(list.loop);
-    $('plloop').checked = this._pl.loop;
-    $('plname').value = name;
-    this._plKeep(); this._plShow();
-  }
-
-  async _plSave() {
-    const name = this._el('plname').value.trim();
-    if (!name) { this._toast('Type a name for the queue first.'); return; }
-    if (!this._pl.items.length) { this._toast('The queue is empty.'); return; }
-    try {
-      await this._hass.callService('ogg', 'studio_save_playlist', { name, items: this._pl.items, loop: this._pl.loop });
-      this._toast(`Saved the queue "${name}".`);
-    } catch (e) { this._toast(e.message || String(e)); }
-  }
-
-  async _plDelete() {
-    const name = this._el('plsaved').value || this._el('plname').value.trim();
-    if (!name || !confirm(`Delete the saved queue "${name}"?`)) return;
-    try { await this._hass.callService('ogg', 'studio_delete_playlist', { name }); this._toast(`Deleted the queue "${name}".`); }
-    catch (e) { this._toast(e.message || String(e)); }
   }
 }

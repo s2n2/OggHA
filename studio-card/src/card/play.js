@@ -89,10 +89,9 @@ export class PlayPart {
     $('ctlhead').addEventListener('click', () => this._mediaFold('c', !this._mfold.c, true));
     this._mediaFold('x', mf.x !== false);
     $('extrahead').addEventListener('click', () => this._mediaFold('x', !this._mfold.x, true));
-    for (const k of ['t', 'p', 'q', 'l']) this._mediaFold(k, mf[k] !== false);
+    for (const k of ['t', 'p', 'l']) this._mediaFold(k, mf[k] !== false);
     $('tghead').addEventListener('click', () => this._mediaFold('t', !this._mfold.t, true));
     $('toolhead').addEventListener('click', () => { this._mediaFold('p', !this._mfold.p, true); if (!this._mfold.p) this._toolsUpdate(); });
-    $('queuehead').addEventListener('click', () => { this._mediaFold('q', !this._mfold.q, true); if (!this._mfold.q) { this._toolsUpdate(); this._plShow(); } });
     $('lockhead').addEventListener('click', () => this._mediaFold('l', !this._mfold.l, true));
     $('locknow').addEventListener('click', () => { if (this._needsLock) this._lock(); else this._toast('Set a PIN or discreet mode first (⚙ PIN settings).'); });
     $('lockset').addEventListener('click', () => {
@@ -851,11 +850,11 @@ export class PlayPart {
   // Video and Sound fold like Devices: Video open, Sound folded at first.
   _mediaFold(which, folded, save) {
     const $ = this._el;
-    this._mfold = this._mfold || { c: false, v: true, s: true, x: true, t: true, p: true, q: true, l: true };
+    this._mfold = this._mfold || { c: false, v: true, s: true, x: true, t: true, p: true, l: true };
     this._mfold[which] = folded;
-    const box = { c: this.shadowRoot.querySelector('ha-card'), v: $('videobox'), s: $('sndbox'), x: $('extrabox'), t: $('tgsec'), p: $('toolsec'), q: $('queuesec'), l: $('locksec') }[which];
+    const box = { c: this.shadowRoot.querySelector('ha-card'), v: $('videobox'), s: $('sndbox'), x: $('extrabox'), t: $('tgsec'), p: $('toolsec'), l: $('locksec') }[which];
     box.classList.toggle(which === 'c' ? 'cfold' : 'mfold', folded);
-    $({ c: 'ctlhead', v: 'vidhead', s: 'sndhead', x: 'extrahead', t: 'tghead', p: 'toolhead', q: 'queuehead', l: 'lockhead' }[which]).setAttribute('aria-expanded', String(!folded));
+    $({ c: 'ctlhead', v: 'vidhead', s: 'sndhead', x: 'extrahead', t: 'tghead', p: 'toolhead', l: 'lockhead' }[which]).setAttribute('aria-expanded', String(!folded));
     if (save) { try { localStorage.setItem(MEDIA_FOLD_KEY, JSON.stringify(this._mfold)); } catch (_) { /* private mode */ } }
   }
 
@@ -875,9 +874,6 @@ export class PlayPart {
     badge('toolbadge', Boolean(rpn), rpn ? rpn.slice(0, 18) : 'no script');
     const tinfo = rpn ? `Editing "${rpn}": drag the Library's bar to a spot, then cut. Changes become the current take.` : 'Choose a script in the Library first.';
     if (this._el('toolinfo').textContent !== tinfo) this._el('toolinfo').textContent = tinfo;
-    const pl = this._pl;
-    const n = pl && pl.items ? pl.items.length : 0;
-    badge('queuebadge', Boolean(pl && pl.on), pl && pl.on ? `playing ${pl.i + 1}/${n}` : n ? `${n} in queue` : 'empty');
     const p = this._privacy || {};
     badge('lockbadge', Boolean(p.pin || p.discreet), p.pin ? 'PIN set' : p.discreet ? 'discreet' : 'off');
     const linfo = `PIN ${p.pin ? 'set' : 'not set'} · discreet ${p.discreet ? 'on' : 'off'} · auto-lock ${p.auto_lock ? `${p.auto_lock} min` : 'off'}. Changed in Home Assistant by an admin.`;

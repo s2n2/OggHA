@@ -39,6 +39,13 @@ ha-card{display:block;overflow:hidden;border-radius:24px;border:1px solid rgba(1
 h2{margin:0;font-size:19px;letter-spacing:-.03em;font-weight:780}
 h3{margin:0 0 8px;font-size:13px;font-weight:800;color:#d5dcf7;display:flex;align-items:center;gap:8px}
 h3 .n{margin-left:auto;font-size:11px;color:var(--muted);font-weight:600}
+.shead{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:0 2px;border:0;background:none;color:#eef1ff;text-align:left;border-radius:10px}
+.shead .st{flex:1;font-size:14px;font-weight:780;letter-spacing:-.01em}
+.shead .n{font-size:11px;color:var(--muted);font-weight:650}
+.shead .chev{font-size:13px;color:#a8b8da;transition:transform .18s ease}
+.fold.folded .chev{transform:rotate(-90deg)}
+.fold.folded .sbody{display:none}
+.sbody{display:flex;flex-direction:column;gap:10px}
 section{border:1px solid var(--line);border-radius:18px;padding:12px;background:rgba(255,255,255,.03);display:flex;flex-direction:column;gap:10px}
 select,input[type=text],textarea{width:100%;box-sizing:border-box;background:var(--field);color:var(--ink);border:1px solid var(--edge);border-radius:14px;padding:11px 12px;font:inherit;font-size:14px;font-weight:650}
 textarea{min-height:64px;font-family:monospace;font-size:11px;font-weight:400}
@@ -251,8 +258,17 @@ export class OggQueueCard extends HTMLElement {
         <div class="devs" id="devs"></div>
         <div class="row"><button id="play" type="button">▶ Play</button><button id="stop" class="stop" type="button">■ Stop</button><button id="code" type="button">Copy code</button><button id="del" type="button">Delete</button></div>
       </section>
-      <section>
-        <h3>🎨 Make a queue<span class="n" id="count"></span></h3>
+      <section class="fold" id="qsec">
+        <button type="button" class="shead" id="qhead" aria-expanded="true" aria-controls="qbody"><span class="st">📋 His &amp; hers queues</span><span class="n" id="qcount"></span><span class="chev" aria-hidden="true">▾</span></button>
+        <div class="sbody" id="qbody">
+        <div class="tabs"><button type="button" class="his" data-tab="his"></button><button type="button" class="hers" data-tab="hers"></button><button type="button" class="played" data-tab="played"></button></div>
+        <div class="list" id="list"></div>
+        <div class="hint">▶ loads it above and plays it. Send copies a link: it opens this dashboard with that one ready to play.</div>
+        </div>
+      </section>
+      <section class="fold" id="msec">
+        <button type="button" class="shead" id="mhead" aria-expanded="true" aria-controls="mbody"><span class="st">🎨 Make a queue</span><span class="n" id="count"></span><span class="chev" aria-hidden="true">▾</span></button>
+        <div class="sbody" id="mbody">
         <div class="seg" role="radiogroup" aria-label="For"><button type="button" id="forvibe">〰️ For vibrators</button><button type="button" id="forstroke">↕️ For a stroker</button></div>
         <div class="steps" id="steps"></div>
         <div class="adds"><button type="button" data-add="pattern">+ Pattern</button><button type="button" data-add="mood">+ Mood</button><button type="button" data-add="script">+ Script</button><button type="button" data-add="pause">+ Pause</button></div>
@@ -262,16 +278,22 @@ export class OggQueueCard extends HTMLElement {
         <div class="row"><button type="button" id="try">▶ Try it</button><button type="button" id="toscripts">Save to scripts</button><button type="button" id="bcode">Copy code</button></div>
         <div class="row"><button type="button" class="small" id="opencode">Open a code…</button><button type="button" class="small" id="clear">Start again</button><span></span></div>
         <div id="codebox" hidden><textarea id="codein" placeholder="Paste a code (ogg1:…) or funscript"></textarea><div class="row" style="margin-top:6px"><button type="button" class="small" id="codego">Load it</button><span></span></div></div>
-      </section>
-      <section>
-        <div class="tabs"><button type="button" class="his" data-tab="his"></button><button type="button" class="hers" data-tab="hers"></button><button type="button" class="played" data-tab="played"></button></div>
-        <div class="list" id="list"></div>
-        <div class="hint">▶ loads it above and plays it. Send copies a link: it opens this dashboard with that one ready to play.</div>
+        </div>
       </section>
       <div class="toast" id="toast" role="status"></div>
     </div></ha-card>`;
     const $ = (id) => this.shadowRoot.getElementById(id);
     this._$ = $;
+    const fold = (key, sec, head, folded, save) => {
+      $(sec).classList.toggle('folded', folded);
+      $(head).setAttribute('aria-expanded', String(!folded));
+      if (save) keepSet({ fold: { ...(keepGet().fold || {}), [key]: folded } });
+    };
+    const kept = keepGet().fold || {};
+    fold('q', 'qsec', 'qhead', Boolean(kept.q));
+    fold('m', 'msec', 'mhead', Boolean(kept.m));
+    $('qhead').addEventListener('click', () => fold('q', 'qsec', 'qhead', !$('qsec').classList.contains('folded'), true));
+    $('mhead').addEventListener('click', () => fold('m', 'msec', 'mhead', !$('msec').classList.contains('folded'), true));
     $('pick').addEventListener('change', () => this._choose($('pick').value));
     $('speed').addEventListener('change', () => { this._speed = $('speed').value; if (this._play) this._start(this._now()); });
     $('loop').addEventListener('change', () => { this._loop = $('loop').checked; if (this._play) this._start(this._now()); });
@@ -879,6 +901,8 @@ export class OggQueueCard extends HTMLElement {
       b.textContent = `${t === 'his' ? '♂ His' : t === 'hers' ? '♀ Hers' : '✓ Played'}${n ? ` (${n})` : ''}`;
       b.classList.toggle('on', t === this._tab);
     }
+    const waiting = of('his').length + of('hers').length;
+    $('qcount').textContent = `${waiting} waiting · ${of('played').length} played`;
     const rows = of(this._tab).sort((a, b) => String((this._tab === 'played' ? b[1].played : a[1].made) || '').localeCompare(String((this._tab === 'played' ? a[1].played : b[1].made) || '')));
     const cur = this._cur && this._cur.src === 'queue' ? this._cur.id : null;
     $('list').innerHTML = rows.map(([id, r]) => {
