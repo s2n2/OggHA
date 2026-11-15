@@ -1,3 +1,6 @@
+## 3.7.3 - Real names once opened
+- Discreet cards no longer rename toys "Device A, B…" or hide the title: they are covered until More, and then show everything as usual.
+
 ## 3.7.2 - A different saying on every card
 - Each covered card shows its own saying, never the same as another card on the screen, and a new one each time it covers again. Twice as many of Ogg's own sayings.
 

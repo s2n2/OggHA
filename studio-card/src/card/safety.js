@@ -109,12 +109,9 @@ export class SafetyPart {
         try { localStorage.setItem(PRIVACY_KEY, JSON.stringify(next)); } catch (_) { /* private mode */ }
       }
     }
-    // Discreet: devices are "Device A", "Device B" (in the order of their real names).
-    const discreet = Boolean(this._privacy.discreet);
-    [...this._devices].sort((a, b) => (a.real || a.name).localeCompare(b.real || b.name)).forEach((d, i) => {
-      if (!d.real) d.real = d.name;
-      d.name = discreet ? `Device ${String.fromCharCode(65 + (i % 26))}` : d.real;
-    });
+    // Discreet cards are covered (a saying) until More: once open, the
+    // devices show their real names.
+    for (const d of this._devices) { if (!d.real) d.real = d.name; d.name = d.real; }
     this._privacyShow();
     this._limRender(false);
   }
@@ -239,11 +236,11 @@ export class SafetyPart {
     this._isLocked = locked;
     cardEl.classList.toggle('locked', locked);
     $('cover').hidden = !locked;
-    const neutral = p.discreet || locked;
+    const neutral = locked;
     const title = neutral ? (p.name || 'Studio') : (this._config.title || this._variant.name.replace(/^OggStudio\s*/, '') || 'Studio');
     if ($('title').textContent !== title) $('title').textContent = title;
     if ($('covername').textContent !== (p.name || 'Studio')) $('covername').textContent = p.name || 'Studio';
-    $('sub').hidden = Boolean(p.discreet);
+    $('sub').hidden = false;
     $('lockbtn').hidden = !this._needsLock && !p.discreet;
     $('coverpin').hidden = !p.pin;
     $('coveropen').hidden = Boolean(p.pin);

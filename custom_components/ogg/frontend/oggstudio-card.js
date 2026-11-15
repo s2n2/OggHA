@@ -5849,11 +5849,10 @@ ${STYLES}
           }
         }
       }
-      const discreet = Boolean(this._privacy.discreet);
-      [...this._devices].sort((a, b) => (a.real || a.name).localeCompare(b.real || b.name)).forEach((d, i) => {
+      for (const d of this._devices) {
         if (!d.real) d.real = d.name;
-        d.name = discreet ? `Device ${String.fromCharCode(65 + i % 26)}` : d.real;
-      });
+        d.name = d.real;
+      }
       this._privacyShow();
       this._limRender(false);
     }
@@ -5992,11 +5991,11 @@ ${STYLES}
       this._isLocked = locked;
       cardEl.classList.toggle("locked", locked);
       $("cover").hidden = !locked;
-      const neutral = p.discreet || locked;
+      const neutral = locked;
       const title = neutral ? p.name || "Studio" : this._config.title || this._variant.name.replace(/^OggStudio\s*/, "") || "Studio";
       if ($("title").textContent !== title) $("title").textContent = title;
       if ($("covername").textContent !== (p.name || "Studio")) $("covername").textContent = p.name || "Studio";
-      $("sub").hidden = Boolean(p.discreet);
+      $("sub").hidden = false;
       $("lockbtn").hidden = !this._needsLock && !p.discreet;
       $("coverpin").hidden = !p.pin;
       $("coveropen").hidden = Boolean(p.pin);
