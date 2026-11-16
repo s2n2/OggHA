@@ -8850,6 +8850,7 @@ section{border:1px solid var(--line);border-radius:18px;padding:12px;background:
 select,input[type=text],textarea{width:100%;box-sizing:border-box;background:var(--field);color:var(--ink);border:1px solid var(--edge);border-radius:14px;padding:11px 12px;font:inherit;font-size:14px;font-weight:650}
 textarea{min-height:64px;font-family:monospace;font-size:11px;font-weight:400}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row>*{flex:1 1 0;min-width:0}
+.prow{flex-wrap:nowrap}.prow select{flex:1 1 auto}.row>.ren{flex:0 0 auto;align-self:stretch;padding:0 14px;font-size:13.5px}
 button{border:1px solid rgba(118,200,239,.3);background:#22385a;color:#c4f1ff;border-radius:14px;min-height:46px;padding:4px 8px;font:inherit;font-size:13.5px;line-height:1.15;font-weight:780;cursor:pointer}
 button:disabled{opacity:.4;cursor:default}
 button.stop{color:#ffbcc2;background:rgba(244,100,118,.09);border-color:rgba(239,115,134,.3)}
@@ -9126,7 +9127,7 @@ ha-card.embedded .head{display:none}
       <div class="head"><div class="brand">💌</div><div><div class="eyebrow">Ogg</div><h2 id="title">Queue</h2></div></div>
       <div class="gift" id="gift" hidden><div class="info" id="giftinfo"></div><button class="go small" id="giftplay" type="button">▶ Play</button></div>
       <section>
-        <select id="pick" aria-label="Script to play"></select>
+        <div class="row prow"><select id="pick" aria-label="Script to play"></select><button type="button" id="ren" class="ren" aria-label="Rename this script" title="Rename">✏️ Rename</button></div>
         <div class="bar" id="bar"><canvas id="heat"></canvas><i id="cursor"></i></div>
         <div class="time" id="time">Nothing loaded</div>
         <div class="row"><select id="speed" aria-label="Speed">${speeds}</select><label class="sw"><input type="checkbox" id="loop"> Loop</label></div>
@@ -9182,6 +9183,7 @@ ha-card.embedded .head{display:none}
       $("stop").addEventListener("click", () => this._halt());
       $("code").addEventListener("click", () => this._cur && this._copyCode(this._cur.script));
       $("del").addEventListener("click", () => this._delete());
+      $("ren").addEventListener("click", () => this._rename());
       $("devs").addEventListener("click", (e) => this._toggleDev(e.target.closest("button")));
       this._bindBar($("bar"));
       $("forvibe").addEventListener("click", () => this._setStroke(false));
@@ -9435,6 +9437,7 @@ ha-card.embedded .head{display:none}
       $("play").disabled = !c;
       $("code").disabled = !c;
       $("del").disabled = !c || c.src === "code";
+      $("ren").disabled = !c;
       $("play").textContent = this._play ? "↻ Restart" : "▶ Play";
       this._showSim();
       if (this._play && !this._play.loop && t >= len) this._ended();
@@ -9524,6 +9527,28 @@ ha-card.embedded .head{display:none}
       });
       if (!quiet) this._toast("Stopped.");
       this._showPlayer();
+    }
+    // Saved scripts and queue items are renamed in Home Assistant; one being
+    // built (or opened from code) just takes the new name until it is saved.
+    async _rename() {
+      const c = this._cur;
+      if (!c) {
+        this._toast("Choose a script first.");
+        return;
+      }
+      const next = (window.prompt("New name for this script:", c.name) || "").trim();
+      if (!next || next === c.name) return;
+      try {
+        if (c.src === "queue") await this._hass.callService("ogg", "studio_queue_rename", { id: c.id, name: next });
+        else if (c.src === "saved") await this._hass.callService("ogg", "studio_rename", { name: c.name, new_name: next });
+        else if (c.script) c.script = { ...c.script, metadata: { ...c.script.metadata || {}, title: next } };
+        c.name = next;
+        this._fillPick();
+        this._showPlayer();
+        this._toast(`Renamed to "${next}".`);
+      } catch (e) {
+        this._toast(e.message || String(e));
+      }
     }
     async _delete() {
       const c = this._cur;

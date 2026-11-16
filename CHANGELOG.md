@@ -1,6 +1,7 @@
 ## 3.10.0 - Six starter scripts
 - Six ready-made vibration scripts are added to the library once: Quickie (5 min), Heartbeat (10), Surprise ride (15), Ocean waves (20), Slow burn (25) and Edge ladder (30). They are original, following the shapes popular scripts use: a quick climb, a rising beat, an irregular ride, sets of waves, a long slow build, and tease-and-denial edges.
 - They show under Saved scripts everywhere (Play, Easy, Queue, video). Rename or delete them like any other; a deleted one is not added back. A device's top-intensity limit still applies.
+- Queue card: ✏️ Rename beside the script picker (saved scripts, queue items, and one being built).
 - Needs a Home Assistant restart.
 
 ## 3.9.0 - Play from the middle, phone off
