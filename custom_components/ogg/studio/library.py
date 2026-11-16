@@ -16,6 +16,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import MAX_NAME_LENGTH, MAX_SCRIPTS, SPEEDS, STORAGE_KEY, STORAGE_VERSION
 from .convert import RUN_MODES, is_stroke
+from .starters import build_all as build_starters
 
 MAX_ACTIONS = 200_000
 CLAIM_SECONDS = 12   # a controller refreshes its claim every few seconds
@@ -133,6 +134,7 @@ class Library:
         self.claims: dict[str, dict[str, Any]] = {}
         self.limits: dict[str, dict[str, int]] = {}       # stop entity -> limits
         self.playlists: dict[str, dict[str, Any]] = {}    # name -> {items, loop}
+        self.starters: list[str] = []   # starter scripts already offered (a deleted one stays deleted)
         self.panic_at = 0                                  # ms; cards halt when it changes
         self.settings: dict[str, Any] = {}                 # what the cards need of the options
 
@@ -185,11 +187,32 @@ class Library:
             self.speed = data["speed"]
         if data.get("selected") in self.scripts:
             self.selected = data["selected"]
+        offered = data.get("starters")
+        self.starters = [k for k in offered if isinstance(k, str)] if isinstance(offered, list) else []
+        await self._async_add_starters()
+
+    async def _async_add_starters(self) -> None:
+        """Add the ready-made scripts (once each; never over one of the same name)."""
+        try:
+            starters = await self.hass.async_add_executor_job(build_starters)
+        except Exception:  # noqa: BLE001 - a starter must never keep the library from loading
+            return
+        added = False
+        for key, name, script in starters:
+            if key in self.starters:
+                continue
+            self.starters.append(key)
+            added = True
+            if name in self.scripts or len(self.scripts) >= MAX_SCRIPTS:
+                continue
+            self.scripts[name] = {"script": clean_script(script), "saved": dt_util.utcnow().isoformat()}
+        if added:
+            self._save()
 
     def _save(self) -> None:
         self._store.async_delay_save(
             lambda: {"scripts": self.scripts, "speed": self.speed, "selected": self.selected,
-                     "limits": self.limits, "playlists": self.playlists}, 1
+                     "limits": self.limits, "playlists": self.playlists, "starters": self.starters}, 1
         )
 
     @callback

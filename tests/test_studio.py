@@ -48,7 +48,7 @@ async def test_studio_entities_and_library_services(hass):
     await hass.services.async_call(DOMAIN, "studio_rename", {"name": "Test", "new_name": "Other"}, blocking=True)
     assert "Other" in hass.data[LIBRARY].scripts
     await hass.services.async_call(DOMAIN, "studio_delete", {"name": "Other"}, blocking=True)
-    assert not hass.data[LIBRARY].scripts
+    assert "Other" not in hass.data[LIBRARY].scripts
     # Stop everything works with no devices connected.
     res = await hass.services.async_call(DOMAIN, "studio_panic", {}, blocking=True, return_response=True)
     assert res == {"stopped": 0} or "stopped" in res
@@ -97,3 +97,42 @@ async def test_old_oggstudio_settings_and_library_are_taken_over(hass, hass_stor
     assert "Kept" in hass.data[LIBRARY].scripts
     # It asks for the old integration to be removed.
     assert ir.async_get(hass).async_get_issue(DOMAIN, "oggstudio_merged") is not None
+
+
+async def test_starter_scripts_are_added_once(hass, hass_storage):
+    from custom_components.ogg.studio.starters import STARTERS
+
+    await setup_entry(hass)
+    library = hass.data[LIBRARY]
+    names = [name for _, name, _ in STARTERS]
+    assert all(name in library.scripts for name in names)
+    lengths = [library.scripts[n]["script"]["actions"][-1]["at"] for n in names]
+    assert lengths == [m * 60_000 for m in (5, 10, 15, 20, 25, 30)]
+    for name in names:
+        actions = library.scripts[name]["script"]["actions"]
+        assert all(0 <= a["pos"] <= 100 for a in actions) and actions[-1]["pos"] == 0
+        assert all(a["at"] < b["at"] for a, b in zip(actions, actions[1:]))
+    assert library.starters == [k for k, _, _ in STARTERS]
+
+
+async def test_a_deleted_starter_stays_deleted(hass, hass_storage):
+    from custom_components.ogg.studio.const import STORAGE_KEY, STORAGE_VERSION
+    from custom_components.ogg.studio.starters import STARTERS
+
+    hass_storage[STORAGE_KEY] = {"version": STORAGE_VERSION, "key": STORAGE_KEY,
+                                 "data": {"scripts": {}, "starters": [STARTERS[0][0]]}}
+    await setup_entry(hass)
+    scripts = hass.data[LIBRARY].scripts
+    assert STARTERS[0][1] not in scripts and STARTERS[1][1] in scripts
+
+
+async def test_a_starter_never_replaces_a_script_of_the_same_name(hass, hass_storage):
+    from custom_components.ogg.studio.const import STORAGE_KEY, STORAGE_VERSION
+    from custom_components.ogg.studio.starters import STARTERS
+
+    name = STARTERS[0][1]
+    hass_storage[STORAGE_KEY] = {"version": STORAGE_VERSION, "key": STORAGE_KEY,
+                                 "data": {"scripts": {name: {"script": SCRIPT, "saved": None}}}}
+    await setup_entry(hass)
+    assert hass.data[LIBRARY].scripts[name]["script"]["actions"][-1]["at"] == 1000
+

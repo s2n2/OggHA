@@ -1,3 +1,8 @@
+## 3.10.0 - Six starter scripts
+- Six ready-made vibration scripts are added to the library once: Quickie (5 min), Heartbeat (10), Surprise ride (15), Ocean waves (20), Slow burn (25) and Edge ladder (30). They are original, following the shapes popular scripts use: a quick climb, a rising beat, an irregular ride, sets of waves, a long slow build, and tease-and-denial edges.
+- They show under Saved scripts everywhere (Play, Easy, Queue, video). Rename or delete them like any other; a deleted one is not added back. A device's top-intensity limit still applies.
+- Needs a Home Assistant restart.
+
 ## 3.9.0 - Play from the middle, phone off
 - Queue card: playing from part way through now runs entirely in Home Assistant. It plays to the end of the script and, with Loop on, goes round the whole script from the beginning, even if the phone sleeps or disconnects.
 - ogg.play_script: new start_ms option (start this far in; a loop then goes round from the beginning), for motors and strokers.
