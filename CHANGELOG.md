@@ -1,3 +1,6 @@
+## 3.10.1 - Search from the Easy card
+- Easy card: a small ↻ beside the toy count searches for toys; it spins while searching (tap again to stop). Shown while Ogg is on.
+
 ## 3.10.0 - Six starter scripts
 - Six ready-made vibration scripts are added to the library once: Quickie (5 min), Heartbeat (10), Surprise ride (15), Ocean waves (20), Slow burn (25) and Edge ladder (30). They are original, following the shapes popular scripts use: a quick climb, a rising beat, an irregular ride, sets of waves, a long slow build, and tease-and-denial edges.
 - They show under Saved scripts everywhere (Play, Easy, Queue, video). Rename or delete them like any other; a deleted one is not added back. A device's top-intensity limit still applies.

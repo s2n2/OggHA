@@ -9964,6 +9964,12 @@ ha-card{display:block;overflow:hidden;border-radius:24px;border:1px solid rgba(1
 h2{margin:0;font-size:20px;letter-spacing:-.03em;font-weight:780}
 .pill{margin-left:auto;font-size:11.5px;font-weight:750;padding:6px 10px;border-radius:30px;border:1px solid rgba(174,194,246,.18);color:var(--muted)}
 .pill.on{border-color:rgba(100,218,189,.35);background:rgba(40,124,115,.2);color:#9adbd1}
+.scan{flex:0 0 auto;margin-left:-6px;width:28px;height:28px;min-height:0;padding:0;border-radius:50%;border:1px solid rgba(174,194,246,.18);background:transparent;color:var(--muted);display:grid;place-items:center}
+.scan svg{width:14px;height:14px;display:block}
+.scan.spin{color:#9adbd1;border-color:rgba(100,218,189,.35)}
+.scan.spin svg{animation:ogg-spin .9s linear infinite}
+.scan[hidden]{display:none}
+@keyframes ogg-spin{to{transform:rotate(360deg)}}
 button{border:1px solid rgba(118,200,239,.3);background:#22385a;color:#c4f1ff;border-radius:16px;min-height:48px;padding:4px 12px;font:inherit;font-size:14.5px;line-height:1.15;font-weight:780;cursor:pointer}
 button:disabled{opacity:.4;cursor:default}
 button.go{background:linear-gradient(110deg,#2fbfa9,#67e0c8);color:#062a24;border-color:transparent}
@@ -10096,6 +10102,10 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
             this._oggSwitch = e.entity_id;
             continue;
           }
+          if (e.entity_id.startsWith("switch.") && u.split(":").length === 2 && u.endsWith(":search")) {
+            this._searchSwitch = e.entity_id;
+            continue;
+          }
           if (u.endsWith(":studio_saved_script")) {
             this._studio = e.entity_id;
             continue;
@@ -10155,7 +10165,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       this.attachShadow({ mode: "open" });
       const ptOpts = `<optgroup label="Patterns">${Object.entries(PATTERNS).map(([k, n]) => `<option value="${k}"${k === "wave" ? " selected" : ""}>${n}</option>`).join("")}<option value="${PATTERN_RANDOM}">🎲 Random</option></optgroup><optgroup label="Two motors">${Object.entries(PATTERNS_DUAL).map(([k, n]) => `<option value="${k}">${n}</option>`).join("")}</optgroup>`;
       this.shadowRoot.innerHTML = `<style>${STYLE4}</style><ha-card><div class="wrap">
-      <div class="head"><div class="brand">💞</div><div><div class="eyebrow">Ogg</div><h2 id="title">Easy</h2></div><span class="pill" id="pill">Off</span></div>
+      <div class="head"><div class="brand">💞</div><div><div class="eyebrow">Ogg</div><h2 id="title">Easy</h2></div><span class="pill" id="pill">Off</span><button type="button" class="scan" id="scan" title="Search for toys" aria-label="Search for toys" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg></button></div>
       <button class="go big" id="connect" type="button">🔌 Connect now</button>
       <div class="devs" id="devs"></div>
       <div class="modes"><button type="button" data-mode="play"><span>▶</span>Play now</button><button type="button" data-mode="queue"><span>📋</span>Queue &amp; replay</button><button type="button" data-mode="other"><span>⋯</span>Other</button></div>
@@ -10222,6 +10232,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         else this._playScript();
       });
       $("scren").addEventListener("click", () => this._rename());
+      $("scan").addEventListener("click", () => this._search());
       $("rec").addEventListener("click", () => this._recToggle());
       $("save").addEventListener("click", () => this._save());
       $("stopall").addEventListener("click", () => {
@@ -10316,6 +10327,10 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       $("connect").className = anyOn ? "stop big" : "go big";
       $("pill").textContent = !anyOn ? "Off" : online.length ? `${online.length} toy${online.length === 1 ? "" : "s"} connected` : "Looking for toys…";
       $("pill").classList.toggle("on", anyOn && online.length > 0);
+      const searching = Boolean(this._st(this._searchSwitch) && this._st(this._searchSwitch).state === "on");
+      $("scan").hidden = !c.ogg || !this._searchSwitch;
+      $("scan").classList.toggle("spin", searching);
+      $("scan").title = searching ? "Searching for toys… (tap to stop)" : "Search for toys";
       this._showDevs();
       this._showLevels();
       const names = this._names();
@@ -10652,6 +10667,18 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       const me = this._rawHass && this._rawHass.user && this._rawHass.user.id;
       const who = people.his && people.his.id === me ? "His" : people.hers && people.hers.id === me ? "Hers" : "My";
       return `${who} save · ${stamp()}`;
+    }
+    // The ↻ beside the count: search for toys (tap again to stop searching).
+    async _search() {
+      const s = this._st(this._searchSwitch);
+      if (!s) return;
+      const on = s.state !== "on";
+      try {
+        await this._hass.callService("switch", on ? "turn_on" : "turn_off", { entity_id: this._searchSwitch });
+        if (on) this._toast("Searching for toys: switch them on and keep them close.");
+      } catch (e) {
+        this._toast(e.message || String(e));
+      }
     }
     async _rename() {
       const sel = this._$("scsel");
