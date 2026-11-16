@@ -18,7 +18,7 @@ import { sampleAt } from '../lib/outputs.js';
 import { PATTERNS, PATTERNS_DUAL, PATTERN_RANDOM, patternPeriod } from '../lib/patterns.js';
 import { clock, renderMood, renderPattern } from '../lib/compose.js';
 import { oggPrivate } from '../lib/private.js';
-import { makeCover } from '../lib/cover.js';
+import { lockAll, makeCover, studioSettings } from '../lib/cover.js';
 import { OUT_KEY } from '../lib/outputs.js';
 
 export const EASY_TAG = 'ogg-easy-card';
@@ -43,6 +43,8 @@ h2{margin:0;font-size:20px;letter-spacing:-.03em;font-weight:780}
 .scan.spin{color:#9adbd1;border-color:rgba(100,218,189,.35)}
 .scan.spin svg{animation:ogg-spin .9s linear infinite}
 .scan[hidden]{display:none}
+.lockb{flex:0 0 auto;width:34px;height:34px;min-height:0;padding:0;border-radius:11px;font-size:15px;display:grid;place-items:center}
+.lockb[hidden]{display:none}
 @keyframes ogg-spin{to{transform:rotate(360deg)}}
 button{border:1px solid rgba(118,200,239,.3);background:#22385a;color:#c4f1ff;border-radius:16px;min-height:48px;padding:4px 12px;font:inherit;font-size:14.5px;line-height:1.15;font-weight:780;cursor:pointer}
 button:disabled{opacity:.4;cursor:default}
@@ -196,7 +198,7 @@ export class OggEasyCard extends HTMLElement {
     const ptOpts = `<optgroup label="Patterns">${Object.entries(PATTERNS).map(([k, n]) => `<option value="${k}"${k === 'wave' ? ' selected' : ''}>${n}</option>`).join('')}<option value="${PATTERN_RANDOM}">🎲 Random</option></optgroup>`
       + `<optgroup label="Two motors">${Object.entries(PATTERNS_DUAL).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</optgroup>`;
     this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="wrap">
-      <div class="head"><div class="brand">💞</div><div><div class="eyebrow">Ogg</div><h2 id="title">Easy</h2></div><span class="pill" id="pill">Off</span><button type="button" class="scan" id="scan" title="Search for toys" aria-label="Search for toys" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg></button></div>
+      <div class="head"><div class="brand">💞</div><div><div class="eyebrow">Ogg</div><h2 id="title">Easy</h2></div><span class="pill" id="pill">Off</span><button type="button" class="scan" id="scan" title="Search for toys" aria-label="Search for toys" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg></button><button type="button" class="lockb" id="lockb" title="Lock (covers every Ogg card)" aria-label="Lock" hidden>🔒</button></div>
       <button class="go big" id="connect" type="button">🔌 Connect now</button>
       <div class="devs" id="devs"></div>
       <div class="modes"><button type="button" data-mode="play"><span>▶</span>Play now</button><button type="button" data-mode="queue"><span>📋</span>Queue &amp; replay</button><button type="button" data-mode="other"><span>⋯</span>Other</button></div>
@@ -242,6 +244,7 @@ export class OggEasyCard extends HTMLElement {
     $('scgo').addEventListener('click', () => { if (this._playing && this._playing.kind === 'script') this._halt(); else this._playScript(); });
     $('scren').addEventListener('click', () => this._rename());
     $('scan').addEventListener('click', () => this._search());
+    $('lockb').addEventListener('click', () => lockAll());
     $('rec').addEventListener('click', () => this._recToggle());
     $('save').addEventListener('click', () => this._save());
     $('stopall').addEventListener('click', () => { this._halt(); this._toast('Stopped.'); });
@@ -328,6 +331,8 @@ export class OggEasyCard extends HTMLElement {
     $('pill').classList.toggle('on', anyOn && online.length > 0);
     const searching = Boolean(this._st(this._searchSwitch) && this._st(this._searchSwitch).state === 'on');
     $('scan').hidden = !c.ogg || !this._searchSwitch;
+    const privacy = studioSettings(this._hass) || {};
+    $('lockb').hidden = !privacy.discreet && !privacy.pin;
     $('scan').classList.toggle('spin', searching);
     $('scan').title = searching ? 'Searching for toys… (tap to stop)' : 'Search for toys';
     this._showDevs();

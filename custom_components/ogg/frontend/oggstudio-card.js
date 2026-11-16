@@ -5626,6 +5626,15 @@ ${STYLES}
   window.addEventListener("storage", (e) => {
     if (e.key === OPEN_KEY) tellAll();
   });
+  var LOCK_EVENT = "ogg-lock-all";
+  function lockAll() {
+    closeAll();
+    try {
+      sessionStorage.removeItem("oggstudio_unlocked");
+    } catch (_) {
+    }
+    window.dispatchEvent(new Event(LOCK_EVENT));
+  }
   function coverMode(settings, userId, now = Date.now(), until = openUntil()) {
     if (!settings) return "none";
     const users = Array.isArray(settings.users) ? settings.users : [];
@@ -5744,7 +5753,7 @@ ${STYLES}
     page().covers.add(cover);
     return cover;
   }
-  window.oggCover = window.oggCover || { makeCover, openAll, closeAll, coverMode, sayingFor };
+  window.oggCover = window.oggCover || { makeCover, openAll, closeAll, lockAll, coverMode, sayingFor };
 
   // studio-card/src/card/safety.js
   var PRIVACY_KEY = "oggstudio_privacy";
@@ -5764,6 +5773,9 @@ ${STYLES}
         this._limRender(true);
       });
       $("lockbtn").addEventListener("click", () => this._lockAll());
+      window.addEventListener(LOCK_EVENT, () => {
+        if (this._needsLock) this._lock();
+      });
       $("coveropen").addEventListener("click", () => this._unlocked());
       $("pingo").addEventListener("click", () => this._pinTry());
       $("pin").addEventListener("keydown", (e) => {
@@ -9969,6 +9981,8 @@ h2{margin:0;font-size:20px;letter-spacing:-.03em;font-weight:780}
 .scan.spin{color:#9adbd1;border-color:rgba(100,218,189,.35)}
 .scan.spin svg{animation:ogg-spin .9s linear infinite}
 .scan[hidden]{display:none}
+.lockb{flex:0 0 auto;width:34px;height:34px;min-height:0;padding:0;border-radius:11px;font-size:15px;display:grid;place-items:center}
+.lockb[hidden]{display:none}
 @keyframes ogg-spin{to{transform:rotate(360deg)}}
 button{border:1px solid rgba(118,200,239,.3);background:#22385a;color:#c4f1ff;border-radius:16px;min-height:48px;padding:4px 12px;font:inherit;font-size:14.5px;line-height:1.15;font-weight:780;cursor:pointer}
 button:disabled{opacity:.4;cursor:default}
@@ -10165,7 +10179,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       this.attachShadow({ mode: "open" });
       const ptOpts = `<optgroup label="Patterns">${Object.entries(PATTERNS).map(([k, n]) => `<option value="${k}"${k === "wave" ? " selected" : ""}>${n}</option>`).join("")}<option value="${PATTERN_RANDOM}">🎲 Random</option></optgroup><optgroup label="Two motors">${Object.entries(PATTERNS_DUAL).map(([k, n]) => `<option value="${k}">${n}</option>`).join("")}</optgroup>`;
       this.shadowRoot.innerHTML = `<style>${STYLE4}</style><ha-card><div class="wrap">
-      <div class="head"><div class="brand">💞</div><div><div class="eyebrow">Ogg</div><h2 id="title">Easy</h2></div><span class="pill" id="pill">Off</span><button type="button" class="scan" id="scan" title="Search for toys" aria-label="Search for toys" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg></button></div>
+      <div class="head"><div class="brand">💞</div><div><div class="eyebrow">Ogg</div><h2 id="title">Easy</h2></div><span class="pill" id="pill">Off</span><button type="button" class="scan" id="scan" title="Search for toys" aria-label="Search for toys" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg></button><button type="button" class="lockb" id="lockb" title="Lock (covers every Ogg card)" aria-label="Lock" hidden>🔒</button></div>
       <button class="go big" id="connect" type="button">🔌 Connect now</button>
       <div class="devs" id="devs"></div>
       <div class="modes"><button type="button" data-mode="play"><span>▶</span>Play now</button><button type="button" data-mode="queue"><span>📋</span>Queue &amp; replay</button><button type="button" data-mode="other"><span>⋯</span>Other</button></div>
@@ -10233,6 +10247,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       });
       $("scren").addEventListener("click", () => this._rename());
       $("scan").addEventListener("click", () => this._search());
+      $("lockb").addEventListener("click", () => lockAll());
       $("rec").addEventListener("click", () => this._recToggle());
       $("save").addEventListener("click", () => this._save());
       $("stopall").addEventListener("click", () => {
@@ -10329,6 +10344,8 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       $("pill").classList.toggle("on", anyOn && online.length > 0);
       const searching = Boolean(this._st(this._searchSwitch) && this._st(this._searchSwitch).state === "on");
       $("scan").hidden = !c.ogg || !this._searchSwitch;
+      const privacy = studioSettings(this._hass) || {};
+      $("lockb").hidden = !privacy.discreet && !privacy.pin;
       $("scan").classList.toggle("spin", searching);
       $("scan").title = searching ? "Searching for toys… (tap to stop)" : "Search for toys";
       this._showDevs();

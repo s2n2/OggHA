@@ -112,6 +112,14 @@ export function closeAll() {
 }
 window.addEventListener('storage', (e) => { if (e.key === OPEN_KEY) tellAll(); });
 
+// Lock now from any card: discreet covers close again, and PIN-locked cards lock.
+export const LOCK_EVENT = 'ogg-lock-all';
+export function lockAll() {
+  closeAll();
+  try { sessionStorage.removeItem('oggstudio_unlocked'); } catch (_) { /* private browsing */ }
+  window.dispatchEvent(new Event(LOCK_EVENT));
+}
+
 // What a card should show: nothing over it, the saying alone, or the saying with More.
 export function coverMode(settings, userId, now = Date.now(), until = openUntil()) {
   if (!settings) return 'none';
@@ -222,4 +230,4 @@ export function makeCover(host) {
 }
 
 // For the Control Deck (a separate file) and anything else on the page.
-window.oggCover = window.oggCover || { makeCover, openAll, closeAll, coverMode, sayingFor };
+window.oggCover = window.oggCover || { makeCover, openAll, closeAll, lockAll, coverMode, sayingFor };

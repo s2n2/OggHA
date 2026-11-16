@@ -1,3 +1,6 @@
+## 3.10.2 - Lock on the Easy card
+- Easy card: a 🔒 button in the header (shown when discreet mode or a PIN is set). It covers every Ogg card again and locks PIN-locked Play cards straight away.
+
 ## 3.10.1 - Search from the Easy card
 - Easy card: a small ↻ beside the toy count searches for toys; it spins while searching (tap again to stop). Shown while Ogg is on.
 

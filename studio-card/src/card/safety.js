@@ -2,7 +2,7 @@
 import { esc } from '../lib/core.js';
 import { isLimited, limitsFor, limitsText } from '../lib/limits.js';
 
-import { closeAll, makeCover } from '../lib/cover.js';
+import { closeAll, makeCover, LOCK_EVENT } from '../lib/cover.js';
 
 const PRIVACY_KEY = 'oggstudio_privacy';       // the last known settings, so a locked card opens covered
 const UNLOCK_KEY = 'oggstudio_unlocked';       // when this tab was last used unlocked
@@ -20,6 +20,7 @@ export class SafetyPart {
     $('coverstop').addEventListener('click', () => this._panic());
     $('limbtn').addEventListener('click', () => { $('limbox').hidden = !$('limbox').hidden; this._limRender(true); });
     $('lockbtn').addEventListener('click', () => this._lockAll());
+    window.addEventListener(LOCK_EVENT, () => { if (this._needsLock) this._lock(); });
     $('coveropen').addEventListener('click', () => this._unlocked());
     $('pingo').addEventListener('click', () => this._pinTry());
     $('pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') this._pinTry(); });
