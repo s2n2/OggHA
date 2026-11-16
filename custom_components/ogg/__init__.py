@@ -46,6 +46,9 @@ PLAY_SCHEMA = vol.Schema(
         vol.Optional("output", default="auto"): vol.In(("auto", "vibrate", "linear")),
         # Stop after this long, even when looping (6 h at most).
         vol.Optional("max_seconds"): vol.All(vol.Coerce(float), vol.Range(min=1, max=21600)),
+        # Start this far in (ms of script time); a loop then goes round from
+        # the beginning, all in Home Assistant (no phone needed).
+        vol.Optional("start_ms", default=0): vol.All(vol.Coerce(float), vol.Range(min=0, max=86_400_000)),
     }
 )
 LINEAR_SCHEMA = vol.Schema(
@@ -132,12 +135,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         if output == "linear":
             await hub.async_play_linear(
                 key, call.data["script"], call.data["speed"], call.data["loop"],
-                call.data.get("max_seconds"),
+                call.data.get("max_seconds"), start_ms=call.data["start_ms"],
             )
         else:
             await hub.async_play_script(
                 key, call.data["script"], call.data["speed"], call.data["loop"],
-                call.data.get("max_seconds"),
+                call.data.get("max_seconds"), start_ms=call.data["start_ms"],
             )
 
     async def async_stop_script(call: ServiceCall) -> None:

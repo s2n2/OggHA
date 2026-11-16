@@ -102,6 +102,12 @@ play_script:
             - auto
             - vibrate
             - linear
+    start_ms:
+      selector:
+        number:
+          min: 0
+          max: 86400000
+          mode: box
     max_seconds:
       required: false
       selector:

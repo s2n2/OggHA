@@ -369,6 +369,10 @@
         "max_seconds": {
           "name": "Time limit",
           "description": "Stop after this many seconds, even when looping."
+        },
+        "start_ms": {
+          "name": "Start at",
+          "description": "Start this many milliseconds into the script. Looping, it then goes round from the beginning."
         }
       }
     },

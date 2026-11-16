@@ -417,6 +417,7 @@ class ScriptProgram:
         speed: float = 1.0,
         loop: bool = False,
         max_seconds: float | None = None,
+        start_ms: float = 0.0,
     ) -> None:
         self.channels = [c for c in channels]
         self.max_seconds = max_seconds
@@ -424,12 +425,15 @@ class ScriptProgram:
         self.speed = min(4.0, max(0.25, float(speed)))
         self.loop = bool(loop)
         self.duration_ms = max((c[-1][0] for c in self.channels if c), default=0)
+        # Where the first pass starts (past the end = from the beginning).
+        offset = max(0.0, float(start_ms or 0))
+        self.start_ms = offset if offset < self.duration_ms else 0.0
         self.start: float | None = None
 
     def position_ms(self, now: float) -> float:
         if self.start is None:
             self.start = now
-        position = (now - self.start) * 1000 * self.speed
+        position = self.start_ms + (now - self.start) * 1000 * self.speed
         if self.loop and self.duration_ms > 0:
             position %= self.duration_ms
         return position
@@ -450,4 +454,4 @@ class ScriptProgram:
             return True
         if self.loop:
             return False
-        return (now - self.start) * 1000 * self.speed > self.duration_ms
+        return self.start_ms + (now - self.start) * 1000 * self.speed > self.duration_ms

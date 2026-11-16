@@ -108,3 +108,37 @@ def test_looped_vibration_script_ends_at_its_time_limit():
     assert not prog.finished(1059.0)
     assert prog.finished(1060.0)
     assert not ScriptProgram([[(0, 0.0), (100, 1.0)]], loop=True).finished(5000.0)
+
+
+async def test_starts_part_way_then_loops_the_whole_script():
+    hub, _, sent, _ = make_hub()
+    await hub.async_play_linear(
+        "k", script((0, 0), (100, 50), (200, 100)), loop=True, max_seconds=0.45, start_ms=150
+    )
+    await asyncio.wait_for(asyncio.shield(hub._linear_runs["k"]), 2)
+    positions = [p for _, p, _ in sent]
+    # First pass from 150 ms: only the 200 ms point; then round from 0.
+    assert positions[:4] == [100, 0, 50, 100]
+    assert sent[1][0] == pytest.approx(50, abs=40)
+
+
+async def test_start_past_the_end_plays_from_the_beginning():
+    hub, _, sent, _ = make_hub()
+    await hub.async_play_linear("k", script((0, 10), (100, 90)), start_ms=5000)
+    await asyncio.wait_for(asyncio.shield(hub._linear_runs["k"]), 2)
+    assert [p for _, p, _ in sent] == [10, 90]
+
+
+def test_vibration_script_starts_part_way_then_loops_from_the_start():
+    from custom_components.ogg.patterns import parse_script
+
+    channels = parse_script({"actions": [{"at": 0, "pos": 0}, {"at": 1000, "pos": 100}, {"at": 2000, "pos": 0}]})
+    once = ScriptProgram(channels, start_ms=1500)
+    assert abs(once.levels(0.0, 1)[0] - 0.5) < 1e-9
+    assert not once.finished(0.4) and once.finished(0.6)
+    looped = ScriptProgram(channels, loop=True, start_ms=1500)
+    looped.levels(0.0, 1)
+    # 0.5 s later it is at the end, 1 s later back at 500 ms in.
+    assert abs(looped.levels(1.0, 1)[0] - 0.5) < 1e-9 and not looped.finished(99)
+    assert ScriptProgram(channels, start_ms=9999).start_ms == 0
+

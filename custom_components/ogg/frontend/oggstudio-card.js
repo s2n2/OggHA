@@ -9476,29 +9476,22 @@ ha-card.embedded .head{display:none}
       if (!c || !this._hass) return;
       const devs = this._targets();
       const len = duration(c.script);
-      let script = c.script;
-      from = from >= len - 100 ? 0 : Math.max(0, from);
-      if (from > 0) {
-        try {
-          script = trimScript(c.script, from, len);
-        } catch (_) {
-          from = 0;
-        }
-      }
+      from = from >= len - 100 ? 0 : Math.max(0, Math.round(from));
       const factor = parseFloat(this._speed) || 1;
       const loop = this._loop;
       const calls = devs.map((d) => {
-        const { script: s, output } = this._forDevice(d, script);
+        const { script: s, output } = this._forDevice(d, c.script);
         return this._hass.callService("ogg", "play_script", {
           entity_id: d.stop,
           script: s,
           output,
           speed: factor,
-          loop: loop && from === 0,
+          loop,
+          ...from > 0 ? { start_ms: from } : {},
           ...loop ? { max_seconds: 21600 } : {}
         });
       });
-      this._play = { t0: Date.now(), from, factor, loop: loop && from === 0, loopLater: loop && from > 0, script: c.script, devs };
+      this._play = { t0: Date.now(), from, factor, loop, script: c.script, devs };
       clearInterval(this._tick);
       this._tick = setInterval(() => this._showPlayer(), devs.length ? 250 : 100);
       this._showPlayer();
@@ -9514,10 +9507,6 @@ ha-card.embedded .head{display:none}
     }
     _ended() {
       const p = this._play;
-      if (p && p.loopLater && this._cur) {
-        this._start(0);
-        return;
-      }
       this._play = null;
       this._from = 0;
       clearInterval(this._tick);

@@ -1,3 +1,8 @@
+## 3.9.0 - Play from the middle, phone off
+- Queue card: playing from part way through now runs entirely in Home Assistant. It plays to the end of the script and, with Loop on, goes round the whole script from the beginning, even if the phone sleeps or disconnects.
+- ogg.play_script: new start_ms option (start this far in; a loop then goes round from the beginning), for motors and strokers.
+- Needs a Home Assistant restart.
+
 ## 3.8.4 - Queues for videos
 - The video's script list includes his and hers queues and the played list (as on the Queue card), above the saved scripts.
 

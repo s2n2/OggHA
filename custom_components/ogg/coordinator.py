@@ -1300,13 +1300,15 @@ class OggHub:
         speed: float = 1.0,
         loop: bool = False,
         max_seconds: float | None = None,
+        *,
+        start_ms: float = 0.0,
     ) -> None:
         """Play a funscript timeline on one device (Ogg Studio, automations)."""
         try:
             channels = parse_script(script)
         except ValueError as err:
             raise HomeAssistantError(str(err)) from err
-        await self.async_start(key, script=ScriptProgram(channels, speed, loop, max_seconds))
+        await self.async_start(key, script=ScriptProgram(channels, speed, loop, max_seconds, start_ms))
 
     async def async_stop(self, key: str) -> None:
         self._cancel_linear(key)
@@ -1784,6 +1786,8 @@ class OggHub:
         loop: bool = False,
         max_seconds: float | None = None,
         index: int = 0,
+        *,
+        start_ms: float = 0.0,
     ) -> None:
         """Play a stroker timeline (funscript positions) on one device.
 
@@ -1806,7 +1810,8 @@ class OggHub:
         task = self.entry.async_create_background_task(
             self.hass,
             self._run_linear(
-                device, actions, speed, bool(loop), max_seconds, index, self._operation_epoch
+                device, actions, speed, bool(loop), max_seconds, index, self._operation_epoch,
+                start_ms,
             ),
             "ogg_linear_script",
         )
@@ -1826,16 +1831,25 @@ class OggHub:
         max_seconds: float | None,
         index: int,
         epoch: int,
+        start_ms: float = 0.0,
     ) -> None:
-        """At each point, head for the next one over the time between them."""
+        """At each point, head for the next one over the time between them.
+
+        The first pass starts start_ms in; later passes (looping) from 0.
+        """
         key = device.key
         first = True
         began = time.monotonic()
+        offset = max(0.0, float(start_ms or 0))
+        if offset >= actions[-1][0]:
+            offset = 0.0
         try:
             while True:
-                start = time.monotonic()
-                prev_at = 0
+                start = time.monotonic() - offset / speed / 1000
+                prev_at = offset
                 for at, level in actions:
+                    if at < offset:
+                        continue
                     wait = start + prev_at / speed / 1000 - time.monotonic()
                     if wait > 0:
                         await asyncio.sleep(wait)
@@ -1865,6 +1879,7 @@ class OggHub:
                     await asyncio.sleep(rest)
                 if not loop:
                     return
+                offset = 0.0
         finally:
             if self._linear_runs.get(key) is asyncio.current_task():
                 self._linear_runs.pop(key, None)
