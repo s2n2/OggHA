@@ -280,6 +280,9 @@
       },
       "battery": {
         "name": "Battery"
+      },
+      "viewers": {
+        "name": "Viewers"
       }
     }
   },

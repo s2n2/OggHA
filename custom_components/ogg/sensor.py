@@ -13,6 +13,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import OggHub
 from .entity import OggEntity, async_register_device_entities
+from .private import private_mode
 
 PARALLEL_UPDATES = 0
 
@@ -21,8 +22,9 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     async_add_entities(
-        OggHubSensor(entry.runtime_data, kind)
-        for kind in ("connection_status", "server_ip", "connected_devices")
+        [*(OggHubSensor(entry.runtime_data, kind)
+           for kind in ("connection_status", "server_ip", "connected_devices")),
+         OggViewersSensor(entry.runtime_data)]
     )
     async_register_device_entities(entry, async_add_entities, _device_sensors)
 
@@ -133,3 +135,34 @@ class OggDeviceSensor(OggEntity, SensorEntity):
             attrs["output"] = [round(level * 100) for level in self.device.output_levels]
             attrs["output_source"] = self.device.output_source
         return attrs or None
+
+
+class OggViewersSensor(OggEntity, SensorEntity):
+    """How many people have an Ogg card open now (names in its attributes)."""
+
+    _attr_icon = "mdi:account-eye"
+    _attr_native_unit_of_measurement = "people"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, hub: OggHub) -> None:
+        super().__init__(hub, "viewers", "viewers")
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        mode = private_mode(self.hass)
+        if mode is not None:
+            listener = self.async_write_ha_state
+            mode.viewer_listeners.add(listener)
+            self.async_on_remove(lambda: mode.viewer_listeners.discard(listener))
+
+    @property
+    def native_value(self) -> int:
+        mode = private_mode(self.hass)
+        return len(mode.viewers()) if mode is not None else 0
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        mode = private_mode(self.hass)
+        viewers = mode.viewers() if mode is not None else []
+        return {"viewers": [v["name"] for v in viewers], "pages": {v["name"]: v["pages"] for v in viewers}}
+

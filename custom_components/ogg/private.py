@@ -41,6 +41,9 @@ class PrivateMode:
         self.entities: dict[str, Entity] = {}  # entity_id -> entity
         self.live: dict[str, dict[str, Any]] = {}
         self.subscribers: dict[int, tuple[Any, int, str | None]] = {}
+        # Who has an Ogg card open: one feed per browser page, with its user.
+        self.viewer_names: dict[int, str] = {}
+        self.viewer_listeners: set[Any] = set()
         self._store: Store = Store(hass, 1, STORAGE_KEY)
         self._next = 0
 
@@ -144,7 +147,38 @@ class PrivateMode:
         self._next += 1
         user = connection.user
         self.subscribers[self._next] = (connection, msg_id, user.id if user else None)
+        self.viewer_names[self._next] = (user.name if user and user.name else "Someone")[:40]
         return self._next
+
+    @callback
+    def unsubscribe(self, key: int) -> None:
+        self.subscribers.pop(key, None)
+        self.viewer_names.pop(key, None)
+        self.viewers_changed()
+
+    # ------------------------------------------------------------ viewers
+    def viewers(self) -> list[dict[str, Any]]:
+        """People with an Ogg card open, each with how many pages (devices or tabs)."""
+        people: dict[str, dict[str, Any]] = {}
+        for key, (connection, _msg_id, user_id) in self.subscribers.items():
+            person = people.setdefault(user_id or f"anon{key}", {"name": self.viewer_names.get(key, "Someone"), "pages": 0, "_conns": set()})
+            person["_conns"].add(id(connection))
+        out = []
+        for person in people.values():
+            out.append({"name": person["name"], "pages": len(person["_conns"])})
+        return sorted(out, key=lambda p: p["name"].casefold())
+
+    @callback
+    def viewers_changed(self) -> None:
+        """Tell every open card (and the Viewers sensor) who is here."""
+        event = {"viewers": self.viewers()}
+        for connection, msg_id, _user_id in list(self.subscribers.values()):
+            try:
+                connection.send_message(websocket_api.event_message(msg_id, event))
+            except Exception:  # noqa: BLE001 - a closing page must not stop the rest
+                continue
+        for listener in list(self.viewer_listeners):
+            listener()
 
 
 def private_mode(hass: HomeAssistant | None) -> PrivateMode | None:
@@ -195,7 +229,7 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
 
     @callback
     def unsubscribe() -> None:
-        mode.subscribers.pop(key, None)
+        mode.unsubscribe(key)
 
     connection.subscriptions[msg["id"]] = unsubscribe
     connection.send_result(msg["id"])
@@ -204,6 +238,7 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
     if event["mine"]:
         event["states"] = mode.snapshot()
     connection.send_message(websocket_api.event_message(msg["id"], event))
+    mode.viewers_changed()
 
 
 @websocket_api.websocket_command({vol.Required("type"): "ogg/private/set", vol.Required("on"): bool})

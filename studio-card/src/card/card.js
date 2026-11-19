@@ -1,4 +1,5 @@
 // Part of the OggStudio card. Built into custom_components/ogg/frontend/oggstudio-card.js (npm run build).
+import { VIEWERS_STYLE, paintViewers, viewersBadge } from '../lib/private.js';
 import { runModeOptions } from '../lib/convert.js';
 import { NO_DEVICE, PARTS, TAG, VARIANTS, VERSION, esc } from '../lib/core.js';
 import { gpState } from '../lib/gamepad.js';
@@ -128,6 +129,7 @@ export class OggStudioCard extends HTMLElement {
     if (!this._registryLoaded) { this._registryLoaded = true; this._loadRegistry(); }
     this._update();
     if (this._cast) this._castSync();
+    paintViewers(this.shadowRoot, (t) => this._toast(t));
   }
 
   async _loadRegistry() {
@@ -178,6 +180,7 @@ export class OggStudioCard extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
 ${STYLES}
+${VIEWERS_STYLE}
       </style>
       <ha-card class="${simple ? 'simple' : ''}${this._variant.together ? 'tg' : ''}${this._config && this._config.media_only ? ' mediaonly' : ''}${this._config && this._config.stroke_only ? ' strokeonly' : ''}">
         <div class="cover" id="cover" hidden>
@@ -187,7 +190,7 @@ ${STYLES}
           <div class="hint" id="covermsg"></div>
           <button id="coverstop" type="button" class="stop">■ Stop all</button>
         </div>
-        <div class="head"><div class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></div><div class="htext"><div class="eyebrow">OggStudio</div><h2 id="title">${esc(this._config.title || this._variant.name.replace(/^OggStudio\s*/, '') || 'Studio')}</h2></div><button id="lockbtn" type="button" title="Lock this card" aria-label="Lock this card" hidden>🔒</button><button id="stopall" type="button" class="stop" title="Stop every device now">■ Stop all</button></div>
+        <div class="head"><div class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></div><div class="htext"><div class="eyebrow">OggStudio</div><h2 id="title">${esc(this._config.title || this._variant.name.replace(/^OggStudio\s*/, '') || 'Studio')}</h2></div>${viewersBadge()}<button id="lockbtn" type="button" title="Lock this card" aria-label="Lock this card" hidden>🔒</button><button id="stopall" type="button" class="stop" title="Stop every device now">■ Stop all</button></div>
         <div class="sub" id="sub">${esc(this._variant.sub)} · v${VERSION}</div>
         <div id="devbox"><label>Playback device</label><select id="device"></select></div>
         <div class="gp" id="gp">

@@ -112,3 +112,23 @@ async def test_private_mode_is_kept_across_a_restart(hass, hass_storage):
     hass.data[DATA] = mode
     mode.turn_off()
     assert not mode.active
+
+
+def test_viewers_count_people_and_their_pages():
+    from types import SimpleNamespace
+    from custom_components.ogg.private import PrivateMode
+
+    mode = PrivateMode.__new__(PrivateMode)
+    mode.subscribers, mode.viewer_names, mode.viewer_listeners, mode._next = {}, {}, set(), 0
+    sent = []
+    conn = lambda uid, name: SimpleNamespace(user=SimpleNamespace(id=uid, name=name), send_message=sent.append)
+    a1, a2, b = conn("u1", "Robin"), conn("u1", "Robin"), conn("u2", "Sam")
+    k1 = mode.subscribe(a1, 1)
+    mode.subscribe(a2, 1)
+    mode.subscribe(b, 1)
+    mode.subscribe(b, 2)          # a second card on the same page
+    assert mode.viewers() == [{"name": "Robin", "pages": 2}, {"name": "Sam", "pages": 1}]
+    mode.unsubscribe(k1)
+    assert mode.viewers()[0] == {"name": "Robin", "pages": 1}
+    assert sent  # every open card was told
+

@@ -77,6 +77,137 @@
   var LIB_LOADED = "loaded";
   var VIDEO_QUEUE = "queue:";
 
+  // studio-card/src/lib/private.js
+  function oggPrivate() {
+    if (window.__oggPrivate) return window.__oggPrivate;
+    const p = {
+      conn: null,
+      unsub: null,
+      on: false,
+      mine: false,
+      since: null,
+      known: false,
+      states: {},
+      version: 0,
+      cards: /* @__PURE__ */ new Set(),
+      cache: null,
+      viewers: [],
+      // A card's Home Assistant object (and the card, to tell it of changes).
+      attach(hass, card) {
+        if (card) this.cards.add(card);
+        if (hass && hass.connection && hass.connection !== this.conn) this._sub(hass.connection);
+      },
+      _sub(conn) {
+        if (this.unsub) {
+          try {
+            this.unsub();
+          } catch (_) {
+          }
+        }
+        this.conn = conn;
+        this.unsub = null;
+        this.states = {};
+        this.on = false;
+        this.mine = false;
+        this.known = false;
+        Promise.resolve(conn.subscribeMessage((ev) => this._event(ev), { type: "ogg/private/subscribe" })).then((u) => {
+          if (this.conn === conn) this.unsub = u;
+          else u();
+        }).catch(() => {
+        });
+      },
+      _event(ev) {
+        if (!ev || typeof ev !== "object") return;
+        if (Array.isArray(ev.viewers)) this.viewers = ev.viewers;
+        if ("on" in ev) {
+          this.on = Boolean(ev.on);
+          this.mine = Boolean(ev.mine);
+          this.since = ev.since || null;
+          this.known = true;
+          this.states = ev.states && this.mine ? { ...ev.states } : {};
+        } else if (ev.states && this.mine) Object.assign(this.states, ev.states);
+        this.version += 1;
+        this.cache = null;
+        for (const card of [...this.cards]) {
+          if (!card.isConnected) {
+            this.cards.delete(card);
+            continue;
+          }
+          try {
+            card._oggPrivateChanged();
+          } catch (e) {
+            console.warn("Ogg private mode", e);
+          }
+        }
+      },
+      // Home Assistant as the card should see it.
+      wrap(hass) {
+        if (!hass || !this.on || !this.mine) return hass;
+        if (this.cache && this.cache.hass === hass && this.cache.version === this.version) return this.cache.out;
+        const overlay = {};
+        for (const [id, row] of Object.entries(this.states)) {
+          const base = hass.states[id];
+          overlay[id] = {
+            ...base || {},
+            entity_id: id,
+            state: row.state,
+            attributes: row.attributes,
+            last_changed: new Date(row.last_changed * 1e3).toISOString(),
+            last_updated: new Date(row.last_updated * 1e3).toISOString()
+          };
+        }
+        const out = { ...hass, states: { ...hass.states, ...overlay } };
+        this.cache = { hass, version: this.version, out };
+        return out;
+      },
+      async set(hass, on) {
+        return hass.callWS({ type: "ogg/private/set", on });
+      }
+    };
+    window.__oggPrivate = p;
+    return p;
+  }
+  function privateHass(cls) {
+    const desc = Object.getOwnPropertyDescriptor(cls.prototype, "hass");
+    if (!desc || !desc.set || cls.prototype._oggPrivateChanged) return;
+    Object.defineProperty(cls.prototype, "hass", {
+      configurable: true,
+      get: desc.get,
+      set(hass) {
+        const p = oggPrivate();
+        this._rawHass = hass;
+        p.attach(hass, this);
+        desc.set.call(this, p.wrap(hass));
+      }
+    });
+    cls.prototype._oggPrivateChanged = function() {
+      if (this._rawHass) desc.set.call(this, oggPrivate().wrap(this._rawHass));
+    };
+  }
+  var VIEWERS_STYLE = ".viewers{flex:0 0 auto;min-height:0;height:30px;padding:0 10px;border-radius:15px;font-size:12px;font-weight:800;border:1px solid rgba(174,194,246,.22);background:transparent;color:#c9d3ee;cursor:pointer;display:inline-flex;align-items:center;gap:4px}.viewers[hidden]{display:none}.viewers b{font-variant-numeric:tabular-nums}";
+  var viewersBadge = () => '<button type="button" class="viewers" data-viewers hidden aria-label="People viewing Ogg">👥 <b></b></button>';
+  function paintViewers(root, toast) {
+    const b = root && root.querySelector("[data-viewers]");
+    if (!b) return;
+    const v = oggPrivate().viewers || [];
+    if (!v.length) {
+      b.hidden = true;
+      return;
+    }
+    b.hidden = false;
+    const n = String(v.length);
+    if (b.querySelector("b").textContent !== n) b.querySelector("b").textContent = n;
+    const names = v.map((x) => x.pages > 1 ? `${x.name} (${x.pages} devices)` : x.name).join(", ");
+    b.title = `Viewing Ogg now: ${names}`;
+    b.setAttribute("aria-label", `${n} ${v.length === 1 ? "person" : "people"} viewing Ogg: ${names}`);
+    if (!b.dataset.bound) {
+      b.dataset.bound = "1";
+      b.addEventListener("click", () => {
+        if (toast) toast(b.title);
+      });
+    }
+  }
+
   // studio-card/src/lib/convert.js
   var RUN_MODES = {
     speed: "Speed: faster strokes vibrate harder",
@@ -1857,6 +1988,7 @@ ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d
       }
       this._update();
       if (this._cast) this._castSync();
+      paintViewers(this.shadowRoot, (t) => this._toast(t));
     }
     async _loadRegistry() {
       if (!this._rememberedLoaded && !this._loadingRemembered) {
@@ -1907,6 +2039,7 @@ ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d
       this.shadowRoot.innerHTML = `
       <style>
 ${STYLES}
+${VIEWERS_STYLE}
       </style>
       <ha-card class="${simple ? "simple" : ""}${this._variant.together ? "tg" : ""}${this._config && this._config.media_only ? " mediaonly" : ""}${this._config && this._config.stroke_only ? " strokeonly" : ""}">
         <div class="cover" id="cover" hidden>
@@ -1916,7 +2049,7 @@ ${STYLES}
           <div class="hint" id="covermsg"></div>
           <button id="coverstop" type="button" class="stop">■ Stop all</button>
         </div>
-        <div class="head"><div class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></div><div class="htext"><div class="eyebrow">OggStudio</div><h2 id="title">${esc(this._config.title || this._variant.name.replace(/^OggStudio\s*/, "") || "Studio")}</h2></div><button id="lockbtn" type="button" title="Lock this card" aria-label="Lock this card" hidden>🔒</button><button id="stopall" type="button" class="stop" title="Stop every device now">■ Stop all</button></div>
+        <div class="head"><div class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></div><div class="htext"><div class="eyebrow">OggStudio</div><h2 id="title">${esc(this._config.title || this._variant.name.replace(/^OggStudio\s*/, "") || "Studio")}</h2></div>${viewersBadge()}<button id="lockbtn" type="button" title="Lock this card" aria-label="Lock this card" hidden>🔒</button><button id="stopall" type="button" class="stop" title="Stop every device now">■ Stop all</button></div>
         <div class="sub" id="sub">${esc(this._variant.sub)} · v${VERSION}</div>
         <div id="devbox"><label>Playback device</label><select id="device"></select></div>
         <div class="gp" id="gp">
@@ -8755,112 +8888,6 @@ ${STYLES}
     }
   };
 
-  // studio-card/src/lib/private.js
-  function oggPrivate() {
-    if (window.__oggPrivate) return window.__oggPrivate;
-    const p = {
-      conn: null,
-      unsub: null,
-      on: false,
-      mine: false,
-      since: null,
-      known: false,
-      states: {},
-      version: 0,
-      cards: /* @__PURE__ */ new Set(),
-      cache: null,
-      // A card's Home Assistant object (and the card, to tell it of changes).
-      attach(hass, card) {
-        if (card) this.cards.add(card);
-        if (hass && hass.connection && hass.connection !== this.conn) this._sub(hass.connection);
-      },
-      _sub(conn) {
-        if (this.unsub) {
-          try {
-            this.unsub();
-          } catch (_) {
-          }
-        }
-        this.conn = conn;
-        this.unsub = null;
-        this.states = {};
-        this.on = false;
-        this.mine = false;
-        this.known = false;
-        Promise.resolve(conn.subscribeMessage((ev) => this._event(ev), { type: "ogg/private/subscribe" })).then((u) => {
-          if (this.conn === conn) this.unsub = u;
-          else u();
-        }).catch(() => {
-        });
-      },
-      _event(ev) {
-        if (!ev || typeof ev !== "object") return;
-        if ("on" in ev) {
-          this.on = Boolean(ev.on);
-          this.mine = Boolean(ev.mine);
-          this.since = ev.since || null;
-          this.known = true;
-          this.states = ev.states && this.mine ? { ...ev.states } : {};
-        } else if (ev.states && this.mine) Object.assign(this.states, ev.states);
-        this.version += 1;
-        this.cache = null;
-        for (const card of [...this.cards]) {
-          if (!card.isConnected) {
-            this.cards.delete(card);
-            continue;
-          }
-          try {
-            card._oggPrivateChanged();
-          } catch (e) {
-            console.warn("Ogg private mode", e);
-          }
-        }
-      },
-      // Home Assistant as the card should see it.
-      wrap(hass) {
-        if (!hass || !this.on || !this.mine) return hass;
-        if (this.cache && this.cache.hass === hass && this.cache.version === this.version) return this.cache.out;
-        const overlay = {};
-        for (const [id, row] of Object.entries(this.states)) {
-          const base = hass.states[id];
-          overlay[id] = {
-            ...base || {},
-            entity_id: id,
-            state: row.state,
-            attributes: row.attributes,
-            last_changed: new Date(row.last_changed * 1e3).toISOString(),
-            last_updated: new Date(row.last_updated * 1e3).toISOString()
-          };
-        }
-        const out = { ...hass, states: { ...hass.states, ...overlay } };
-        this.cache = { hass, version: this.version, out };
-        return out;
-      },
-      async set(hass, on) {
-        return hass.callWS({ type: "ogg/private/set", on });
-      }
-    };
-    window.__oggPrivate = p;
-    return p;
-  }
-  function privateHass(cls) {
-    const desc = Object.getOwnPropertyDescriptor(cls.prototype, "hass");
-    if (!desc || !desc.set || cls.prototype._oggPrivateChanged) return;
-    Object.defineProperty(cls.prototype, "hass", {
-      configurable: true,
-      get: desc.get,
-      set(hass) {
-        const p = oggPrivate();
-        this._rawHass = hass;
-        p.attach(hass, this);
-        desc.set.call(this, p.wrap(hass));
-      }
-    });
-    cls.prototype._oggPrivateChanged = function() {
-      if (this._rawHass) desc.set.call(this, oggPrivate().wrap(this._rawHass));
-    };
-  }
-
   // studio-card/src/card/privacy.js
   var PRIVACY_TAG = "ogg-privacy-card";
   var STYLE3 = `
@@ -9166,6 +9193,7 @@ button.small{min-height:36px;border-radius:11px;padding:0 10px;font-size:12px;fl
 .sw input:checked{background:linear-gradient(110deg,#31c6b8,#54d4bc);border-color:transparent}
 .sw input:checked::after{transform:translateX(20px);background:#fff}
 .devs{display:flex;gap:6px;flex-wrap:wrap}
+${VIEWERS_STYLE}
 ${GEAR_STYLE}
 .dev{flex:0 0 auto;min-height:36px;border-radius:20px;padding:0 12px;font-size:12px;background:transparent;border-color:var(--edge);color:var(--muted)}
 .dev.on{background:#23405f;border-color:#67e0c8;color:#e9fffb}
@@ -9311,6 +9339,7 @@ ha-card.embedded .head{display:none}
         this._regLoaded = true;
         this._loadRegistry();
       }
+      paintViewers(this.shadowRoot, (t) => this._toast(t));
       this._refresh();
     }
     _oggPrivateChanged() {
@@ -9424,7 +9453,7 @@ ha-card.embedded .head{display:none}
       this.attachShadow({ mode: "open" });
       const speeds = SPEEDS2.map((s) => `<option${s === "1x" ? " selected" : ""}>${s}</option>`).join("");
       this.shadowRoot.innerHTML = `<style>${STYLE4}</style><ha-card><div class="wrap">
-      <div class="head"><div class="brand">💌</div><div><div class="eyebrow">Ogg</div><h2 id="title">Queue</h2></div></div>
+      <div class="head"><div class="brand">💌</div><div><div class="eyebrow">Ogg</div><h2 id="title">Queue</h2></div><span style="flex:1"></span>${viewersBadge()}</div>
       <div class="gift" id="gift" hidden><div class="info" id="giftinfo"></div><button class="go small" id="giftplay" type="button">▶ Play</button></div>
       <section>
         <div class="row prow"><select id="pick" aria-label="Script to play"></select><button type="button" id="ren" class="ren" aria-label="Rename this script" title="Rename">✏️ Rename</button></div>
@@ -10278,6 +10307,7 @@ h2{margin:0;font-size:20px;letter-spacing:-.03em;font-weight:780}
 .scan.spin{color:#9adbd1;border-color:rgba(100,218,189,.35)}
 .scan.spin svg{animation:ogg-spin .9s linear infinite}
 .scan[hidden]{display:none}
+${VIEWERS_STYLE}
 .lockb{flex:0 0 auto;width:34px;height:34px;min-height:0;padding:0;border-radius:11px;font-size:15px;display:grid;place-items:center}
 .lockb[hidden]{display:none}
 @keyframes ogg-spin{to{transform:rotate(360deg)}}
@@ -10572,7 +10602,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       this.attachShadow({ mode: "open" });
       const ptOpts = `<optgroup label="Patterns">${Object.entries(PATTERNS).map(([k, n]) => `<option value="${k}"${k === "wave" ? " selected" : ""}>${n}</option>`).join("")}<option value="${PATTERN_RANDOM}">🎲 Random</option></optgroup><optgroup label="Two motors">${Object.entries(PATTERNS_DUAL).map(([k, n]) => `<option value="${k}">${n}</option>`).join("")}</optgroup>`;
       this.shadowRoot.innerHTML = `<style>${STYLE5}</style><ha-card><div class="wrap">
-      <div class="head"><div class="brand">💞</div><div><div class="eyebrow">Ogg</div><h2 id="title">Easy</h2></div><span class="pill" id="pill">Off</span><button type="button" class="scan" id="scan" title="Search for toys" aria-label="Search for toys" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg></button><button type="button" class="lockb" id="lockb" title="Lock (covers every Ogg card)" aria-label="Lock" hidden>🔒</button></div>
+      <div class="head"><div class="brand">💞</div><div><div class="eyebrow">Ogg</div><h2 id="title">Easy</h2></div><span class="pill" id="pill">Off</span><button type="button" class="scan" id="scan" title="Search for toys" aria-label="Search for toys" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg></button>${viewersBadge()}<button type="button" class="lockb" id="lockb" title="Lock (covers every Ogg card)" aria-label="Lock" hidden>🔒</button></div>
       <button class="go big" id="connect" type="button">🔌 Connect now</button>
       <div class="devs" id="devs"></div>
       <div class="modes"><button type="button" data-mode="play"><span>▶</span>Play now</button><button type="button" data-mode="queue"><span>📋</span>Queue &amp; replay</button><button type="button" data-mode="other"><span>⋯</span>Other</button></div>
@@ -10753,6 +10783,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
     // ------------------------------------------------------------ what is shown
     _refresh() {
       if (!this._$ || !this._hass) return;
+      paintViewers(this.shadowRoot, (t) => this._toast(t));
       const $ = this._$;
       if (this._config && this._config.title) $("title").textContent = this._config.title;
       const c = this._connected;

@@ -1,3 +1,8 @@
+## 3.16.0 - Who is viewing
+- 👥 in the Play, Easy and Queue cards' headers: how many people have an Ogg card open right now; tap it for who (and on how many devices). People, not tabs: one person on a phone and a laptop counts once.
+- An "Ogg Viewers" sensor: the count, with the names in its attributes.
+- Needs a Home Assistant restart (the count lives in Ogg).
+
 ## 3.15.0 - Connect and whose toy in the settings
 - ⚙ settings pop-up (Play, Easy and Queue cards): a "Connect this device" switch (off: Ogg sends it nothing; Bluetooth stays connected) and Unassigned / His / Hers.
 - Every toy has his/hers now, a stroker such as The Handy too (it had none).

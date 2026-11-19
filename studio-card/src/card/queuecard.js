@@ -18,7 +18,7 @@ import { MOODS } from '../lib/moods.js';
 import { PATTERNS, PATTERNS_DUAL, PATTERN_RANDOM } from '../lib/patterns.js';
 import { heatColor, heatmap } from '../lib/tools.js';
 import { DURATIONS, MAX_STEP_MS, clock, composeScript, defaultName, duration, parseTime, stepsMs } from '../lib/compose.js';
-import { oggPrivate } from '../lib/private.js';
+import { VIEWERS_STYLE, oggPrivate, paintViewers, viewersBadge } from '../lib/private.js';
 import { makeCover } from '../lib/cover.js';
 import { sampleAt } from '../lib/outputs.js';
 import { GEAR_STYLE, gearHtml, openDeviceSettings } from '../lib/devsettings.js';
@@ -70,6 +70,7 @@ button.small{min-height:36px;border-radius:11px;padding:0 10px;font-size:12px;fl
 .sw input:checked{background:linear-gradient(110deg,#31c6b8,#54d4bc);border-color:transparent}
 .sw input:checked::after{transform:translateX(20px);background:#fff}
 .devs{display:flex;gap:6px;flex-wrap:wrap}
+${VIEWERS_STYLE}
 ${GEAR_STYLE}
 .dev{flex:0 0 auto;min-height:36px;border-radius:20px;padding:0 12px;font-size:12px;background:transparent;border-color:var(--edge);color:var(--muted)}
 .dev.on{background:#23405f;border-color:#67e0c8;color:#e9fffb}
@@ -198,6 +199,7 @@ export class OggQueueCard extends HTMLElement {
     if (!this._ocov) this._ocov = makeCover(this.shadowRoot.querySelector('ha-card'));
     this._ocov.update(this._hass);
     if (!this._regLoaded) { this._regLoaded = true; this._loadRegistry(); }
+    paintViewers(this.shadowRoot, (t) => this._toast(t));
     this._refresh();
   }
 
@@ -277,7 +279,7 @@ export class OggQueueCard extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     const speeds = SPEEDS.map((s) => `<option${s === '1x' ? ' selected' : ''}>${s}</option>`).join('');
     this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="wrap">
-      <div class="head"><div class="brand">💌</div><div><div class="eyebrow">Ogg</div><h2 id="title">Queue</h2></div></div>
+      <div class="head"><div class="brand">💌</div><div><div class="eyebrow">Ogg</div><h2 id="title">Queue</h2></div><span style="flex:1"></span>${viewersBadge()}</div>
       <div class="gift" id="gift" hidden><div class="info" id="giftinfo"></div><button class="go small" id="giftplay" type="button">▶ Play</button></div>
       <section>
         <div class="row prow"><select id="pick" aria-label="Script to play"></select><button type="button" id="ren" class="ren" aria-label="Rename this script" title="Rename">✏️ Rename</button></div>

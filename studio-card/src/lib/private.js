@@ -10,7 +10,7 @@ export function oggPrivate() {
   if (window.__oggPrivate) return window.__oggPrivate;
   const p = {
     conn: null, unsub: null, on: false, mine: false, since: null, known: false,
-    states: {}, version: 0, cards: new Set(), cache: null,
+    states: {}, version: 0, cards: new Set(), cache: null, viewers: [],
     // A card's Home Assistant object (and the card, to tell it of changes).
     attach(hass, card) {
       if (card) this.cards.add(card);
@@ -25,6 +25,7 @@ export function oggPrivate() {
     },
     _event(ev) {
       if (!ev || typeof ev !== 'object') return;
+      if (Array.isArray(ev.viewers)) this.viewers = ev.viewers;   // who has an Ogg card open
       if ('on' in ev) {
         this.on = Boolean(ev.on); this.mine = Boolean(ev.mine); this.since = ev.since || null; this.known = true;
         this.states = ev.states && this.mine ? { ...ev.states } : {};
@@ -79,4 +80,21 @@ export function privateHass(cls) {
   cls.prototype._oggPrivateChanged = function () {
     if (this._rawHass) desc.set.call(this, oggPrivate().wrap(this._rawHass));
   };
+}
+
+// 👥 in a card's header: how many people have an Ogg card open (tap for who).
+export const VIEWERS_STYLE = '.viewers{flex:0 0 auto;min-height:0;height:30px;padding:0 10px;border-radius:15px;font-size:12px;font-weight:800;border:1px solid rgba(174,194,246,.22);background:transparent;color:#c9d3ee;cursor:pointer;display:inline-flex;align-items:center;gap:4px}.viewers[hidden]{display:none}.viewers b{font-variant-numeric:tabular-nums}';
+export const viewersBadge = () => '<button type="button" class="viewers" data-viewers hidden aria-label="People viewing Ogg">👥 <b></b></button>';
+export function paintViewers(root, toast) {
+  const b = root && root.querySelector('[data-viewers]');
+  if (!b) return;
+  const v = oggPrivate().viewers || [];
+  if (!v.length) { b.hidden = true; return; }
+  b.hidden = false;
+  const n = String(v.length);
+  if (b.querySelector('b').textContent !== n) b.querySelector('b').textContent = n;
+  const names = v.map((x) => (x.pages > 1 ? `${x.name} (${x.pages} devices)` : x.name)).join(', ');
+  b.title = `Viewing Ogg now: ${names}`;
+  b.setAttribute('aria-label', `${n} ${v.length === 1 ? 'person' : 'people'} viewing Ogg: ${names}`);
+  if (!b.dataset.bound) { b.dataset.bound = '1'; b.addEventListener('click', () => { if (toast) toast(b.title); }); }
 }
