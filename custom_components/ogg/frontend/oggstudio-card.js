@@ -2336,6 +2336,12 @@ ${STYLES}
       const busy = speed !== null || st.drag !== null || this._stRecording || this._el("stlive").checked && !this._simple || Boolean(this._rp && this._rp.playing);
       if (!busy) this._stHalt();
     }
+    // Devices follow the controls: on the simple Play card whenever a device is
+    // picked and active (its hidden switch could miss a device being picked);
+    // elsewhere when "Devices follow without recording" is ticked.
+    _stFollow() {
+      return this._simple ? this._anyActive : this._el("stlive").checked;
+    }
     _stHalt() {
       clearInterval(this._stTimer);
       this._stTimer = null;
@@ -2351,7 +2357,7 @@ ${STYLES}
     // limit and how long to take (or the bar position when moved by hand).
     _stLive(now) {
       const replaying = Boolean(this._rp && this._rp.playing);
-      const on = this._stRecording || this._el("stlive").checked || replaying;
+      const on = this._stRecording || this._stFollow() || replaying;
       if (!on) {
         if (this._stOutAt) {
           this._stOutAt = 0;

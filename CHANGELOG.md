@@ -1,3 +1,6 @@
+## 3.10.3 - Manual stroker controls
+- Play card: the manual stroke controls (drag the bar, Fast / Medium / Slow, Latch) move a stroker such as The Handy again. Its hidden "devices follow" switch missed a device being picked, so manual moves were never sent (scripts were unaffected). Now any picked, active device follows.
+
 ## 3.10.2 - Lock on the Easy card
 - Easy card: a 🔒 button in the header (shown when discreet mode or a PIN is set). It covers every Ogg card again and locks PIN-locked Play cards straight away.
 
