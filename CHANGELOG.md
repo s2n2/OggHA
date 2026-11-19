@@ -1,3 +1,8 @@
+## 3.14.0 - Toy chips with settings
+- Play card: the toys are chips, like the Easy card: tap a toy to use it here (up to four; tap again to stop), and the ones in use show which pad they follow. A toy in use elsewhere shows "in use": tap it to take control.
+- ⚙ before each toy's name opens its settings: its limits (top intensity, stroke range, top stroke speed: kept in Home Assistant for every card), and on the Play card what it plays (both motors, motor 1 or 2, stroker) and how it follows a stroke.
+- The Easy and Queue cards have the same ⚙ on their chips.
+
 ## 3.13.0 - The Play card's stroke controls everywhere
 - Easy card: Stroke now uses the Play card's own stroke controls (range, position, Fast / Medium / Slow with Latch, Set limit / Reset limits) for the strokers picked there. It never changes your own Play card's devices.
 - Play card, Together: their stroker gets the same stroke controls under "Their toys" (a vibrator keeps the level slider).

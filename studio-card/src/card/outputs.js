@@ -1,9 +1,10 @@
 // Part of the OggStudio card. Built into custom_components/ogg/frontend/oggstudio-card.js (npm run build).
 import { FOLLOW_AI } from '../lib/ai.js';
 import { RUN_MODES, RUN_MODE_DEFAULT, fileKind, fileTitle, isStroke, normalise } from '../lib/convert.js';
-import { SAMPLE_MS, SPEEDS, TAKE_SRC, VIDEO_QUEUE, decodeText, duration, encodeCode, fmt } from '../lib/core.js';
+import { SAMPLE_MS, SPEEDS, TAKE_SRC, VIDEO_QUEUE, decodeText, duration, encodeCode, esc, fmt } from '../lib/core.js';
 import { limitLevels, limitMove } from '../lib/limits.js';
 import { FOLLOW_STROKER, OUT_KEY, outLevels, parseTarget } from '../lib/outputs.js';
+import { gearHtml, openDeviceSettings } from '../lib/devsettings.js';
 
 const MAX_OUTS = 4;
 const OUT_FOLD_KEY = 'oggstudio_outputs_folded';
@@ -48,10 +49,15 @@ export class OutputsPart {
       }
     });
     rows.addEventListener('click', (e) => {
-      const i = at(e);
-      if (i < 0) return;
-      if (e.target.closest('.outtake')) this._outTake(i);
-      else if (e.target.closest('.outdel')) this._outRemove(i);
+      // The toys as chips (like the Easy card): tap to use one, ⚙ for its settings.
+      const gear = e.target.closest('.gear');
+      const chip = e.target.closest('.ochip');
+      if (gear) { e.stopPropagation(); this._outSettings(gear.dataset.gear); return; }
+      if (chip) this._outChip(chip.dataset.dev);
+    });
+    rows.addEventListener('keydown', (e) => {
+      const gear = e.target.closest('.gear');
+      if (gear && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); this._outSettings(gear.dataset.gear); }
     });
     this._outRender();
   }
@@ -78,6 +84,59 @@ export class OutputsPart {
     this._outRender();
     if (this._simple && this._outs.length === 1) this._autoKind();
     this._update();
+  }
+
+  // Which output (index) a device is, if it is used here (and switched on).
+  _outIndexOf(id) {
+    return (this._outs || []).findIndex((o, i) => o.on !== false && (parseTarget(this._outTargetValue(i)) || {}).id === id);
+  }
+
+  // Tap a toy: use it here (as a stroker if that is all it does), or stop using it.
+  _outChip(id) {
+    const dev = this._devices.find((d) => d.id === id);
+    if (!dev) return;
+    const i = this._outIndexOf(id);
+    if (i >= 0) {
+      if (this._claimedBy(dev)) { this._outTake(i); return; }   // in use elsewhere: take control
+      this._outRemove(i);
+      return;
+    }
+    // Forget a switched-off entry for it, then add it (up to four).
+    this._outs = this._outs.filter((o, j) => !(o.on === false && (parseTarget(this._outTargetValue(j)) || {}).id === id));
+    if (this._outs.length >= MAX_OUTS) { this._toast('Up to four toys at once: tap one to stop using it first.'); this._outRender(); return; }
+    this._outStop();
+    this._outs.push({ t: `${dev.id}|${dev.linear && !dev.vibe ? 'l' : 'b'}`, m: 'position', on: true });
+    this._outSave();
+    this._outRender();
+    if (this._simple) { this._el('stlive').checked = this._anyActive; if (this._outs.length === 1) this._autoKind(); }
+    this._update();
+  }
+
+  // ⚙: the toy's settings: how it follows and which motor (when used here), and its limits.
+  _outSettings(stop) {
+    const dev = this._devices.find((d) => d.stop === stop);
+    if (!dev) return;
+    const i = this._outIndexOf(dev.id);
+    const extra = [];
+    if (i >= 0) {
+      const p = parseTarget(this._outTargetValue(i));
+      const vibe = dev.vibe || !dev.linear;
+      const motors = [];
+      if (vibe && !dev.dual) motors.push(['b', 'Vibration']);
+      if (vibe && dev.dual) motors.push(['b', 'Both motors'], ['0', 'Motor 1'], ['1', 'Motor 2']);
+      if (dev.linear) motors.push(['l', 'Stroker']);
+      if (motors.length > 1) extra.push({ label: 'Plays', options: motors, value: p.motor, onChange: (v) => { this._outSwitch(i, { t: `${dev.id}|${v}` }); this._outSettings(stop); } });
+      const modes = p.motor === 'l'
+        ? [[FOLLOW_STROKER, 'Stroker: follows the position'], [FOLLOW_AI, "✨ AI feel: strokes from a vibration's mood"]]
+        : [[FOLLOW_AI, "✨ AI feel: patterns from the stroke's mood"], ...Object.entries(RUN_MODES).map(([v, t]) => [v, t.replace(/ \(vibration scripts\)/, '')]), [FOLLOW_STROKER, 'Stroker: level = position']];
+      extra.push({ label: 'How it follows a stroke', options: modes, value: this._outs[i].m, onChange: (v) => this._outSwitch(i, { m: v }) });
+    }
+    openDeviceSettings(this.shadowRoot, {
+      hass: this._hass, dev, allLimits: this._limitsAll, extra,
+      note: i >= 0 ? '' : 'Not used on this card: tap the toy to use it here.',
+      onLimits: (s, lim) => { this._limitsAll = { ...this._limitsAll, [s]: lim }; },
+      toast: (t) => this._toast(t),
+    });
   }
 
   _outRemove(i) {
@@ -263,58 +322,39 @@ export class OutputsPart {
     const devs = [...this._devices].sort((a, b) => Number(this._online(b)) - Number(this._online(a)) || a.name.localeCompare(b.name));
     const list = [];
     for (const d of devs) {
-      const name = this._online(d) ? d.name : `${d.name} (offline)`;
+      const name = this._online(d) ? d.name : `${d.name} (offline)`;   // (kept for the empty message)
       const vibe = d.vibe || !d.linear;   // a stroker-only device has no vibration
       if (vibe && !d.dual) list.push([`${d.id}|b`, name]);
       if (vibe && d.dual) list.push([`${d.id}|b`, `${name} · both motors`], [`${d.id}|0`, `${name} · motor 1`], [`${d.id}|1`, `${name} · motor 2`]);
       if (d.linear) list.push([`${d.id}|l`, `${name} · stroker`]);
     }
-    if (!list.length) list.push(['none', 'No device found']);
-    // One row per device (up to four); redrawn when the count changes.
+    // The toys as chips: connected ones, plus any used here that are offline.
     const box = $('outrows');
     const n = this._outs.length;
-    if (box.children.length !== n) {
-      box.replaceChildren(...this._outs.map((o, i) => {
-        const row = document.createElement('div');
-        row.className = 'outrow';
-        row.dataset.row = String(i);
-        row.innerHTML = `<input class="outon" type="checkbox" role="switch" title="Active: this device follows" aria-label="Device ${i + 1} active"><span class="outpad" title="Follows pad ${(i % 2) + 1}">${(i % 2) + 1}</span><select class="outt" aria-label="Device ${i + 1}"></select><select class="outm" aria-label="How device ${i + 1} follows"></select><button class="outdel" type="button" title="Remove this device" aria-label="Remove device ${i + 1}">✕</button><div class="outai" hidden></div><button class="outtake" type="button" hidden>Take control</button>`;
-        return row;
-      }));
-    }
     const labels = ['Pad 1', 'Pad 2'];
-    for (const row of box.querySelectorAll('.outrow')) {
-      const i = Number(row.dataset.row);
-      const o = this._outs[i];
-      const sel = row.querySelector('.outt');
-      const key = JSON.stringify([stroke, list]);
-      if (sel.dataset.key !== key) { sel.replaceChildren(...list.map(([v, t]) => new Option(t, v))); sel.dataset.key = key; }
-      const value = this._outTargetValue(i);
-      if ([...sel.options].some((op) => op.value === value)) sel.value = value;
-      const p = parseTarget(value);
+    const used = new Map();
+    this._outs.forEach((o, i) => {
+      const p = parseTarget(this._outTargetValue(i));
       const dev = p && this._devices.find((d) => d.id === p.id);
       if (i < 2) labels[i] = dev ? (p.motor === 'b' ? dev.name : p.motor === 'l' ? `${dev.name} (stroker)` : `${dev.name} m${Number(p.motor) + 1}`) : `Pad ${i + 1}`;
-      row.querySelector('.outon').checked = o.on !== false;
-      row.querySelector('.outpad').classList.toggle('gone', n < 2);   // keeps its column, so the row does not shift
-      // How it follows (stroke recorder): a stroker by position, a vibrator by a run mode.
-      const msel = row.querySelector('.outm');
-      const modes = p && p.motor === 'l'
-        ? [[FOLLOW_STROKER, 'Stroker: follows the position'], [FOLLOW_AI, "✨ AI feel: strokes from a vibration's mood"]]
-        : [[FOLLOW_AI, "✨ AI feel: patterns from the stroke's mood"], ...Object.entries(RUN_MODES).map(([v, t]) => [v, t.replace(/ \(vibration scripts\)/, '')]), [FOLLOW_STROKER, 'Stroker: level = position']];
-      const mkey = JSON.stringify(modes);
-      if (msel.dataset.key !== mkey) { msel.replaceChildren(...modes.map(([v, t]) => new Option(t, v))); msel.dataset.key = mkey; }
-      if (!modes.some(([v]) => v === o.m)) o.m = p && p.motor !== 'l' && o.m !== FOLLOW_AI ? 'position' : modes[0][0];
-      msel.value = o.m;
-      const owner = dev && this._claimedBy(dev);
-      const take = row.querySelector('.outtake');
-      take.hidden = !owner;
-      if (owner) take.textContent = `Take control (${owner.label || 'in use'})`;
-      msel.hidden = Boolean(owner);
-      row.classList.toggle('take', Boolean(owner));
-    }
-    $('outadd').hidden = n >= MAX_OUTS;
-    $('limbtn').hidden = n === 0;
-    if (!n) $('limbox').hidden = true;
+      // Keep each output's follow mode valid for what it plays.
+      const strokerOut = p && p.motor === 'l';
+      const ok = strokerOut ? [FOLLOW_STROKER, FOLLOW_AI] : [FOLLOW_AI, FOLLOW_STROKER, ...Object.keys(RUN_MODES)];
+      if (!ok.includes(o.m)) o.m = strokerOut ? FOLLOW_STROKER : 'position';
+      if (dev && o.on !== false && !used.has(dev.id)) used.set(dev.id, i);
+    });
+    const chips = devs.filter((d) => this._online(d) || used.has(d.id));
+    const html = chips.length ? chips.map((d) => {
+      const i = used.has(d.id) ? used.get(d.id) : -1;
+      const owner = i >= 0 && this._claimedBy(d);
+      const pad = i >= 0 && n > 1 ? `<span class="opad" title="Follows pad ${(i % 2) + 1}">${(i % 2) + 1}</span>` : '';
+      const kind = d.linear && !d.vibe ? '↕' : '';
+      return `<button type="button" class="ochip${i >= 0 ? ' on' : ''}${this._online(d) ? '' : ' off'}${owner ? ' take' : ''}" data-dev="${esc(d.id)}" aria-pressed="${i >= 0}" title="${owner ? `In use (${esc(owner.label || 'elsewhere')}): tap to take control` : i >= 0 ? 'Used here: tap to stop' : 'Tap to use it here'}">${gearHtml(d)}<span class="onm">${esc(d.name)}${kind ? ` <i>${kind}</i>` : ''}</span>${pad}${owner ? '<span class="obusy">in use</span>' : ''}${this._online(d) ? '' : '<span class="obusy">offline</span>'}</button>`;
+    }).join('') : `<span class="hint">${list.length && list[0][0] !== 'none' ? 'No toy connected: switch one on.' : 'No device found.'}</span>`;
+    if (box.dataset.h !== html) { box.innerHTML = html; box.dataset.h = html; }
+    $('outadd').hidden = true;
+    $('limbtn').hidden = true;
+    $('limbox').hidden = true;
     $('outhint').hidden = n < 2;
     // The count: devices on, chosen and connected.
     const live = this._outs.filter((o, i) => { if (o.on === false) return false; const d = this._outDevice(i); return Boolean(d && this._online(d)); }).length;

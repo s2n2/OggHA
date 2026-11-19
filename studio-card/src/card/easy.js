@@ -19,6 +19,7 @@ import { PATTERNS, PATTERNS_DUAL, PATTERN_RANDOM, patternPeriod } from '../lib/p
 import { clock, renderMood, renderPattern } from '../lib/compose.js';
 import { oggPrivate } from '../lib/private.js';
 import { lockAll, makeCover, studioSettings } from '../lib/cover.js';
+import { GEAR_STYLE, gearHtml, openDeviceSettings } from '../lib/devsettings.js';
 import { OUT_KEY } from '../lib/outputs.js';
 
 export const EASY_TAG = 'ogg-easy-card';
@@ -55,6 +56,7 @@ button.rec.on{background:linear-gradient(110deg,#ff5c7a,#ff8aa0);color:#2a0710}
 .big{min-height:58px;font-size:17px;width:100%}
 .row{display:flex;gap:8px;align-items:center}.row>*{flex:1 1 0;min-width:0}
 .devs{display:flex;gap:6px;flex-wrap:wrap}
+${GEAR_STYLE}
 .dev{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;min-height:38px;border-radius:20px;padding:0 12px;font-size:12.5px;background:transparent;border-color:var(--edge);color:var(--muted)}
 .dev.on{background:#23405f;border-color:#67e0c8;color:#e9fffb}
 .chip{font-size:10px;font-weight:850;letter-spacing:.06em;text-transform:uppercase;border-radius:8px;padding:1px 6px;border:1px solid}
@@ -320,7 +322,15 @@ export class OggEasyCard extends HTMLElement {
     const $ = (id) => this.shadowRoot.getElementById(id);
     this._$ = $;
     $('connect').addEventListener('click', () => this._connect());
-    $('devs').addEventListener('click', (e) => this._toggleDev(e.target.closest('button')));
+    $('devs').addEventListener('click', (e) => {
+      const gear = e.target.closest('.gear');
+      if (gear) { e.stopPropagation(); this._devSettings(gear.dataset.gear); return; }
+      this._toggleDev(e.target.closest('button'));
+    });
+    $('devs').addEventListener('keydown', (e) => {
+      const gear = e.target.closest('.gear');
+      if (gear && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); this._devSettings(gear.dataset.gear); }
+    });
     this.shadowRoot.querySelector('.modes').addEventListener('click', (e) => { const b = e.target.closest('button[data-mode]'); if (b) this._setMode(b.dataset.mode); });
     this.shadowRoot.querySelector('.kinds').addEventListener('click', (e) => { const b = e.target.closest('button[data-kind]'); if (b) this._setKind(b.dataset.kind); });
     $('ptgo').addEventListener('click', () => { if (this._playing && this._playing.kind === 'pattern') this._halt(); else this._playPattern(); });
@@ -454,7 +464,7 @@ export class OggEasyCard extends HTMLElement {
     const targets = new Set(this._targets().map((d) => d.stop));
     const html = online.length ? online.map((d) => {
       const w = this._whose(d), lin = d.linear && !d.vibe;
-      return `<button type="button" class="dev${targets.has(d.stop) ? ' on' : ''}" data-stop="${esc(d.stop)}" aria-pressed="${targets.has(d.stop)}">${esc(d.name)}${w ? `<span class="chip ${w}">${WHO[w]}</span>` : ''}`
+      return `<button type="button" class="dev${targets.has(d.stop) ? ' on' : ''}" data-stop="${esc(d.stop)}" aria-pressed="${targets.has(d.stop)}">${gearHtml(d)}${esc(d.name)}${w ? `<span class="chip ${w}">${WHO[w]}</span>` : ''}`
         + `<span class="lv${lin ? ' lin' : ''}" data-lv="${esc(d.stop)}" aria-hidden="true"><i><b></b></i>${!lin && d.dual ? '<i><b></b></i>' : ''}</span><span class="pct" data-pct="${esc(d.stop)}"></span></button>`;
     }).join('') : `<span class="hint">${this._connected.intiha || this._connected.ogg ? 'No toys yet: switch them on and keep them close.' : 'Press Connect now, then switch your toys on.'}</span>`;
     if ($('devs').dataset.h !== html) { $('devs').innerHTML = html; $('devs').dataset.h = html; }
@@ -476,6 +486,14 @@ export class OggEasyCard extends HTMLElement {
       lv.querySelectorAll('b').forEach((b, i) => { b.style.width = `${out[i] ?? out[0] ?? 0}%`; });
       pct.textContent = `${Math.round(Math.max(0, ...out))}%`;
     }
+  }
+
+  // ⚙ on a toy: its limits (kept in Home Assistant for every card).
+  _devSettings(stop) {
+    const dev = this._devices.find((d) => d.stop === stop);
+    const s = this._st(this._studio);
+    if (!dev) return;
+    openDeviceSettings(this.shadowRoot, { hass: this._hass, dev, allLimits: s && s.attributes.limits, toast: (t) => this._toast(t) });
   }
 
   _toggleDev(b) {

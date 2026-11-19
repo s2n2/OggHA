@@ -1415,6 +1415,15 @@ button.vrec.on{background:linear-gradient(110deg,#ff5c7a,#ff8aa0);color:#2a0710}
 .head button{flex:0 0 auto;min-height:36px;padding:0 12px;font-size:13px}
 ha-card.locked > :not(#cover){display:none!important}
 ha-card.mediaonly{background:transparent;border:0;padding:0}
+#outrows .ochip{display:inline-flex;align-items:center;gap:7px;flex:0 0 auto;width:auto!important;min-height:38px;margin:0;border-radius:20px;padding:0 12px 0 8px;font-size:12.5px;font-weight:750;background:transparent;border:1px solid #33415f;color:#9aa6c8}
+#outrows .ochip.on{background:#23405f;border-color:#67e0c8;color:#e9fffb}
+.ochip.off{opacity:.6}
+.ochip.take{border-style:dashed}
+.ochip .onm i{font-style:normal;opacity:.8}
+.ochip .opad{font-size:10px;font-weight:850;border-radius:8px;padding:1px 6px;border:1px solid rgba(103,224,200,.45);color:#bff5ea}
+.ochip .obusy{font-size:10px;font-weight:800;color:#ffcf8a}
+.gear{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;font-size:13px;line-height:1;opacity:.75;cursor:pointer}
+.gear:hover,.gear:focus-visible{opacity:1;background:rgba(255,255,255,.1);outline:none}
 ha-card.strokeonly{background:transparent;border:0;padding:0;box-shadow:none}
 ha-card.strokeonly > :not(#outhome):not(.toast):not(.ogg-cover){display:none!important}
 ha-card.strokeonly #outbox,ha-card.strokeonly #ctlhead,ha-card.strokeonly .ctltabs,ha-card.strokeonly #urec,ha-card.strokeonly #stinfo{display:none!important}
@@ -1601,7 +1610,7 @@ button.outhead{display:flex;align-items:center;gap:8px;width:100%;min-height:36p
 .outcount.zero i{background:#72809f;box-shadow:none}
 .outhead .chev{font-size:13px;color:#a8b8da;transition:transform .18s ease}
 .outbox.folded .chev{transform:rotate(-90deg)}
-#outrows{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+#outrows{display:flex;flex-direction:row;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
 .outrow{display:grid;grid-template-columns:auto auto minmax(0,1fr) minmax(0,1fr) 34px;gap:6px;margin-top:0;align-items:center}
 .outrow.take{grid-template-columns:auto auto minmax(0,1fr) 34px}
 .outrow .outpad{display:grid;place-items:center;width:18px;height:18px;border-radius:6px;background:rgba(152,168,249,.16);color:#c5d2f0;font-size:10px;font-weight:800}
@@ -4836,6 +4845,90 @@ ${STYLES}
     return bits.join(" · ");
   }
 
+  // studio-card/src/lib/devsettings.js
+  var STYLE = `
+.ogg-dset{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(5,9,20,.62);backdrop-filter:blur(3px)}
+.ogg-dset .box{width:min(420px,100%);max-height:calc(100vh - 32px);overflow:auto;border-radius:20px;border:1px solid #33415f;background:#101a30;color:#e9ecfb;padding:16px;box-shadow:0 18px 50px rgba(0,0,0,.5);font:inherit}
+.ogg-dset .top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.ogg-dset h3{margin:0;font-size:16px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ogg-dset .x{min-height:34px;width:34px;padding:0;border-radius:50%;border:1px solid #3a4a6c;background:transparent;color:#c4d0ee;font-size:15px;cursor:pointer}
+.ogg-dset .grp{display:flex;flex-direction:column;gap:4px;margin:10px 0}
+.ogg-dset label{font-size:12.5px;font-weight:750;color:#9aa6c8;display:flex;justify-content:space-between}
+.ogg-dset label b{color:#bef2ff}
+.ogg-dset input[type=range]{width:100%;accent-color:#67e0c8}
+.ogg-dset select{width:100%;padding:9px 10px;border-radius:12px;border:1px solid #364563;background:#17233c;color:#fff;font:inherit}
+.ogg-dset .hint{font-size:12px;color:#9aa6c8;margin-top:8px;line-height:1.4}
+.ogg-dset .sep{height:1px;background:#26324d;margin:12px 0}
+`;
+  var ensureStyle = (root) => {
+    if (root.querySelector("style[data-ogg-dset]")) return;
+    const s = document.createElement("style");
+    s.dataset.oggDset = "1";
+    s.textContent = STYLE;
+    root.appendChild(s);
+  };
+  var gearHtml = (dev) => `<span class="gear" data-gear="${esc(dev.stop)}" role="button" tabindex="0" title="Settings for ${esc(dev.name)}" aria-label="Settings for ${esc(dev.name)}">⚙</span>`;
+  var GEAR_STYLE = ".gear{display:inline-grid;place-items:center;width:20px;height:20px;margin-left:-4px;border-radius:50%;font-size:13px;line-height:1;opacity:.75;cursor:pointer}.gear:hover,.gear:focus-visible{opacity:1;background:rgba(255,255,255,.1);outline:none}";
+  function openDeviceSettings(root, { hass, dev, allLimits, extra = [], note = "", onLimits, toast }) {
+    ensureStyle(root);
+    root.querySelector(".ogg-dset")?.remove();
+    let lim = limitsFor(allLimits, dev.stop);
+    const vibe = dev.vibe || !dev.linear;
+    const slider = (field, text, min) => `<div class="grp"><label>${text} <b data-v="${field}">${lim[field]}%</b></label><input type="range" min="${min}" max="100" step="1" value="${lim[field]}" data-field="${field}"></div>`;
+    const wrap = document.createElement("div");
+    wrap.className = "ogg-dset";
+    wrap.innerHTML = `<div class="box" role="dialog" aria-modal="true" aria-label="Settings for ${esc(dev.name)}">
+    <div class="top"><h3>⚙ ${esc(dev.name)}</h3><button type="button" class="x" aria-label="Close">✕</button></div>
+    ${extra.map((x, i) => `<div class="grp"><label>${esc(x.label)}</label><select data-extra="${i}">${x.options.map(([v, t]) => `<option value="${esc(v)}"${v === x.value ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></div>`).join("")}
+    ${note ? `<div class="hint">${esc(note)}</div>` : ""}
+    ${extra.length || note ? '<div class="sep"></div>' : ""}
+    ${vibe ? slider("max", "Top intensity", 0) : ""}
+    ${dev.linear ? slider("lo", "Stroke range from", 0) + slider("hi", "Stroke range to", 0) + slider("speed", "Top stroke speed", 5) : ""}
+    <div class="hint">Limits: nothing goes past these, whatever is driving (pads, scripts, moods, audio or a partner). They are kept in Home Assistant for every card.</div>
+  </div>`;
+    const close = () => {
+      wrap.remove();
+      document.removeEventListener("keydown", onKey);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") close();
+    };
+    document.addEventListener("keydown", onKey);
+    wrap.addEventListener("click", (e) => {
+      if (e.target === wrap || e.target.closest(".x")) close();
+    });
+    for (const sel of wrap.querySelectorAll("select[data-extra]")) sel.addEventListener("change", () => extra[Number(sel.dataset.extra)].onChange(sel.value));
+    for (const input of wrap.querySelectorAll("input[data-field]")) {
+      input.addEventListener("input", () => {
+        wrap.querySelector(`[data-v="${input.dataset.field}"]`).textContent = `${input.value}%`;
+      });
+      input.addEventListener("change", () => {
+        const field = input.dataset.field;
+        lim = { ...lim, [field]: Number(input.value) };
+        if (lim.hi - lim.lo < 5) {
+          if (field === "lo") lim.hi = Math.min(100, lim.lo + 5);
+          else lim.lo = Math.max(0, lim.hi - 5);
+        }
+        if (lim.hi - lim.lo < 5) {
+          lim.lo = 0;
+          lim.hi = 100;
+        }
+        for (const f of ["lo", "hi"]) {
+          const el = wrap.querySelector(`input[data-field="${f}"]`);
+          if (el) {
+            el.value = String(lim[f]);
+            wrap.querySelector(`[data-v="${f}"]`).textContent = `${lim[f]}%`;
+          }
+        }
+        if (onLimits) onLimits(dev.stop, lim);
+        hass.callService("ogg", "studio_set_limits", { entity_id: dev.stop, ...lim }).then(() => toast && toast(`Limits for ${dev.name}: ${limitsText(lim) || "none"}.`)).catch((e) => toast && toast("Could not save the limits: " + (e.message || e)));
+      });
+    }
+    root.appendChild(wrap);
+    wrap.querySelector(".x").focus();
+    return close;
+  }
+
   // studio-card/src/card/outputs.js
   var MAX_OUTS = 4;
   var OUT_FOLD_KEY = "oggstudio_outputs_folded";
@@ -4882,10 +4975,22 @@ ${STYLES}
         }
       });
       rows.addEventListener("click", (e) => {
-        const i = at(e);
-        if (i < 0) return;
-        if (e.target.closest(".outtake")) this._outTake(i);
-        else if (e.target.closest(".outdel")) this._outRemove(i);
+        const gear = e.target.closest(".gear");
+        const chip = e.target.closest(".ochip");
+        if (gear) {
+          e.stopPropagation();
+          this._outSettings(gear.dataset.gear);
+          return;
+        }
+        if (chip) this._outChip(chip.dataset.dev);
+      });
+      rows.addEventListener("keydown", (e) => {
+        const gear = e.target.closest(".gear");
+        if (gear && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          e.stopPropagation();
+          this._outSettings(gear.dataset.gear);
+        }
       });
       this._outRender();
     }
@@ -4914,6 +5019,71 @@ ${STYLES}
       this._outRender();
       if (this._simple && this._outs.length === 1) this._autoKind();
       this._update();
+    }
+    // Which output (index) a device is, if it is used here (and switched on).
+    _outIndexOf(id) {
+      return (this._outs || []).findIndex((o, i) => o.on !== false && (parseTarget(this._outTargetValue(i)) || {}).id === id);
+    }
+    // Tap a toy: use it here (as a stroker if that is all it does), or stop using it.
+    _outChip(id) {
+      const dev = this._devices.find((d) => d.id === id);
+      if (!dev) return;
+      const i = this._outIndexOf(id);
+      if (i >= 0) {
+        if (this._claimedBy(dev)) {
+          this._outTake(i);
+          return;
+        }
+        this._outRemove(i);
+        return;
+      }
+      this._outs = this._outs.filter((o, j) => !(o.on === false && (parseTarget(this._outTargetValue(j)) || {}).id === id));
+      if (this._outs.length >= MAX_OUTS) {
+        this._toast("Up to four toys at once: tap one to stop using it first.");
+        this._outRender();
+        return;
+      }
+      this._outStop();
+      this._outs.push({ t: `${dev.id}|${dev.linear && !dev.vibe ? "l" : "b"}`, m: "position", on: true });
+      this._outSave();
+      this._outRender();
+      if (this._simple) {
+        this._el("stlive").checked = this._anyActive;
+        if (this._outs.length === 1) this._autoKind();
+      }
+      this._update();
+    }
+    // ⚙: the toy's settings: how it follows and which motor (when used here), and its limits.
+    _outSettings(stop) {
+      const dev = this._devices.find((d) => d.stop === stop);
+      if (!dev) return;
+      const i = this._outIndexOf(dev.id);
+      const extra = [];
+      if (i >= 0) {
+        const p = parseTarget(this._outTargetValue(i));
+        const vibe = dev.vibe || !dev.linear;
+        const motors = [];
+        if (vibe && !dev.dual) motors.push(["b", "Vibration"]);
+        if (vibe && dev.dual) motors.push(["b", "Both motors"], ["0", "Motor 1"], ["1", "Motor 2"]);
+        if (dev.linear) motors.push(["l", "Stroker"]);
+        if (motors.length > 1) extra.push({ label: "Plays", options: motors, value: p.motor, onChange: (v) => {
+          this._outSwitch(i, { t: `${dev.id}|${v}` });
+          this._outSettings(stop);
+        } });
+        const modes = p.motor === "l" ? [[FOLLOW_STROKER, "Stroker: follows the position"], [FOLLOW_AI, "✨ AI feel: strokes from a vibration's mood"]] : [[FOLLOW_AI, "✨ AI feel: patterns from the stroke's mood"], ...Object.entries(RUN_MODES).map(([v, t]) => [v, t.replace(/ \(vibration scripts\)/, "")]), [FOLLOW_STROKER, "Stroker: level = position"]];
+        extra.push({ label: "How it follows a stroke", options: modes, value: this._outs[i].m, onChange: (v) => this._outSwitch(i, { m: v }) });
+      }
+      openDeviceSettings(this.shadowRoot, {
+        hass: this._hass,
+        dev,
+        allLimits: this._limitsAll,
+        extra,
+        note: i >= 0 ? "" : "Not used on this card: tap the toy to use it here.",
+        onLimits: (s, lim) => {
+          this._limitsAll = { ...this._limitsAll, [s]: lim };
+        },
+        toast: (t) => this._toast(t)
+      });
     }
     _outRemove(i) {
       this._outStop();
@@ -5111,54 +5281,34 @@ ${STYLES}
         if (vibe && d.dual) list.push([`${d.id}|b`, `${name} · both motors`], [`${d.id}|0`, `${name} · motor 1`], [`${d.id}|1`, `${name} · motor 2`]);
         if (d.linear) list.push([`${d.id}|l`, `${name} · stroker`]);
       }
-      if (!list.length) list.push(["none", "No device found"]);
       const box = $("outrows");
       const n = this._outs.length;
-      if (box.children.length !== n) {
-        box.replaceChildren(...this._outs.map((o, i) => {
-          const row = document.createElement("div");
-          row.className = "outrow";
-          row.dataset.row = String(i);
-          row.innerHTML = `<input class="outon" type="checkbox" role="switch" title="Active: this device follows" aria-label="Device ${i + 1} active"><span class="outpad" title="Follows pad ${i % 2 + 1}">${i % 2 + 1}</span><select class="outt" aria-label="Device ${i + 1}"></select><select class="outm" aria-label="How device ${i + 1} follows"></select><button class="outdel" type="button" title="Remove this device" aria-label="Remove device ${i + 1}">✕</button><div class="outai" hidden></div><button class="outtake" type="button" hidden>Take control</button>`;
-          return row;
-        }));
-      }
       const labels = ["Pad 1", "Pad 2"];
-      for (const row of box.querySelectorAll(".outrow")) {
-        const i = Number(row.dataset.row);
-        const o = this._outs[i];
-        const sel = row.querySelector(".outt");
-        const key = JSON.stringify([stroke, list]);
-        if (sel.dataset.key !== key) {
-          sel.replaceChildren(...list.map(([v, t]) => new Option(t, v)));
-          sel.dataset.key = key;
-        }
-        const value = this._outTargetValue(i);
-        if ([...sel.options].some((op) => op.value === value)) sel.value = value;
-        const p = parseTarget(value);
+      const used = /* @__PURE__ */ new Map();
+      this._outs.forEach((o, i) => {
+        const p = parseTarget(this._outTargetValue(i));
         const dev = p && this._devices.find((d) => d.id === p.id);
         if (i < 2) labels[i] = dev ? p.motor === "b" ? dev.name : p.motor === "l" ? `${dev.name} (stroker)` : `${dev.name} m${Number(p.motor) + 1}` : `Pad ${i + 1}`;
-        row.querySelector(".outon").checked = o.on !== false;
-        row.querySelector(".outpad").classList.toggle("gone", n < 2);
-        const msel = row.querySelector(".outm");
-        const modes = p && p.motor === "l" ? [[FOLLOW_STROKER, "Stroker: follows the position"], [FOLLOW_AI, "✨ AI feel: strokes from a vibration's mood"]] : [[FOLLOW_AI, "✨ AI feel: patterns from the stroke's mood"], ...Object.entries(RUN_MODES).map(([v, t]) => [v, t.replace(/ \(vibration scripts\)/, "")]), [FOLLOW_STROKER, "Stroker: level = position"]];
-        const mkey = JSON.stringify(modes);
-        if (msel.dataset.key !== mkey) {
-          msel.replaceChildren(...modes.map(([v, t]) => new Option(t, v)));
-          msel.dataset.key = mkey;
-        }
-        if (!modes.some(([v]) => v === o.m)) o.m = p && p.motor !== "l" && o.m !== FOLLOW_AI ? "position" : modes[0][0];
-        msel.value = o.m;
-        const owner = dev && this._claimedBy(dev);
-        const take = row.querySelector(".outtake");
-        take.hidden = !owner;
-        if (owner) take.textContent = `Take control (${owner.label || "in use"})`;
-        msel.hidden = Boolean(owner);
-        row.classList.toggle("take", Boolean(owner));
+        const strokerOut = p && p.motor === "l";
+        const ok = strokerOut ? [FOLLOW_STROKER, FOLLOW_AI] : [FOLLOW_AI, FOLLOW_STROKER, ...Object.keys(RUN_MODES)];
+        if (!ok.includes(o.m)) o.m = strokerOut ? FOLLOW_STROKER : "position";
+        if (dev && o.on !== false && !used.has(dev.id)) used.set(dev.id, i);
+      });
+      const chips = devs.filter((d) => this._online(d) || used.has(d.id));
+      const html = chips.length ? chips.map((d) => {
+        const i = used.has(d.id) ? used.get(d.id) : -1;
+        const owner = i >= 0 && this._claimedBy(d);
+        const pad = i >= 0 && n > 1 ? `<span class="opad" title="Follows pad ${i % 2 + 1}">${i % 2 + 1}</span>` : "";
+        const kind = d.linear && !d.vibe ? "↕" : "";
+        return `<button type="button" class="ochip${i >= 0 ? " on" : ""}${this._online(d) ? "" : " off"}${owner ? " take" : ""}" data-dev="${esc(d.id)}" aria-pressed="${i >= 0}" title="${owner ? `In use (${esc(owner.label || "elsewhere")}): tap to take control` : i >= 0 ? "Used here: tap to stop" : "Tap to use it here"}">${gearHtml(d)}<span class="onm">${esc(d.name)}${kind ? ` <i>${kind}</i>` : ""}</span>${pad}${owner ? '<span class="obusy">in use</span>' : ""}${this._online(d) ? "" : '<span class="obusy">offline</span>'}</button>`;
+      }).join("") : `<span class="hint">${list.length && list[0][0] !== "none" ? "No toy connected: switch one on." : "No device found."}</span>`;
+      if (box.dataset.h !== html) {
+        box.innerHTML = html;
+        box.dataset.h = html;
       }
-      $("outadd").hidden = n >= MAX_OUTS;
-      $("limbtn").hidden = n === 0;
-      if (!n) $("limbox").hidden = true;
+      $("outadd").hidden = true;
+      $("limbtn").hidden = true;
+      $("limbox").hidden = true;
       $("outhint").hidden = n < 2;
       const live = this._outs.filter((o, i) => {
         if (o.on === false) return false;
@@ -5680,7 +5830,7 @@ ${STYLES}
     return pool[Math.min(pool.length - 1, Math.floor(rnd() * pool.length))];
   }
   var sayingFor = (settings, rnd = Math.random) => pickSaying(sayingsFor(settings), /* @__PURE__ */ new Set(), null, rnd);
-  var STYLE = `
+  var STYLE2 = `
 .ogg-covered > :not(.ogg-cover){display:none!important}
 .ogg-cover{display:flex;flex-direction:column;gap:12px;padding:20px 18px;color:#eef1ff;font:14px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
 .ogg-cover[hidden],.ogg-cover [hidden]{display:none!important}
@@ -5697,7 +5847,7 @@ ${STYLES}
     if (root && !root.querySelector("style[data-ogg-cover]")) {
       const s = document.createElement("style");
       s.dataset.oggCover = "1";
-      s.textContent = STYLE;
+      s.textContent = STYLE2;
       (root.head || root).appendChild(s);
     }
     const el = document.createElement("div");
@@ -8679,7 +8829,7 @@ ${STYLES}
 
   // studio-card/src/card/privacy.js
   var PRIVACY_TAG = "ogg-privacy-card";
-  var STYLE2 = `
+  var STYLE3 = `
 :host{display:block}
 ha-card{display:block;overflow:hidden;border-radius:24px;border:1px solid rgba(174,194,246,.13);color:#f5f6ff;
   background:radial-gradient(circle at 110% -10%,rgba(105,100,240,.24),transparent 260px),linear-gradient(160deg,#141d33,#0d1426);
@@ -8726,7 +8876,7 @@ h2{margin:0;font-size:19px;letter-spacing:-.03em;font-weight:780}
     _render() {
       if (!this.shadowRoot) {
         this.attachShadow({ mode: "open" });
-        this.shadowRoot.innerHTML = `<style>${STYLE2}</style><ha-card><div class="wrap">
+        this.shadowRoot.innerHTML = `<style>${STYLE3}</style><ha-card><div class="wrap">
         <div class="head"><div class="brand" id="brand">🕶</div>
           <div><div class="eyebrow">Ogg</div><h2>Private mode</h2></div>
           <button class="sw" id="sw" type="button" role="switch" aria-checked="false" aria-label="Private mode"></button></div>
@@ -8941,7 +9091,7 @@ h2{margin:0;font-size:19px;letter-spacing:-.03em;font-weight:780}
   var SPEEDS2 = ["0.5x", "0.75x", "1x", "1.25x", "1.5x", "2x"];
   var LINK = "ogg_queue";
   var WHO = { his: "His", hers: "Hers" };
-  var STYLE3 = `
+  var STYLE4 = `
 :host{display:block;--ink:#eef1ff;--muted:#93a0bf;--line:rgba(174,194,246,.14);--field:#16213a;--edge:#2e3c5c}
 ha-card{display:block;overflow:hidden;border-radius:24px;border:1px solid rgba(174,194,246,.13);color:var(--ink);
   background:radial-gradient(circle at 110% -10%,rgba(255,120,180,.16),transparent 280px),radial-gradient(circle at -10% 0,rgba(105,100,240,.2),transparent 260px),linear-gradient(160deg,#141d33,#0d1426);
@@ -8982,6 +9132,7 @@ button.small{min-height:36px;border-radius:11px;padding:0 10px;font-size:12px;fl
 .sw input:checked{background:linear-gradient(110deg,#31c6b8,#54d4bc);border-color:transparent}
 .sw input:checked::after{transform:translateX(20px);background:#fff}
 .devs{display:flex;gap:6px;flex-wrap:wrap}
+${GEAR_STYLE}
 .dev{flex:0 0 auto;min-height:36px;border-radius:20px;padding:0 12px;font-size:12px;background:transparent;border-color:var(--edge);color:var(--muted)}
 .dev.on{background:#23405f;border-color:#67e0c8;color:#e9fffb}
 .dev.off{opacity:.55}
@@ -9237,7 +9388,7 @@ ha-card.embedded .head{display:none}
     _build() {
       this.attachShadow({ mode: "open" });
       const speeds = SPEEDS2.map((s) => `<option${s === "1x" ? " selected" : ""}>${s}</option>`).join("");
-      this.shadowRoot.innerHTML = `<style>${STYLE3}</style><ha-card><div class="wrap">
+      this.shadowRoot.innerHTML = `<style>${STYLE4}</style><ha-card><div class="wrap">
       <div class="head"><div class="brand">💌</div><div><div class="eyebrow">Ogg</div><h2 id="title">Queue</h2></div></div>
       <div class="gift" id="gift" hidden><div class="info" id="giftinfo"></div><button class="go small" id="giftplay" type="button">▶ Play</button></div>
       <section>
@@ -9298,7 +9449,16 @@ ha-card.embedded .head{display:none}
       $("code").addEventListener("click", () => this._cur && this._copyCode(this._cur.script));
       $("del").addEventListener("click", () => this._delete());
       $("ren").addEventListener("click", () => this._rename());
-      $("devs").addEventListener("click", (e) => this._toggleDev(e.target.closest("button")));
+      $("devs").addEventListener("click", (e) => {
+        const gear = e.target.closest(".gear");
+        if (gear) {
+          e.stopPropagation();
+          const dev = this._devices.find((d) => d.stop === gear.dataset.gear);
+          if (dev) openDeviceSettings(this.shadowRoot, { hass: this._hass, dev, allLimits: this._saved && this._saved.attributes.limits, toast: (m) => this._toast(m) });
+          return;
+        }
+        this._toggleDev(e.target.closest("button"));
+      });
       this._bindBar($("bar"));
       $("forvibe").addEventListener("click", () => this._setStroke(false));
       $("forstroke").addEventListener("click", () => this._setStroke(true));
@@ -9421,7 +9581,7 @@ ha-card.embedded .head{display:none}
       const html = online.length ? online.map((d) => {
         const w = this._whose(d);
         const lin = d.linear && !d.vibe;
-        return `<button type="button" class="dev${targets.has(d.stop) ? " on" : ""}${this._online(d) ? "" : " off"}" data-stop="${esc(d.stop)}" aria-pressed="${targets.has(d.stop)}">${esc(d.name)}${w ? `<span class="chip ${w}">${WHO[w]}</span>` : ""}<span class="lv${lin ? " lin" : ""}" data-lv="${esc(d.stop)}" aria-hidden="true"><i><b></b></i>${!lin && d.dual ? "<i><b></b></i>" : ""}</span><span class="pct" data-pct="${esc(d.stop)}"></span></button>`;
+        return `<button type="button" class="dev${targets.has(d.stop) ? " on" : ""}${this._online(d) ? "" : " off"}" data-stop="${esc(d.stop)}" aria-pressed="${targets.has(d.stop)}">${gearHtml(d)}${esc(d.name)}${w ? `<span class="chip ${w}">${WHO[w]}</span>` : ""}<span class="lv${lin ? " lin" : ""}" data-lv="${esc(d.stop)}" aria-hidden="true"><i><b></b></i>${!lin && d.dual ? "<i><b></b></i>" : ""}</span><span class="pct" data-pct="${esc(d.stop)}"></span></button>`;
       }).join("") + (this._pick ? '<button type="button" class="dev" data-auto="1">Auto</button>' : "") + sim + note : sim + '<span class="sim">⚠️ No toys connected: Play simulates (the player runs, nothing is sent to a toy).</span>';
       if ($("devs").dataset.html !== html) {
         $("devs").innerHTML = html;
@@ -10066,7 +10226,7 @@ ha-card.embedded .head{display:none}
   var KEEP2 = "ogg_easy_card";
   var LOOP_MS = 10 * 60 * 1e3;
   var WHO2 = { his: "His", hers: "Hers" };
-  var STYLE4 = `
+  var STYLE5 = `
 :host{display:block;--ink:#eef1ff;--muted:#93a0bf;--line:rgba(174,194,246,.14);--field:#16213a;--edge:#2e3c5c}
 ha-card{display:block;overflow:hidden;border-radius:24px;border:1px solid rgba(174,194,246,.13);color:var(--ink);
   background:radial-gradient(circle at 110% -10%,rgba(255,120,180,.16),transparent 280px),radial-gradient(circle at -10% 0,rgba(49,198,184,.16),transparent 260px),linear-gradient(160deg,#141d33,#0d1426);
@@ -10095,6 +10255,7 @@ button.rec.on{background:linear-gradient(110deg,#ff5c7a,#ff8aa0);color:#2a0710}
 .big{min-height:58px;font-size:17px;width:100%}
 .row{display:flex;gap:8px;align-items:center}.row>*{flex:1 1 0;min-width:0}
 .devs{display:flex;gap:6px;flex-wrap:wrap}
+${GEAR_STYLE}
 .dev{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;min-height:38px;border-radius:20px;padding:0 12px;font-size:12.5px;background:transparent;border-color:var(--edge);color:var(--muted)}
 .dev.on{background:#23405f;border-color:#67e0c8;color:#e9fffb}
 .chip{font-size:10px;font-weight:850;letter-spacing:.06em;text-transform:uppercase;border-radius:8px;padding:1px 6px;border:1px solid}
@@ -10374,7 +10535,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
     _build() {
       this.attachShadow({ mode: "open" });
       const ptOpts = `<optgroup label="Patterns">${Object.entries(PATTERNS).map(([k, n]) => `<option value="${k}"${k === "wave" ? " selected" : ""}>${n}</option>`).join("")}<option value="${PATTERN_RANDOM}">🎲 Random</option></optgroup><optgroup label="Two motors">${Object.entries(PATTERNS_DUAL).map(([k, n]) => `<option value="${k}">${n}</option>`).join("")}</optgroup>`;
-      this.shadowRoot.innerHTML = `<style>${STYLE4}</style><ha-card><div class="wrap">
+      this.shadowRoot.innerHTML = `<style>${STYLE5}</style><ha-card><div class="wrap">
       <div class="head"><div class="brand">💞</div><div><div class="eyebrow">Ogg</div><h2 id="title">Easy</h2></div><span class="pill" id="pill">Off</span><button type="button" class="scan" id="scan" title="Search for toys" aria-label="Search for toys" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg></button><button type="button" class="lockb" id="lockb" title="Lock (covers every Ogg card)" aria-label="Lock" hidden>🔒</button></div>
       <button class="go big" id="connect" type="button">🔌 Connect now</button>
       <div class="devs" id="devs"></div>
@@ -10413,7 +10574,23 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       const $ = (id) => this.shadowRoot.getElementById(id);
       this._$ = $;
       $("connect").addEventListener("click", () => this._connect());
-      $("devs").addEventListener("click", (e) => this._toggleDev(e.target.closest("button")));
+      $("devs").addEventListener("click", (e) => {
+        const gear = e.target.closest(".gear");
+        if (gear) {
+          e.stopPropagation();
+          this._devSettings(gear.dataset.gear);
+          return;
+        }
+        this._toggleDev(e.target.closest("button"));
+      });
+      $("devs").addEventListener("keydown", (e) => {
+        const gear = e.target.closest(".gear");
+        if (gear && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          e.stopPropagation();
+          this._devSettings(gear.dataset.gear);
+        }
+      });
       this.shadowRoot.querySelector(".modes").addEventListener("click", (e) => {
         const b = e.target.closest("button[data-mode]");
         if (b) this._setMode(b.dataset.mode);
@@ -10589,7 +10766,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       const targets = new Set(this._targets().map((d) => d.stop));
       const html = online.length ? online.map((d) => {
         const w = this._whose(d), lin = d.linear && !d.vibe;
-        return `<button type="button" class="dev${targets.has(d.stop) ? " on" : ""}" data-stop="${esc(d.stop)}" aria-pressed="${targets.has(d.stop)}">${esc(d.name)}${w ? `<span class="chip ${w}">${WHO2[w]}</span>` : ""}<span class="lv${lin ? " lin" : ""}" data-lv="${esc(d.stop)}" aria-hidden="true"><i><b></b></i>${!lin && d.dual ? "<i><b></b></i>" : ""}</span><span class="pct" data-pct="${esc(d.stop)}"></span></button>`;
+        return `<button type="button" class="dev${targets.has(d.stop) ? " on" : ""}" data-stop="${esc(d.stop)}" aria-pressed="${targets.has(d.stop)}">${gearHtml(d)}${esc(d.name)}${w ? `<span class="chip ${w}">${WHO2[w]}</span>` : ""}<span class="lv${lin ? " lin" : ""}" data-lv="${esc(d.stop)}" aria-hidden="true"><i><b></b></i>${!lin && d.dual ? "<i><b></b></i>" : ""}</span><span class="pct" data-pct="${esc(d.stop)}"></span></button>`;
       }).join("") : `<span class="hint">${this._connected.intiha || this._connected.ogg ? "No toys yet: switch them on and keep them close." : "Press Connect now, then switch your toys on."}</span>`;
       if ($("devs").dataset.h !== html) {
         $("devs").innerHTML = html;
@@ -10614,6 +10791,13 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         });
         pct.textContent = `${Math.round(Math.max(0, ...out))}%`;
       }
+    }
+    // ⚙ on a toy: its limits (kept in Home Assistant for every card).
+    _devSettings(stop) {
+      const dev = this._devices.find((d) => d.stop === stop);
+      const s = this._st(this._studio);
+      if (!dev) return;
+      openDeviceSettings(this.shadowRoot, { hass: this._hass, dev, allLimits: s && s.attributes.limits, toast: (t) => this._toast(t) });
     }
     _toggleDev(b) {
       if (!b || !b.dataset.stop) return;

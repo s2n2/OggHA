@@ -21,6 +21,7 @@ import { DURATIONS, MAX_STEP_MS, clock, composeScript, defaultName, duration, pa
 import { oggPrivate } from '../lib/private.js';
 import { makeCover } from '../lib/cover.js';
 import { sampleAt } from '../lib/outputs.js';
+import { GEAR_STYLE, gearHtml, openDeviceSettings } from '../lib/devsettings.js';
 
 export const QUEUE_TAG = 'ogg-queue-card';
 const KEEP = 'ogg_queue_card';          // this browser's draft, devices and tab
@@ -69,6 +70,7 @@ button.small{min-height:36px;border-radius:11px;padding:0 10px;font-size:12px;fl
 .sw input:checked{background:linear-gradient(110deg,#31c6b8,#54d4bc);border-color:transparent}
 .sw input:checked::after{transform:translateX(20px);background:#fff}
 .devs{display:flex;gap:6px;flex-wrap:wrap}
+${GEAR_STYLE}
 .dev{flex:0 0 auto;min-height:36px;border-radius:20px;padding:0 12px;font-size:12px;background:transparent;border-color:var(--edge);color:var(--muted)}
 .dev.on{background:#23405f;border-color:#67e0c8;color:#e9fffb}
 .dev.off{opacity:.55}
@@ -328,7 +330,16 @@ export class OggQueueCard extends HTMLElement {
     $('code').addEventListener('click', () => this._cur && this._copyCode(this._cur.script));
     $('del').addEventListener('click', () => this._delete());
     $('ren').addEventListener('click', () => this._rename());
-    $('devs').addEventListener('click', (e) => this._toggleDev(e.target.closest('button')));
+    $('devs').addEventListener('click', (e) => {
+      const gear = e.target.closest('.gear');
+      if (gear) {
+        e.stopPropagation();
+        const dev = this._devices.find((d) => d.stop === gear.dataset.gear);
+        if (dev) openDeviceSettings(this.shadowRoot, { hass: this._hass, dev, allLimits: this._saved && this._saved.attributes.limits, toast: (m) => this._toast(m) });
+        return;
+      }
+      this._toggleDev(e.target.closest('button'));
+    });
     this._bindBar($('bar'));
     $('forvibe').addEventListener('click', () => this._setStroke(false));
     $('forstroke').addEventListener('click', () => this._setStroke(true));
@@ -434,7 +445,7 @@ export class OggQueueCard extends HTMLElement {
     const html = online.length ? online.map((d) => {
       const w = this._whose(d);
       const lin = d.linear && !d.vibe;
-      return `<button type="button" class="dev${targets.has(d.stop) ? ' on' : ''}${this._online(d) ? '' : ' off'}" data-stop="${esc(d.stop)}" aria-pressed="${targets.has(d.stop)}">${esc(d.name)}${w ? `<span class="chip ${w}">${WHO[w]}</span>` : ''}`
+      return `<button type="button" class="dev${targets.has(d.stop) ? ' on' : ''}${this._online(d) ? '' : ' off'}" data-stop="${esc(d.stop)}" aria-pressed="${targets.has(d.stop)}">${gearHtml(d)}${esc(d.name)}${w ? `<span class="chip ${w}">${WHO[w]}</span>` : ''}`
         + `<span class="lv${lin ? ' lin' : ''}" data-lv="${esc(d.stop)}" aria-hidden="true"><i><b></b></i>${!lin && d.dual ? '<i><b></b></i>' : ''}</span><span class="pct" data-pct="${esc(d.stop)}"></span></button>`;
     }).join('') + (this._pick ? '<button type="button" class="dev" data-auto="1">Auto</button>' : '') + sim + note
       : sim + '<span class="sim">⚠️ No toys connected: Play simulates (the player runs, nothing is sent to a toy).</span>';

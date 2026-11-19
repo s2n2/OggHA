@@ -95,6 +95,15 @@ button.vrec.on{background:linear-gradient(110deg,#ff5c7a,#ff8aa0);color:#2a0710}
 .head button{flex:0 0 auto;min-height:36px;padding:0 12px;font-size:13px}
 ha-card.locked > :not(#cover){display:none!important}
 ha-card.mediaonly{background:transparent;border:0;padding:0}
+#outrows .ochip{display:inline-flex;align-items:center;gap:7px;flex:0 0 auto;width:auto!important;min-height:38px;margin:0;border-radius:20px;padding:0 12px 0 8px;font-size:12.5px;font-weight:750;background:transparent;border:1px solid #33415f;color:#9aa6c8}
+#outrows .ochip.on{background:#23405f;border-color:#67e0c8;color:#e9fffb}
+.ochip.off{opacity:.6}
+.ochip.take{border-style:dashed}
+.ochip .onm i{font-style:normal;opacity:.8}
+.ochip .opad{font-size:10px;font-weight:850;border-radius:8px;padding:1px 6px;border:1px solid rgba(103,224,200,.45);color:#bff5ea}
+.ochip .obusy{font-size:10px;font-weight:800;color:#ffcf8a}
+.gear{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;font-size:13px;line-height:1;opacity:.75;cursor:pointer}
+.gear:hover,.gear:focus-visible{opacity:1;background:rgba(255,255,255,.1);outline:none}
 ha-card.strokeonly{background:transparent;border:0;padding:0;box-shadow:none}
 ha-card.strokeonly > :not(#outhome):not(.toast):not(.ogg-cover){display:none!important}
 ha-card.strokeonly #outbox,ha-card.strokeonly #ctlhead,ha-card.strokeonly .ctltabs,ha-card.strokeonly #urec,ha-card.strokeonly #stinfo{display:none!important}
@@ -281,7 +290,7 @@ button.outhead{display:flex;align-items:center;gap:8px;width:100%;min-height:36p
 .outcount.zero i{background:#72809f;box-shadow:none}
 .outhead .chev{font-size:13px;color:#a8b8da;transition:transform .18s ease}
 .outbox.folded .chev{transform:rotate(-90deg)}
-#outrows{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+#outrows{display:flex;flex-direction:row;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
 .outrow{display:grid;grid-template-columns:auto auto minmax(0,1fr) minmax(0,1fr) 34px;gap:6px;margin-top:0;align-items:center}
 .outrow.take{grid-template-columns:auto auto minmax(0,1fr) 34px}
 .outrow .outpad{display:grid;place-items:center;width:18px;height:18px;border-radius:6px;background:rgba(152,168,249,.16);color:#c5d2f0;font-size:10px;font-weight:800}
