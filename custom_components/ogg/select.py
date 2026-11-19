@@ -52,11 +52,12 @@ class OggConnectFeedback(OggEntity, SelectEntity):
 
 def _device_selects(hub: OggHub, key: str) -> list[OggSelect]:
     device = hub.devices[key]
+    # Whose toy (his / hers) for every toy, a stroker such as The Handy too.
+    owner = OggSelect(hub, key, "owner", ["unassigned", "his", "hers"])
     if not device.motor_count:
-        return []
+        return [owner]
     options = DUAL_PATTERN_OPTIONS if device.motor_count > 1 else PATTERN_OPTIONS
-    entities = [OggSelect(hub, key, "pattern", options),
-                OggSelect(hub, key, "owner", ["unassigned", "his", "hers"])]
+    entities = [OggSelect(hub, key, "pattern", options), owner]
     if device.motor_count > 1:
         entities.append(OggSelect(hub, key, "motor_mode", MOTOR_OPTIONS))
     if device.native_available:

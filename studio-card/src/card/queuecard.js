@@ -230,6 +230,7 @@ export class OggQueueCard extends HTMLElement {
         const d = by.get(e.device_id) || { id: e.device_id, name: names.get(e.device_id) };
         if (u.endsWith(':stop')) d.stop = e.entity_id;
         if (u.endsWith(':owner')) d.owner = e.entity_id;
+        if (u.endsWith(':connect_this_device') && e.entity_id.startsWith('switch.')) d.commands = e.entity_id;
         if (u.endsWith(':connected')) d.connected = e.entity_id;
         if (u.endsWith(':motor_level_1')) d.dual = true;
         if (u.endsWith(':linear_0')) { d.linear = true; d.position = e.entity_id; }

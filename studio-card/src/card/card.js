@@ -157,6 +157,7 @@ export class OggStudioCard extends HTMLElement {
         const d = byDevice.get(e.device_id) || { id: e.device_id, name: names.get(e.device_id) };
         if (uid.endsWith(':stop')) d.stop = e.entity_id;
         if (uid.endsWith(':owner')) d.owner = e.entity_id;      // Ogg's his / hers
+        if (uid.endsWith(':connect_this_device') && e.entity_id.startsWith('switch.')) d.commands = e.entity_id;
         if (uid.endsWith(':connected')) d.connected = e.entity_id;
         if (uid.endsWith(':motor_level_1')) d.dual = true;
         if (uid.endsWith(':linear_0')) d.linear = e.entity_id;

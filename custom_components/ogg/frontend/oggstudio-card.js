@@ -1887,6 +1887,7 @@ ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d
           const d = byDevice.get(e.device_id) || { id: e.device_id, name: names.get(e.device_id) };
           if (uid2.endsWith(":stop")) d.stop = e.entity_id;
           if (uid2.endsWith(":owner")) d.owner = e.entity_id;
+          if (uid2.endsWith(":connect_this_device") && e.entity_id.startsWith("switch.")) d.commands = e.entity_id;
           if (uid2.endsWith(":connected")) d.connected = e.entity_id;
           if (uid2.endsWith(":motor_level_1")) d.dual = true;
           if (uid2.endsWith(":linear_0")) d.linear = e.entity_id;
@@ -4859,6 +4860,17 @@ ${STYLES}
 .ogg-dset select{width:100%;padding:9px 10px;border-radius:12px;border:1px solid #364563;background:#17233c;color:#fff;font:inherit}
 .ogg-dset .hint{font-size:12px;color:#9aa6c8;margin-top:8px;line-height:1.4}
 .ogg-dset .sep{height:1px;background:#26324d;margin:12px 0}
+.ogg-dset .swrow{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13.5px;font-weight:750;color:#e9ecfb;cursor:pointer}
+.ogg-dset .swrow input{appearance:none;-webkit-appearance:none;flex:0 0 auto;width:46px;height:26px;border-radius:13px;background:#2a3654;border:1px solid #3a4a6c;position:relative;cursor:pointer;margin:0;transition:background .15s}
+.ogg-dset .swrow input::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#c9d3ee;transition:left .15s}
+.ogg-dset .swrow input:checked{background:linear-gradient(110deg,#31c6b8,#54d4bc);border-color:transparent}
+.ogg-dset .swrow input:checked::after{left:22px;background:#062a24}
+.ogg-dset .seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #364563;border-radius:12px;overflow:hidden}
+.ogg-dset .seg button{min-height:38px;border:0;border-radius:0;background:transparent;color:#9aa6c8;font:inherit;font-size:13px;font-weight:750;cursor:pointer}
+.ogg-dset .seg button + button{border-left:1px solid #364563}
+.ogg-dset .seg button.on{background:#24395a;color:#bef2ff}
+.ogg-dset .seg button.on.his{background:rgba(70,140,230,.28);color:#cfe3ff}
+.ogg-dset .seg button.on.hers{background:rgba(230,90,160,.26);color:#ffd2ea}
 `;
   var ensureStyle = (root) => {
     if (root.querySelector("style[data-ogg-dset]")) return;
@@ -4873,12 +4885,19 @@ ${STYLES}
     ensureStyle(root);
     root.querySelector(".ogg-dset")?.remove();
     let lim = limitsFor(allLimits, dev.stop);
+    const st = (id) => id && hass && hass.states && hass.states[id];
+    const commands = st(dev.commands);
+    const owner = st(dev.owner);
+    const ownerNow = owner && ["his", "hers"].includes(owner.state) ? owner.state : "unassigned";
+    const own = (v, t) => `<button type="button" class="${v}${v === ownerNow ? " on" : ""}" data-owner="${v}" aria-pressed="${v === ownerNow}">${t}</button>`;
+    const toyHtml = (commands ? `<div class="grp"><label class="swrow">Connect this device<input type="checkbox" role="switch" data-commands${commands.state === "on" ? " checked" : ""}></label><div class="hint" style="margin-top:2px">Off: Ogg sends it nothing (Bluetooth stays connected).</div></div>` : "") + (owner ? `<div class="grp"><label>Whose toy</label><div class="seg" role="group" aria-label="Whose toy">${own("unassigned", "Unassigned")}${own("his", "His")}${own("hers", "Hers")}</div></div>` : "");
     const vibe = dev.vibe || !dev.linear;
     const slider = (field, text, min) => `<div class="grp"><label>${text} <b data-v="${field}">${lim[field]}%</b></label><input type="range" min="${min}" max="100" step="1" value="${lim[field]}" data-field="${field}"></div>`;
     const wrap = document.createElement("div");
     wrap.className = "ogg-dset";
     wrap.innerHTML = `<div class="box" role="dialog" aria-modal="true" aria-label="Settings for ${esc(dev.name)}">
     <div class="top"><h3>⚙ ${esc(dev.name)}</h3><button type="button" class="x" aria-label="Close">✕</button></div>
+    ${toyHtml}${toyHtml ? '<div class="sep"></div>' : ""}
     ${extra.map((x, i) => `<div class="grp"><label>${esc(x.label)}</label><select data-extra="${i}">${x.options.map(([v, t]) => `<option value="${esc(v)}"${v === x.value ? " selected" : ""}>${esc(t)}</option>`).join("")}</select></div>`).join("")}
     ${note ? `<div class="hint">${esc(note)}</div>` : ""}
     ${extra.length || note ? '<div class="sep"></div>' : ""}
@@ -4896,6 +4915,21 @@ ${STYLES}
     document.addEventListener("keydown", onKey);
     wrap.addEventListener("click", (e) => {
       if (e.target === wrap || e.target.closest(".x")) close();
+    });
+    const sw = wrap.querySelector("input[data-commands]");
+    if (sw) sw.addEventListener("change", () => {
+      hass.callService("switch", sw.checked ? "turn_on" : "turn_off", { entity_id: dev.commands }).then(() => toast && toast(sw.checked ? `${dev.name}: Ogg can control it.` : `${dev.name}: Ogg sends it nothing now.`)).catch((e) => {
+        sw.checked = !sw.checked;
+        if (toast) toast(e.message || String(e));
+      });
+    });
+    for (const b of wrap.querySelectorAll("button[data-owner]")) b.addEventListener("click", () => {
+      const v = b.dataset.owner;
+      for (const x of wrap.querySelectorAll("button[data-owner]")) {
+        x.classList.toggle("on", x === b);
+        x.setAttribute("aria-pressed", String(x === b));
+      }
+      hass.callService("select", "select_option", { entity_id: dev.owner, option: v }).then(() => toast && toast(`${dev.name}: ${v === "unassigned" ? "unassigned" : v === "his" ? "his" : "hers"}.`)).catch((e) => toast && toast(e.message || String(e)));
     });
     for (const sel of wrap.querySelectorAll("select[data-extra]")) sel.addEventListener("change", () => extra[Number(sel.dataset.extra)].onChange(sel.value));
     for (const input of wrap.querySelectorAll("input[data-field]")) {
@@ -9320,6 +9354,7 @@ ha-card.embedded .head{display:none}
           const d = by.get(e.device_id) || { id: e.device_id, name: names.get(e.device_id) };
           if (u.endsWith(":stop")) d.stop = e.entity_id;
           if (u.endsWith(":owner")) d.owner = e.entity_id;
+          if (u.endsWith(":connect_this_device") && e.entity_id.startsWith("switch.")) d.commands = e.entity_id;
           if (u.endsWith(":connected")) d.connected = e.entity_id;
           if (u.endsWith(":motor_level_1")) d.dual = true;
           if (u.endsWith(":linear_0")) {
@@ -10406,6 +10441,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
           const d = by.get(e.device_id) || { id: e.device_id, name: names.get(e.device_id) };
           if (u.endsWith(":stop")) d.stop = e.entity_id;
           if (u.endsWith(":owner")) d.owner = e.entity_id;
+          if (u.endsWith(":connect_this_device") && e.entity_id.startsWith("switch.")) d.commands = e.entity_id;
           if (u.endsWith(":connected")) d.connected = e.entity_id;
           if (u.endsWith(":status")) d.status = e.entity_id;
           if (u.endsWith(":motor_level_1")) d.dual = true;

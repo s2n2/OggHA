@@ -1,3 +1,8 @@
+## 3.15.0 - Connect and whose toy in the settings
+- ⚙ settings pop-up (Play, Easy and Queue cards): a "Connect this device" switch (off: Ogg sends it nothing; Bluetooth stays connected) and Unassigned / His / Hers.
+- Every toy has his/hers now, a stroker such as The Handy too (it had none).
+- Needs a Home Assistant restart (the new his/hers selector for strokers).
+
 ## 3.14.0 - Toy chips with settings
 - Play card: the toys are chips, like the Easy card: tap a toy to use it here (up to four; tap again to stop), and the ones in use show which pad they follow. A toy in use elsewhere shows "in use": tap it to take control.
 - ⚙ before each toy's name opens its settings: its limits (top intensity, stroke range, top stroke speed: kept in Home Assistant for every card), and on the Play card what it plays (both motors, motor 1 or 2, stroker) and how it follows a stroke.
