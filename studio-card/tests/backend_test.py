@@ -59,7 +59,8 @@ def fails(fn, *args):
 
 # ---- limits
 assert lib.clean_limits({}) == lib.NO_LIMITS
-assert lib.clean_limits({"max": 60.4, "lo": 10, "hi": 80, "speed": 1}) == {"max": 60, "lo": 10, "hi": 80, "speed": 5}
+assert lib.clean_limits({"max": 60.4, "lo": 10, "hi": 80, "speed": 1}) == {"max": 60, "lo": 10, "hi": 80, "speed": 5, "delay": 0}
+assert lib.clean_limits({"delay": 175.4})["delay"] == 175 and lib.clean_limits({"delay": -9000})["delay"] == -2000
 assert lib.clean_limits({"max": 500})["max"] == 100
 assert fails(lib.clean_limits, {"lo": 50, "hi": 52})
 assert fails(lib.clean_limits, {"max": "x"}) and fails(lib.clean_limits, {"max": True})

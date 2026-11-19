@@ -139,6 +139,8 @@ async def test_a_starter_never_replaces_a_script_of_the_same_name(hass, hass_sto
 
 
 def test_limits_keep_a_video_delay():
+    from homeassistant.exceptions import HomeAssistantError
+
     from custom_components.ogg.studio.library import NO_LIMITS, clean_limits
 
     assert clean_limits({})["delay"] == 0
