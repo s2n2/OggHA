@@ -1,3 +1,6 @@
+## 3.16.2 - People count as the Easy card's title
+- Easy card: "👥 2" (people with an Ogg card open; tap for who) takes the place of "Easy", to save room. A title set on the card still shows.
+
 ## 3.16.1 - Viewers badge with the Control Deck
 - The 👥 badge shows when the Control Deck is on the same page (its copy of the shared feed dropped the viewer list).
 

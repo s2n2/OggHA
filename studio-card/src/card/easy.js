@@ -45,6 +45,7 @@ h2{margin:0;font-size:20px;letter-spacing:-.03em;font-weight:780}
 .scan.spin svg{animation:ogg-spin .9s linear infinite}
 .scan[hidden]{display:none}
 ${VIEWERS_STYLE}
+.head .viewers{height:auto;min-height:0;padding:0;border:0;background:transparent;font-size:20px;font-weight:780;letter-spacing:-.03em;color:var(--ink,#fff);gap:6px}
 .lockb{flex:0 0 auto;width:34px;height:34px;min-height:0;padding:0;border-radius:11px;font-size:15px;display:grid;place-items:center}
 .lockb[hidden]{display:none}
 @keyframes ogg-spin{to{transform:rotate(360deg)}}
@@ -286,7 +287,7 @@ export class OggEasyCard extends HTMLElement {
     const ptOpts = `<optgroup label="Patterns">${Object.entries(PATTERNS).map(([k, n]) => `<option value="${k}"${k === 'wave' ? ' selected' : ''}>${n}</option>`).join('')}<option value="${PATTERN_RANDOM}">🎲 Random</option></optgroup>`
       + `<optgroup label="Two motors">${Object.entries(PATTERNS_DUAL).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</optgroup>`;
     this.shadowRoot.innerHTML = `<style>${STYLE}</style><ha-card><div class="wrap">
-      <div class="head"><div class="brand">💞</div><div><div class="eyebrow">Ogg</div><h2 id="title">Easy</h2></div><span class="pill" id="pill">Off</span><button type="button" class="scan" id="scan" title="Search for toys" aria-label="Search for toys" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg></button>${viewersBadge()}<button type="button" class="lockb" id="lockb" title="Lock (covers every Ogg card)" aria-label="Lock" hidden>🔒</button></div>
+      <div class="head"><div class="brand">💞</div><div><div class="eyebrow">Ogg</div><h2 id="title">Easy</h2>${viewersBadge()}</div><span class="pill" id="pill">Off</span><button type="button" class="scan" id="scan" title="Search for toys" aria-label="Search for toys" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg></button><button type="button" class="lockb" id="lockb" title="Lock (covers every Ogg card)" aria-label="Lock" hidden>🔒</button></div>
       <button class="go big" id="connect" type="button">🔌 Connect now</button>
       <div class="devs" id="devs"></div>
       <div class="modes"><button type="button" data-mode="play"><span>▶</span>Play now</button><button type="button" data-mode="queue"><span>📋</span>Queue &amp; replay</button><button type="button" data-mode="other"><span>⋯</span>Other</button></div>
@@ -424,8 +425,11 @@ export class OggEasyCard extends HTMLElement {
   // ------------------------------------------------------------ what is shown
   _refresh() {
     if (!this._$ || !this._hass) return;
-    paintViewers(this.shadowRoot, (t) => this._toast(t));
     const $ = this._$;
+    paintViewers(this.shadowRoot, (t) => this._toast(t));
+    // The people here, in place of "Easy" (a title set on the card still shows).
+    const people = this.shadowRoot.querySelector('[data-viewers]');
+    $('title').hidden = Boolean(people && !people.hidden && !(this._config && this._config.title));
     if (this._config && this._config.title) $('title').textContent = this._config.title;
     const c = this._connected;
     const anyOn = Boolean(c.intiha || c.ogg);
