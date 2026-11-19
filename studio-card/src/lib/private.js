@@ -7,7 +7,22 @@
 // given Home Assistant's states with those laid over them, so for that person
 // everything behaves as usual, on every device they are signed in on.
 export function oggPrivate() {
-  if (window.__oggPrivate) return window.__oggPrivate;
+  const have = window.__oggPrivate;
+  if (have) {
+    // An older copy (an earlier Control Deck, say) may not keep the viewers: teach it.
+    if (!have.__viewers) {
+      have.__viewers = true;
+      if (!Array.isArray(have.viewers)) have.viewers = [];
+      const before = have._event;
+      have._event = function (ev) {
+        if (ev && Array.isArray(ev.viewers)) this.viewers = ev.viewers;
+        return before.call(this, ev);
+      };
+      // It may already have had the list: subscribe again for a fresh one.
+      if (have.conn && typeof have._sub === 'function') have._sub(have.conn);
+    }
+    return have;
+  }
   const p = {
     conn: null, unsub: null, on: false, mine: false, since: null, known: false,
     states: {}, version: 0, cards: new Set(), cache: null, viewers: [],
@@ -58,6 +73,7 @@ export function oggPrivate() {
       return hass.callWS({ type: 'ogg/private/set', on });
     },
   };
+  p.__viewers = true;
   window.__oggPrivate = p;
   return p;
 }

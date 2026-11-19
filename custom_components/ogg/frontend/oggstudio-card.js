@@ -79,7 +79,20 @@
 
   // studio-card/src/lib/private.js
   function oggPrivate() {
-    if (window.__oggPrivate) return window.__oggPrivate;
+    const have = window.__oggPrivate;
+    if (have) {
+      if (!have.__viewers) {
+        have.__viewers = true;
+        if (!Array.isArray(have.viewers)) have.viewers = [];
+        const before = have._event;
+        have._event = function(ev) {
+          if (ev && Array.isArray(ev.viewers)) this.viewers = ev.viewers;
+          return before.call(this, ev);
+        };
+        if (have.conn && typeof have._sub === "function") have._sub(have.conn);
+      }
+      return have;
+    }
     const p = {
       conn: null,
       unsub: null,
@@ -164,6 +177,7 @@
         return hass.callWS({ type: "ogg/private/set", on });
       }
     };
+    p.__viewers = true;
     window.__oggPrivate = p;
     return p;
   }

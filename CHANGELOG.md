@@ -1,3 +1,6 @@
+## 3.16.1 - Viewers badge with the Control Deck
+- The 👥 badge shows when the Control Deck is on the same page (its copy of the shared feed dropped the viewer list).
+
 ## 3.16.0 - Who is viewing
 - 👥 in the Play, Easy and Queue cards' headers: how many people have an Ogg card open right now; tap it for who (and on how many devices). People, not tabs: one person on a phone and a laptop counts once.
 - An "Ogg Viewers" sensor: the count, with the names in its attributes.

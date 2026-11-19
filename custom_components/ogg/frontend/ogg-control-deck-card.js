@@ -30,6 +30,7 @@
       },
       _event(ev) {
         if (!ev || typeof ev !== 'object') return;
+        if (Array.isArray(ev.viewers)) this.viewers = ev.viewers;   // who has an Ogg card open
         if ('on' in ev) {
           this.on = Boolean(ev.on); this.mine = Boolean(ev.mine); this.since = ev.since || null; this.known = true;
           this.states = ev.states && this.mine ? { ...ev.states } : {};
