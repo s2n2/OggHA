@@ -47,7 +47,7 @@ if (!customElements.get(QUEUE_TAG)) {
 if (!customElements.get(EASY_TAG)) {
   customElements.define(EASY_TAG, OggEasyCard);
   window.customCards = window.customCards || [];
-  window.customCards.push({ type: EASY_TAG, name: 'Ogg Easy', description: 'The simple one: Connect now, pick your toys, then Play now, Queue & replay, or Other (video and sound).', preview: true });
+  window.customCards.push({ type: EASY_TAG, name: 'Ogg Easy', description: 'The simple one: Connect now, pick your toys, then Manual, Queue & replay, or Other (video and sound).', preview: true });
 }
 
 if (!customElements.get(TAG)) {

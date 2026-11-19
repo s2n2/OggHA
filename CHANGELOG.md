@@ -1,3 +1,7 @@
+## 3.16.3 - Easy card tidy-up
+- Easy card: the people count is a small outlined badge again (under "Ogg").
+- Easy card: "Play now" is now "Manual".
+
 ## 3.16.2 - People count as the Easy card's title
 - Easy card: "👥 2" (people with an Ogg card open; tap for who) takes the place of "Easy", to save room. A title set on the card still shows.
 

@@ -4,7 +4,7 @@
 // nothing more.
 // * Connect now: IntiHA and Ogg on (Disconnect: both off, so toys sleep).
 // * The toys, with their live level, to pick which play.
-// * Play now: one or two sliders (as many as the toys and motors need),
+// * Manual: one or two sliders (as many as the toys and motors need),
 //   Ogg's patterns and moods, saved scripts; Record and Save ("His save" /
 //   "Hers save" and the date and time).
 // * Queue & replay: the Queue card. Other: video and sound (the Play card's).
@@ -45,7 +45,7 @@ h2{margin:0;font-size:20px;letter-spacing:-.03em;font-weight:780}
 .scan.spin svg{animation:ogg-spin .9s linear infinite}
 .scan[hidden]{display:none}
 ${VIEWERS_STYLE}
-.head .viewers{height:auto;min-height:0;padding:0;border:0;background:transparent;font-size:20px;font-weight:780;letter-spacing:-.03em;color:var(--ink,#fff);gap:6px}
+.head .viewers{height:24px;padding:0 9px;margin-top:3px;border-radius:12px;font-size:11.5px}
 .lockb{flex:0 0 auto;width:34px;height:34px;min-height:0;padding:0;border-radius:11px;font-size:15px;display:grid;place-items:center}
 .lockb[hidden]{display:none}
 @keyframes ogg-spin{to{transform:rotate(360deg)}}
@@ -290,7 +290,7 @@ export class OggEasyCard extends HTMLElement {
       <div class="head"><div class="brand">💞</div><div><div class="eyebrow">Ogg</div><h2 id="title">Easy</h2>${viewersBadge()}</div><span class="pill" id="pill">Off</span><button type="button" class="scan" id="scan" title="Search for toys" aria-label="Search for toys" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg></button><button type="button" class="lockb" id="lockb" title="Lock (covers every Ogg card)" aria-label="Lock" hidden>🔒</button></div>
       <button class="go big" id="connect" type="button">🔌 Connect now</button>
       <div class="devs" id="devs"></div>
-      <div class="modes"><button type="button" data-mode="play"><span>▶</span>Play now</button><button type="button" data-mode="queue"><span>📋</span>Queue &amp; replay</button><button type="button" data-mode="other"><span>⋯</span>Other</button></div>
+      <div class="modes"><button type="button" data-mode="play"><span>▶</span>Manual</button><button type="button" data-mode="queue"><span>📋</span>Queue &amp; replay</button><button type="button" data-mode="other"><span>⋯</span>Other</button></div>
       <div class="panel" id="p-play">
         <div class="kinds"><button type="button" data-kind="manual">✋ Manual</button><button type="button" data-kind="pattern">〰️ Pattern</button><button type="button" data-kind="mood">🎭 Mood</button><button type="button" data-kind="script">📜 Script</button></div>
         <div id="k-manual" class="panel">
