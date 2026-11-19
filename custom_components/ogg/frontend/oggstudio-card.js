@@ -1415,6 +1415,10 @@ button.vrec.on{background:linear-gradient(110deg,#ff5c7a,#ff8aa0);color:#2a0710}
 .head button{flex:0 0 auto;min-height:36px;padding:0 12px;font-size:13px}
 ha-card.locked > :not(#cover){display:none!important}
 ha-card.mediaonly{background:transparent;border:0;padding:0}
+ha-card.strokeonly{background:transparent;border:0;padding:0;box-shadow:none}
+ha-card.strokeonly > :not(#outhome):not(.toast):not(.ogg-cover){display:none!important}
+ha-card.strokeonly #outbox,ha-card.strokeonly #ctlhead,ha-card.strokeonly .ctltabs,ha-card.strokeonly #urec,ha-card.strokeonly #stinfo{display:none!important}
+ha-card.strokeonly #outhome,ha-card.strokeonly #ctlbox{border:0;background:transparent;padding:0;margin:0;box-shadow:none}
 ha-card.mediaonly > :not(#videobox):not(#sndbox):not(.toast):not(.ogg-cover){display:none!important}
 .cover{display:flex;flex-direction:column;gap:10px;padding:8px 0}
 .cover[hidden]{display:none}
@@ -1750,6 +1754,7 @@ ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d
       return `oggstudio_rec_kind:${this.localName}`;
     }
     get _recKind() {
+      if (this._config && this._config.stroke_only) return "stroke";
       if (this._variant.kind) return this._variant.kind;
       if (this._kind) return this._kind;
       let saved = null;
@@ -1836,6 +1841,7 @@ ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d
     }
     set hass(hass) {
       this._hass = hass;
+      if (this._tgStrokeCard) this._tgStrokeCard.hass = hass;
       if (!this._registryLoaded) {
         this._registryLoaded = true;
         this._loadRegistry();
@@ -1892,7 +1898,7 @@ ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d
       <style>
 ${STYLES}
       </style>
-      <ha-card class="${simple ? "simple" : ""}${this._variant.together ? "tg" : ""}${this._config && this._config.media_only ? " mediaonly" : ""}">
+      <ha-card class="${simple ? "simple" : ""}${this._variant.together ? "tg" : ""}${this._config && this._config.media_only ? " mediaonly" : ""}${this._config && this._config.stroke_only ? " strokeonly" : ""}">
         <div class="cover" id="cover" hidden>
           <h2 id="covername">Studio</h2>
           <div id="coverpin"><label>PIN</label><div class="row"><input id="pin" type="password" inputmode="numeric" autocomplete="off" aria-label="PIN"><button id="pingo" type="button" style="flex:0 0 auto">Open</button></div></div>
@@ -2007,9 +2013,7 @@ ${STYLES}
                 <div id="tgtoys" class="tgtoys"></div>
                 <div id="tgctl" class="tgctl" hidden><div class="tgctlh">Their toys <span id="tgctlname"></span></div>
                   <div id="tgcv" class="tgsl"><span>Level</span><input id="tgclevel" type="range" min="0" max="100" step="1" value="0" aria-label="Their toys' level"><b id="tgclevelv">0%</b></div>
-                  <div id="tgcs"><div class="tgsl"><span>Position</span><input id="tgcpos" type="range" min="0" max="100" step="1" value="50" aria-label="Their stroker's position"><b id="tgcposv">50%</b></div>
-                    <div class="tgsl"><span>Speed</span><input id="tgcspeed" type="range" min="5" max="100" step="1" value="40" aria-label="Stroke speed"><b id="tgcspeedv">40%</b></div>
-                    <button id="tgcgo" type="button">▶ Stroke</button></div>
+                  <div id="tgcs"></div>
                 </div>
                 <div class="row tgopts"><label class="check"><input id="tgsync" type="checkbox"> ⇄ Sync both</label><button id="tgrec" type="button" class="rec">● Record partner</button></div>
                 <div id="tgsendbox"><label>To my partner <b id="tgsendv">0%</b></label><input id="tgsend" type="range" min="0" max="100" step="1" value="0"></div>
@@ -4269,7 +4273,7 @@ ${STYLES}
       }
       const kept = this._simple ? ["pattern", "mood", "library"] : ["replay", "mood", "audio", "together"];
       const modes = this._variant.modes;
-      this._ctl = this._togetherOnly ? "together" : modes ? modes.includes(ctl) ? ctl : modes[0] : kept.includes(ctl) ? ctl : "record";
+      this._ctl = this._config && this._config.stroke_only ? "record" : this._togetherOnly ? "together" : modes ? modes.includes(ctl) ? ctl : modes[0] : kept.includes(ctl) ? ctl : "record";
       for (const b of this.shadowRoot.querySelectorAll(".ctltabs button")) b.addEventListener("click", () => this._setCtl(b.dataset.ctl));
       $("rpspeed").replaceChildren(...SPEEDS.map((x) => new Option(x, x)));
       $("rpspeed").value = "1x";
@@ -4845,6 +4849,7 @@ ${STYLES}
         saved = JSON.parse(localStorage.getItem(OUT_KEY) || "null");
       } catch (_) {
       }
+      if (this._config && this._config.outputs) saved = this._config.outputs;
       if (saved && Array.isArray(saved.t)) {
         const m = Array.isArray(saved.m) ? saved.m : [];
         const on = Array.isArray(saved.on) ? saved.on : [];
@@ -4931,6 +4936,7 @@ ${STYLES}
       return Boolean(this._outs) && this._outs.some((o, i) => o.on !== false && parseTarget(this._outTargetValue(i)));
     }
     _outSave() {
+      if (this._config && this._config.outputs) return;
       try {
         localStorage.setItem(OUT_KEY, JSON.stringify({ t: this._outs.map((o) => o.t), m: this._outs.map((o) => o.m), on: this._outs.map((o) => o.on !== false) }));
       } catch (_) {
@@ -6747,20 +6753,6 @@ ${STYLES}
         if (this._tg) this._tg.cv = Number($("tgclevel").value);
         this._tgCtlShow();
       });
-      $("tgcpos").addEventListener("input", () => {
-        if (this._tg) {
-          this._tg.cstroke = null;
-          this._tg.cpos = Number($("tgcpos").value);
-        }
-        this._tgCtlShow();
-      });
-      $("tgcspeed").addEventListener("input", () => this._tgCtlShow());
-      $("tgcgo").addEventListener("click", () => {
-        const tg = this._tg;
-        if (!tg) return;
-        tg.cstroke = tg.cstroke ? null : { dir: (tg.cpos ?? 50) < 50 ? 1 : -1 };
-        this._tgCtlShow();
-      });
       this._tgShow();
     }
     _tgNew(role) {
@@ -7045,47 +7037,55 @@ ${STYLES}
     _tgDrive(now) {
       const tg = this._tg;
       const partner = tg.partner && tg.partner.length && tg.partnerAllow !== false && !tg.sync ? tg.partner : null;
-      const dt = Math.min(250, now - (tg.cAt || now));
-      tg.cAt = now;
-      if (tg.cstroke) {
-        const v = Number(this._el("tgcspeed").value) / 100 * 0.4;
-        tg.cpos = (tg.cpos ?? 50) + tg.cstroke.dir * v * dt;
-        if (tg.cpos >= 100) {
-          tg.cpos = 100;
-          tg.cstroke.dir = -1;
-        } else if (tg.cpos <= 0) {
-          tg.cpos = 0;
-          tg.cstroke.dir = 1;
-        }
-        this._el("tgcpos").value = String(Math.round(tg.cpos));
-        this._el("tgcposv").textContent = `${Math.round(tg.cpos)}%`;
-      }
-      if (!partner) return;
+      const vibes = partner ? partner.filter((t) => t.split("|")[1] !== "l") : [];
+      if (!vibes.length) return;
       const level = tg.cv || 0;
-      const moved = tg.cpos !== void 0 && tg.cpos !== tg.cSentPos;
-      if (!level && !tg.cLevelOn && !tg.cstroke && !moved) return;
+      if (!level && !tg.cLevelOn) return;
       tg.cLevelOn = level > 0;
-      tg.cSentPos = tg.cpos;
-      const values = partner.map((t) => t.split("|")[1] === "l" ? tg.cpos === void 0 ? null : { goal: tg.cpos, dur: 150 } : level);
-      this._outApply(values, 0.6, "theirs", partner);
+      this._outApply(vibes.map(() => level), 0.6, "theirs", vibes);
+    }
+    // Their stroker: the Play card's own stroke controls (range, position,
+    // Fast / Medium / Slow, Latch, limits), playing only their stroker.
+    _tgStrokeEmbed(strokers) {
+      const key = JSON.stringify(strokers.map((d) => d.id));
+      if (key === this._tgStrokeKey) return;
+      this._tgStrokeKey = key;
+      this._tgStrokeRelease();
+      if (this._tgStrokeCard) {
+        this._tgStrokeCard.remove();
+        this._tgStrokeCard = null;
+      }
+      if (!strokers.length) return;
+      const card = document.createElement("oggstudio-play-card");
+      const t = strokers.map((d) => `${d.id}|l`);
+      card.setConfig({ stroke_only: true, outputs: { t, m: t.map(() => "position"), on: t.map(() => true) } });
+      this._el("tgcs").appendChild(card);
+      if (this._hass) card.hass = this._hass;
+      this._tgStrokeCard = card;
+    }
+    _tgStrokeRelease() {
+      const c = this._tgStrokeCard;
+      if (!c || !c._st) return;
+      c._st.touch = null;
+      c._st.pad = null;
+      c._st.latch = null;
+      c._st.drag = null;
+      if (c._stHalt) c._stHalt();
+      if (c._outStop) c._outStop();
     }
     _tgCtlShow() {
       const tg = this._tg;
       const $ = this._el;
       if (!tg || !$) return;
       $("tgclevelv").textContent = `${tg.cv || 0}%`;
-      $("tgcposv").textContent = `${Math.round(tg.cpos ?? Number($("tgcpos").value))}%`;
-      $("tgcspeedv").textContent = `${$("tgcspeed").value}%`;
-      $("tgcgo").textContent = tg.cstroke ? "■ Stop stroking" : "▶ Stroke";
-      $("tgcgo").className = tg.cstroke ? "stop" : "";
     }
     // Stop here: nothing in, nothing out. With `tell`, the partner's side stops too.
     _tgStopLocal(tell) {
       const tg = this._tg;
       if (!tg || !this._el) return;
       tg.cv = 0;
-      tg.cstroke = null;
       tg.cLevelOn = false;
+      this._tgStrokeRelease();
       this._el("tgclevel").value = "0";
       this._tgCtlShow();
       const $ = this._el;
@@ -7140,7 +7140,10 @@ ${STYLES}
       $("tglive").hidden = !tg;
       const tab = this.shadowRoot.querySelector('.ctltabs [data-ctl="together"]');
       if (tab) tab.classList.toggle("live", Boolean(tg));
-      if (!tg) return;
+      if (!tg) {
+        this._tgStrokeEmbed([]);
+        return;
+      }
       $("tgsharebox").hidden = tg.role !== "host" || !tg.link;
       if ($("tgshare").value !== tg.link) $("tgshare").value = tg.link;
       const who = tg.name || "Your partner";
@@ -7165,10 +7168,11 @@ ${STYLES}
       $("tgrec").classList.toggle("on", Boolean(tg.rec));
       $("tgrec").disabled = !tg.joined || tg.role !== "host";
       $("tgsendbox").hidden = this._simple;
-      const showCtl = tg.role === "host" && tg.joined && theirs.length > 0 && !tg.sync;
+      const showCtl = tg.role === "host" && tg.joined && theirs.length > 0 && !tg.sync && tg.partnerAllow !== false;
       $("tgctl").hidden = !showCtl;
+      const strokers = showCtl ? theirs.filter((d) => d.linear && !d.vibe) : [];
+      this._tgStrokeEmbed(strokers);
       if (showCtl) {
-        const strokers = theirs.filter((d) => d.linear && !d.vibe);
         $("tgcv").hidden = strokers.length === theirs.length;
         $("tgcs").hidden = !strokers.length;
         const names = theirs.map((d) => esc2(d.name)).join(", ");
@@ -10197,7 +10201,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         this._regLoaded = true;
         this._loadRegistry();
       }
-      for (const child of [this._queueCard, this._mediaCard]) if (child) child.hass = hass;
+      for (const child of [this._queueCard, this._mediaCard, this._strokeCard]) if (child) child.hass = hass;
       this._refresh();
     }
     _oggPrivateChanged() {
@@ -10314,6 +10318,42 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       for (const b of this._$("ctlsw").querySelectorAll("button")) b.classList.toggle("on", b.dataset.ctl === ctl);
       const names = this._strokers().map((d) => d.name);
       this._$("stnames").textContent = names.length ? names.join(", ") : "no stroker picked: it only records";
+      this._strokeEmbed();
+    }
+    // The Play card's own stroke controls (range, position, Fast / Medium /
+    // Slow, Latch, limits), playing the strokers picked here.
+    _strokeEmbed() {
+      const strokers = this._strokers();
+      const key = this._ctl === "stroke" ? JSON.stringify(strokers.map((d) => d.id)) : "";
+      if (key === this._stEmbedKey) return;
+      this._stEmbedKey = key;
+      this._strokeRelease();
+      if (this._strokeCard) {
+        this._strokeCard.remove();
+        this._strokeCard = null;
+      }
+      if (!key) return;
+      const card = document.createElement("oggstudio-play-card");
+      const t = strokers.length ? strokers.map((d) => `${d.id}|l`) : [null];
+      card.setConfig({ stroke_only: true, outputs: { t, m: t.map(() => "position"), on: t.map(() => strokers.length > 0) } });
+      this._$("stembed").appendChild(card);
+      if (this._rawHass) card.hass = this._rawHass;
+      this._strokeCard = card;
+    }
+    // Let go of the embedded stroke controls (a latch or a hold stops).
+    _strokeRelease() {
+      const c = this._strokeCard;
+      if (!c || !c._st) return;
+      c._st.touch = null;
+      c._st.pad = null;
+      c._st.latch = null;
+      c._st.drag = null;
+      if (c._stHalt) c._stHalt();
+      if (c._outStop) c._outStop();
+    }
+    _strokePos() {
+      const c = this._strokeCard;
+      return c && c._st ? c._st.pos : 50;
     }
     _setCtl(ctl, byHand) {
       if (byHand) this._ctlPicked = true;
@@ -10321,7 +10361,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         this._showSections();
         return;
       }
-      if (this._stroke) this._strokeStop(true);
+      this._strokeRelease();
       if (this._pads.some((v) => v > 0)) {
         this._pads = [0, 0];
         this._showPads();
@@ -10346,15 +10386,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
           <div id="vibesec" class="panel"><div class="pads" id="pads"></div><label class="sw"><input type="checkbox" id="spring"> Drop to 0 when I let go</label><div class="hint" id="padhint">Slide up and down. Double-tap to drop to zero.</div></div>
           <div id="strokesec" class="strokesec" hidden>
             <div class="sthead">↕️ Stroker <span id="stnames"></span></div>
-            <div class="strow">
-              <div class="pad l" id="stpad" role="slider" aria-label="Stroker position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" tabindex="0"><div class="fill" id="stfill"></div><div class="dot" id="stdot"></div><div class="lab">Position</div><div class="val" id="stval">50%</div></div>
-              <div class="stside">
-                <label class="sl"><span>Speed <b id="stspeedv"></b></span><input type="range" id="stspeed" min="${STROKE_PCT_MIN}" max="100" step="1"></label>
-                <label class="sl"><span>Length <b id="stlenv"></b></span><input type="range" id="stlen" min="10" max="100" step="5"></label>
-                <button class="go big" id="stgo" type="button">▶ Stroke</button>
-              </div>
-            </div>
-            <div class="hint">Drag the bar to move it, or ▶ Stroke to go up and down at that speed.</div>
+            <div id="stembed"></div>
           </div>
         </div>
         <div id="k-pattern" class="panel">
@@ -10426,7 +10458,6 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         this._toast("Stopped.");
       });
       this._bindPads();
-      this._bindStroker();
       $("ctlsw").addEventListener("click", (e) => {
         const b = e.target.closest("button[data-ctl]");
         if (b) this._setCtl(b.dataset.ctl, true);
@@ -10707,132 +10738,6 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         this._liveTimer = null;
       }
     }
-    // ------------------------------------------------------------ stroker
-    _bindStroker() {
-      const $ = this._$;
-      const kept = keepGet2();
-      this._stPos = 50;
-      $("stspeed").value = String(Number.isFinite(kept.stspeed) ? kept.stspeed : 40);
-      $("stlen").value = String(Number.isFinite(kept.stlen) ? kept.stlen : 100);
-      const showVals = () => {
-        $("stspeedv").textContent = `${$("stspeed").value}%`;
-        $("stlenv").textContent = `${$("stlen").value}%`;
-      };
-      showVals();
-      $("stspeed").addEventListener("input", () => {
-        showVals();
-        keepSet2({ stspeed: Number($("stspeed").value) });
-      });
-      $("stlen").addEventListener("input", () => {
-        showVals();
-        keepSet2({ stlen: Number($("stlen").value) });
-      });
-      $("stgo").addEventListener("click", () => {
-        if (this._stroke) this._strokeStop();
-        else this._strokeStart();
-      });
-      const pad = $("stpad");
-      const set = (e) => {
-        const r = pad.getBoundingClientRect();
-        if (!r.height) return;
-        this._strokeMove(Math.round(Math.min(100, Math.max(0, (r.bottom - e.clientY) / r.height * 100))));
-      };
-      pad.addEventListener("pointerdown", (e) => {
-        try {
-          pad.setPointerCapture(e.pointerId);
-        } catch (_) {
-        }
-        set(e);
-      });
-      pad.addEventListener("pointermove", (e) => {
-        if (e.buttons || e.pointerType === "touch") set(e);
-      });
-      pad.addEventListener("keydown", (e) => {
-        if (!["ArrowUp", "ArrowDown"].includes(e.key)) return;
-        e.preventDefault();
-        this._strokeMove(Math.min(100, Math.max(0, this._stPos + (e.key === "ArrowUp" ? 5 : -5))));
-      });
-      this._strokeShow();
-    }
-    _strokeShow() {
-      const $ = this._$;
-      if (!$) return;
-      const p = Math.round(this._stPos);
-      $("stdot").style.bottom = `${p}%`;
-      $("stfill").style.height = `${p}%`;
-      $("stval").textContent = `${p}%`;
-      $("stpad").setAttribute("aria-valuenow", String(p));
-      $("stgo").textContent = this._stroke ? "■ Stop stroking" : "▶ Stroke";
-      $("stgo").className = this._stroke ? "stop big" : "go big";
-    }
-    // One move to every picked stroker, inside its own limits.
-    _strokeSend(goal, dur) {
-      const lim = this._st(this._studio);
-      const limits = lim && lim.attributes.limits;
-      this._stLast = this._stLast || {};
-      for (const d of this._strokers()) {
-        const m = limitMove(limitsFor(limits, d.stop), { goal, dur }, this._stLast[d.stop] ?? null);
-        this._stLast[d.stop] = m.goal;
-        this._hass.callService("ogg", "linear", { entity_id: d.stop, position: Math.round(m.goal), duration: Math.max(50, Math.round(m.dur)) }, void 0, false).catch(() => {
-        });
-      }
-    }
-    // Dragging the bar: the stroker follows (stroking or a pattern stops).
-    _strokeMove(pos) {
-      if (this._playing) this._halt(true);
-      if (this._stroke) this._strokeStop(true);
-      this._stPos = pos;
-      this._strokeShow();
-      const now = performance.now();
-      if (now - (this._stSentAt || 0) < 80) {
-        clearTimeout(this._stLate);
-        this._stLate = setTimeout(() => {
-          this._stSentAt = performance.now();
-          this._strokeSend(this._stPos, 150);
-        }, 90);
-        return;
-      }
-      this._stSentAt = now;
-      this._strokeSend(pos, 150);
-    }
-    // ▶ Stroke: up and down over the length (centred), at the speed.
-    _strokeStart() {
-      if (this._playing) this._halt(true);
-      this._stroke = { dir: this._stPos < 50 ? 1 : -1, from: this._stPos, goal: this._stPos, t0: performance.now(), dur: 0 };
-      const leg = () => {
-        const s = this._stroke;
-        if (!s) return;
-        const len = Number(this._$("stlen").value);
-        const lo = 50 - len / 2, hi = 50 + len / 2;
-        s.from = this._stPos;
-        s.goal = s.dir > 0 ? hi : lo;
-        s.dir = -s.dir;
-        s.dur = Math.max(80, Math.abs(s.goal - s.from) / strokeVel(Number(this._$("stspeed").value)));
-        s.t0 = performance.now();
-        this._strokeSend(s.goal, s.dur);
-        s.timer = setTimeout(leg, s.dur);
-      };
-      leg();
-      this._stAnim = setInterval(() => {
-        const s = this._stroke;
-        if (!s) return;
-        const k = Math.min(1, (performance.now() - s.t0) / Math.max(1, s.dur));
-        this._stPos = s.from + (s.goal - s.from) * k;
-        this._strokeShow();
-      }, 50);
-      this._strokeShow();
-    }
-    _strokeStop(quiet) {
-      const s = this._stroke;
-      this._stroke = null;
-      if (s) clearTimeout(s.timer);
-      clearInterval(this._stAnim);
-      this._stAnim = null;
-      clearTimeout(this._stLate);
-      if (s && this._hass) this._strokeSend(this._stPos, 200);
-      this._strokeShow();
-      if (s && !quiet) this._toast("Stroking stopped.");
-    }
     // ------------------------------------------------------------ patterns, moods, scripts
     _again(kind, fn) {
       if (!this._playing || this._playing.kind !== kind) return;
@@ -10911,7 +10816,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
     _halt(quiet) {
       clearInterval(this._liveTimer);
       this._liveTimer = null;
-      if (this._stroke) this._strokeStop(true);
+      this._strokeRelease();
       const had = this._playing || this._pads.some((v) => v > 0);
       this._playing = null;
       this._pads = [0, 0];
@@ -10963,7 +10868,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         const r = this._rec;
         if (!r) return;
         const t = Math.round(performance.now() - r.t0);
-        const [a, b] = r.stroke ? [Math.round(this._stPos), 0] : this._levelsNow();
+        const [a, b] = r.stroke ? [Math.round(this._strokePos()), 0] : this._levelsNow();
         const key = `${a},${b}`;
         if (key !== r.last) {
           if (r.a.length && r.seen) {

@@ -16,6 +16,8 @@ export class OutputsPart {
     const $ = this._el;
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(OUT_KEY) || 'null'); } catch (_) { /* private mode */ }
+    // Embedded (the Easy card's stroker): its toys come from the Easy card.
+    if (this._config && this._config.outputs) saved = this._config.outputs;
     if (saved && Array.isArray(saved.t)) {
       // Up to four devices; "none" and "off" (from the old two-row box) are no device.
       const m = Array.isArray(saved.m) ? saved.m : [];
@@ -96,6 +98,7 @@ export class OutputsPart {
   get _anyActive() { return Boolean(this._outs) && this._outs.some((o, i) => o.on !== false && parseTarget(this._outTargetValue(i))); }
 
   _outSave() {
+    if (this._config && this._config.outputs) return;   // embedded: never over your own Play card's devices
     try { localStorage.setItem(OUT_KEY, JSON.stringify({ t: this._outs.map((o) => o.t), m: this._outs.map((o) => o.m), on: this._outs.map((o) => o.on !== false) })); } catch (_) { /* private mode */ }
   }
 

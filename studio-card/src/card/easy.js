@@ -13,7 +13,6 @@
 import { esc } from '../lib/core.js';
 import { isStroke, runScript } from '../lib/convert.js';
 import { limitMove, limitsFor } from '../lib/limits.js';
-import { STROKE_PCT_MIN, strokeVel } from '../lib/stroke.js';
 import { MOODS } from '../lib/moods.js';
 import { sampleAt } from '../lib/outputs.js';
 import { PATTERNS, PATTERNS_DUAL, PATTERN_RANDOM, patternPeriod } from '../lib/patterns.js';
@@ -146,7 +145,7 @@ export class OggEasyCard extends HTMLElement {
     if (!this._ocov) this._ocov = makeCover(this.shadowRoot.querySelector('ha-card'));
     this._ocov.update(this._hass);
     if (!this._regLoaded) { this._regLoaded = true; this._loadRegistry(); }
-    for (const child of [this._queueCard, this._mediaCard]) if (child) child.hass = hass;
+    for (const child of [this._queueCard, this._mediaCard, this._strokeCard]) if (child) child.hass = hass;
     this._refresh();
   }
 
@@ -235,13 +234,43 @@ export class OggEasyCard extends HTMLElement {
     for (const b of this._$('ctlsw').querySelectorAll('button')) b.classList.toggle('on', b.dataset.ctl === ctl);
     const names = this._strokers().map((d) => d.name);
     this._$('stnames').textContent = names.length ? names.join(', ') : 'no stroker picked: it only records';
+    this._strokeEmbed();
   }
+
+  // The Play card's own stroke controls (range, position, Fast / Medium /
+  // Slow, Latch, limits), playing the strokers picked here.
+  _strokeEmbed() {
+    const strokers = this._strokers();
+    const key = this._ctl === 'stroke' ? JSON.stringify(strokers.map((d) => d.id)) : '';
+    if (key === this._stEmbedKey) return;
+    this._stEmbedKey = key;
+    this._strokeRelease();
+    if (this._strokeCard) { this._strokeCard.remove(); this._strokeCard = null; }
+    if (!key) return;
+    const card = document.createElement('oggstudio-play-card');
+    const t = strokers.length ? strokers.map((d) => `${d.id}|l`) : [null];
+    card.setConfig({ stroke_only: true, outputs: { t, m: t.map(() => 'position'), on: t.map(() => strokers.length > 0) } });
+    this._$('stembed').appendChild(card);
+    if (this._rawHass) card.hass = this._rawHass;
+    this._strokeCard = card;
+  }
+
+  // Let go of the embedded stroke controls (a latch or a hold stops).
+  _strokeRelease() {
+    const c = this._strokeCard;
+    if (!c || !c._st) return;
+    c._st.touch = null; c._st.pad = null; c._st.latch = null; c._st.drag = null;
+    if (c._stHalt) c._stHalt();
+    if (c._outStop) c._outStop();
+  }
+
+  _strokePos() { const c = this._strokeCard; return c && c._st ? c._st.pos : 50; }
 
   _setCtl(ctl, byHand) {
     if (byHand) this._ctlPicked = true;
     if (ctl === this._ctl) { this._showSections(); return; }
     // Leaving a control lets go of it.
-    if (this._stroke) this._strokeStop(true);
+    this._strokeRelease();
     if (this._pads.some((v) => v > 0)) { this._pads = [0, 0]; this._showPads(); this._manual(); }
     this._ctl = ctl;
     this._showSections();
@@ -264,15 +293,7 @@ export class OggEasyCard extends HTMLElement {
           <div id="vibesec" class="panel"><div class="pads" id="pads"></div><label class="sw"><input type="checkbox" id="spring"> Drop to 0 when I let go</label><div class="hint" id="padhint">Slide up and down. Double-tap to drop to zero.</div></div>
           <div id="strokesec" class="strokesec" hidden>
             <div class="sthead">↕️ Stroker <span id="stnames"></span></div>
-            <div class="strow">
-              <div class="pad l" id="stpad" role="slider" aria-label="Stroker position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" tabindex="0"><div class="fill" id="stfill"></div><div class="dot" id="stdot"></div><div class="lab">Position</div><div class="val" id="stval">50%</div></div>
-              <div class="stside">
-                <label class="sl"><span>Speed <b id="stspeedv"></b></span><input type="range" id="stspeed" min="${STROKE_PCT_MIN}" max="100" step="1"></label>
-                <label class="sl"><span>Length <b id="stlenv"></b></span><input type="range" id="stlen" min="10" max="100" step="5"></label>
-                <button class="go big" id="stgo" type="button">▶ Stroke</button>
-              </div>
-            </div>
-            <div class="hint">Drag the bar to move it, or ▶ Stroke to go up and down at that speed.</div>
+            <div id="stembed"></div>
           </div>
         </div>
         <div id="k-pattern" class="panel">
@@ -319,7 +340,6 @@ export class OggEasyCard extends HTMLElement {
     $('save').addEventListener('click', () => this._save());
     $('stopall').addEventListener('click', () => { this._halt(); this._toast('Stopped.'); });
     this._bindPads();
-    this._bindStroker();
     $('ctlsw').addEventListener('click', (e) => { const b = e.target.closest('button[data-ctl]'); if (b) this._setCtl(b.dataset.ctl, true); });
     this._setMode(this._mode, true);
     this._setKind(this._kind, true);
@@ -565,114 +585,6 @@ export class OggEasyCard extends HTMLElement {
     if (!this._pads.some((v) => v > 0)) { clearInterval(this._liveTimer); this._liveTimer = null; }
   }
 
-  // ------------------------------------------------------------ stroker
-  _bindStroker() {
-    const $ = this._$;
-    const kept = keepGet();
-    this._stPos = 50;
-    $('stspeed').value = String(Number.isFinite(kept.stspeed) ? kept.stspeed : 40);
-    $('stlen').value = String(Number.isFinite(kept.stlen) ? kept.stlen : 100);
-    const showVals = () => { $('stspeedv').textContent = `${$('stspeed').value}%`; $('stlenv').textContent = `${$('stlen').value}%`; };
-    showVals();
-    $('stspeed').addEventListener('input', () => { showVals(); keepSet({ stspeed: Number($('stspeed').value) }); });
-    $('stlen').addEventListener('input', () => { showVals(); keepSet({ stlen: Number($('stlen').value) }); });
-    $('stgo').addEventListener('click', () => { if (this._stroke) this._strokeStop(); else this._strokeStart(); });
-    const pad = $('stpad');
-    const set = (e) => {
-      const r = pad.getBoundingClientRect();
-      if (!r.height) return;
-      this._strokeMove(Math.round(Math.min(100, Math.max(0, (r.bottom - e.clientY) / r.height * 100))));
-    };
-    pad.addEventListener('pointerdown', (e) => { try { pad.setPointerCapture(e.pointerId); } catch (_) { /* fine */ } set(e); });
-    pad.addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType === 'touch') set(e); });
-    pad.addEventListener('keydown', (e) => {
-      if (!['ArrowUp', 'ArrowDown'].includes(e.key)) return;
-      e.preventDefault();
-      this._strokeMove(Math.min(100, Math.max(0, this._stPos + (e.key === 'ArrowUp' ? 5 : -5))));
-    });
-    this._strokeShow();
-  }
-
-  _strokeShow() {
-    const $ = this._$;
-    if (!$) return;
-    const p = Math.round(this._stPos);
-    $('stdot').style.bottom = `${p}%`;
-    $('stfill').style.height = `${p}%`;
-    $('stval').textContent = `${p}%`;
-    $('stpad').setAttribute('aria-valuenow', String(p));
-    $('stgo').textContent = this._stroke ? '■ Stop stroking' : '▶ Stroke';
-    $('stgo').className = this._stroke ? 'stop big' : 'go big';
-  }
-
-  // One move to every picked stroker, inside its own limits.
-  _strokeSend(goal, dur) {
-    const lim = this._st(this._studio);
-    const limits = lim && lim.attributes.limits;
-    this._stLast = this._stLast || {};
-    for (const d of this._strokers()) {
-      const m = limitMove(limitsFor(limits, d.stop), { goal, dur }, this._stLast[d.stop] ?? null);
-      this._stLast[d.stop] = m.goal;
-      this._hass.callService('ogg', 'linear', { entity_id: d.stop, position: Math.round(m.goal), duration: Math.max(50, Math.round(m.dur)) }, undefined, false).catch(() => {});
-    }
-  }
-
-  // Dragging the bar: the stroker follows (stroking or a pattern stops).
-  _strokeMove(pos) {
-    if (this._playing) this._halt(true);
-    if (this._stroke) this._strokeStop(true);
-    this._stPos = pos;
-    this._strokeShow();
-    const now = performance.now();
-    if (now - (this._stSentAt || 0) < 80) {
-      clearTimeout(this._stLate);
-      this._stLate = setTimeout(() => { this._stSentAt = performance.now(); this._strokeSend(this._stPos, 150); }, 90);
-      return;
-    }
-    this._stSentAt = now;
-    this._strokeSend(pos, 150);
-  }
-
-  // ▶ Stroke: up and down over the length (centred), at the speed.
-  _strokeStart() {
-    if (this._playing) this._halt(true);
-    this._stroke = { dir: this._stPos < 50 ? 1 : -1, from: this._stPos, goal: this._stPos, t0: performance.now(), dur: 0 };
-    const leg = () => {
-      const s = this._stroke;
-      if (!s) return;
-      const len = Number(this._$('stlen').value);
-      const lo = 50 - len / 2, hi = 50 + len / 2;
-      s.from = this._stPos;
-      s.goal = s.dir > 0 ? hi : lo;
-      s.dir = -s.dir;
-      s.dur = Math.max(80, Math.abs(s.goal - s.from) / strokeVel(Number(this._$('stspeed').value)));
-      s.t0 = performance.now();
-      this._strokeSend(s.goal, s.dur);
-      s.timer = setTimeout(leg, s.dur);
-    };
-    leg();
-    this._stAnim = setInterval(() => {
-      const s = this._stroke;
-      if (!s) return;
-      const k = Math.min(1, (performance.now() - s.t0) / Math.max(1, s.dur));
-      this._stPos = s.from + (s.goal - s.from) * k;
-      this._strokeShow();
-    }, 50);
-    this._strokeShow();
-  }
-
-  _strokeStop(quiet) {
-    const s = this._stroke;
-    this._stroke = null;
-    if (s) clearTimeout(s.timer);
-    clearInterval(this._stAnim); this._stAnim = null;
-    clearTimeout(this._stLate);
-    // Hold where it is now (a stroker stops at the end of the move it is on).
-    if (s && this._hass) this._strokeSend(this._stPos, 200);
-    this._strokeShow();
-    if (s && !quiet) this._toast('Stroking stopped.');
-  }
-
   // ------------------------------------------------------------ patterns, moods, scripts
   _again(kind, fn) {
     if (!this._playing || this._playing.kind !== kind) return;
@@ -742,7 +654,7 @@ export class OggEasyCard extends HTMLElement {
 
   _halt(quiet) {
     clearInterval(this._liveTimer); this._liveTimer = null;
-    if (this._stroke) this._strokeStop(true);
+    this._strokeRelease();
     const had = this._playing || this._pads.some((v) => v > 0);
     this._playing = null;
     this._pads = [0, 0];
@@ -787,7 +699,7 @@ export class OggEasyCard extends HTMLElement {
       const r = this._rec;
       if (!r) return;
       const t = Math.round(performance.now() - r.t0);
-      const [a, b] = r.stroke ? [Math.round(this._stPos), 0] : this._levelsNow();
+      const [a, b] = r.stroke ? [Math.round(this._strokePos()), 0] : this._levelsNow();
       const key = `${a},${b}`;
       if (key !== r.last) {
         if (r.a.length && r.seen) { r.a.push({ at: r.seen, pos: r.a[r.a.length - 1].pos }); r.b.push({ at: r.seen, pos: r.b[r.b.length - 1].pos }); }

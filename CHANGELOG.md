@@ -1,3 +1,9 @@
+## 3.13.0 - The Play card's stroke controls everywhere
+- Easy card: Stroke now uses the Play card's own stroke controls (range, position, Fast / Medium / Slow with Latch, Set limit / Reset limits) for the strokers picked there. It never changes your own Play card's devices.
+- Play card, Together: their stroker gets the same stroke controls under "Their toys" (a vibrator keeps the level slider).
+- Partner page: Stroke has the same layout too: range, position, three speeds to hold or latch, and limits.
+- Needs a Home Assistant restart (with 3.12.0).
+
 ## 3.12.0 - Together: their toys, strokers and drop to 0
 - Play card, Together: a "Their toys" control plays the toys your partner picked as theirs: a level for a vibrator, a position or ▶ Stroke for a stroker. Your own controls now stay on your own toys (with Sync, they play both, as before).
 - Partner page: a Vibe / Stroke switch on Manual; it picks Stroke by itself when the toys they play are a stroker such as The Handy (drag to move it, or ▶ Stroke with speed and length).

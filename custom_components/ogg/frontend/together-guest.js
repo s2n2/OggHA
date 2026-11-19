@@ -61,6 +61,37 @@
 
   // studio-card/src/lib/stroke.js
   var STROKE_TOP = 400;
+  var strokeVel = (pct) => pct / 100 * STROKE_TOP / 1e3;
+  function strokeStep(pos, dir, lower, upper, vel, dtMs) {
+    const span = upper - lower;
+    if (span < 1) return { pos, dir, turns: [] };
+    if (pos < lower) dir = 1;
+    else if (pos > upper) dir = -1;
+    const total = vel * Math.min(dtMs, 100);
+    let left = total;
+    const turns = [];
+    for (let guard = 0; guard < 64 && left > 1e-9; guard++) {
+      const target = dir > 0 ? upper : lower;
+      const dist = (target - pos) * dir;
+      if (left < dist) {
+        pos += left * dir;
+        left = 0;
+        break;
+      }
+      pos = target;
+      left -= dist;
+      dir = -dir;
+      turns.push({ pos: target, frac: (total - left) / total });
+    }
+    return { pos, dir, turns };
+  }
+  function strokeSetLimit(lim, pos) {
+    const p = Math.round(Math.min(100, Math.max(0, pos)));
+    const keep = lim.last ? lim[lim.last] : Math.abs(p - lim.lower) <= Math.abs(p - lim.upper) ? lim.upper : lim.lower;
+    if (Math.abs(p - keep) < 2) return null;
+    return p > keep ? { lower: keep, upper: p, last: "upper" } : { lower: p, upper: keep, last: "lower" };
+  }
+  var STROKE_LIMITS_RESET = { lower: 0, upper: 100, last: null };
 
   // studio-card/src/lib/ai.js
   var clampN = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -79,7 +110,7 @@
   };
 
   // studio-card/src/lib/moods.js
-  function moodTrack(start2, stroke2) {
+  function moodTrack(start2, stroke) {
     const a = [{ at: 0, pos: start2 }];
     let t = 0, v = start2;
     const b = {
@@ -91,7 +122,7 @@
       },
       to(p, ms) {
         p = clampN(Math.round(p), 0, 100);
-        if (stroke2) ms = Math.max(ms, Math.abs(p - v) / (STROKE_TOP / 1e3));
+        if (stroke) ms = Math.max(ms, Math.abs(p - v) / (STROKE_TOP / 1e3));
         t += Math.max(1, Math.round(ms));
         v = p;
         a.push({ at: t, pos: p });
@@ -742,7 +773,7 @@
     const mood2 = MOODS[key];
     if (!mood2) throw new Error("Unknown mood");
     const r = aiRandom(seed), k = clamp(strength) / 100;
-    const stroke2 = [], a = [], b = [];
+    const stroke = [], a = [], b = [];
     let at2 = 0, last2 = -1, two = false;
     const add2 = (to, track, by) => {
       for (const p of track) {
@@ -760,7 +791,7 @@
       last2 = i;
       const built = buildMood(mood2.combos[i][1], r);
       const len = Math.max(built.stroke[built.stroke.length - 1].at, ...built.vibe.map((v) => v[v.length - 1].at));
-      add2(stroke2, built.stroke, at2);
+      add2(stroke, built.stroke, at2);
       add2(a, built.vibe[0], at2);
       if (built.vibe[1]) two = true;
       add2(b, built.vibe[1] || built.vibe[0], at2);
@@ -768,32 +799,32 @@
     }
     const soft = (track, fn) => track.map((p) => ({ at: p.at, pos: Math.round(clamp(fn(p))) }));
     return {
-      stroke: cut(soft(stroke2, (p) => k >= 1 ? p.pos : moodSoften(p.pos, k, p.at)), ms),
+      stroke: cut(soft(stroke, (p) => k >= 1 ? p.pos : moodSoften(p.pos, k, p.at)), ms),
       a: cut(soft(a, (p) => p.pos * k), ms),
       b: two ? cut(soft(b, (p) => p.pos * k), ms) : null
     };
   }
-  function renderStep(step, stroke2, scripts, last2 = 0) {
+  function renderStep(step, stroke, scripts, last2 = 0) {
     const ms = Math.min(MAX_STEP_MS, Math.max(1e3, Math.round(step.ms || 6e4)));
     if (step.type === "pause") {
-      const hold = stroke2 ? last2 : 0;
+      const hold = stroke ? last2 : 0;
       return { a: [{ at: 0, pos: hold }, { at: ms, pos: hold }], b: null, ms };
     }
     if (step.type === "mood") {
       const m = renderMood(step.key, ms, { strength: step.level ?? 100, seed: step.seed || 1 });
-      return stroke2 ? { a: m.stroke, b: null, ms } : { a: m.a, b: m.b, ms };
+      return stroke ? { a: m.stroke, b: null, ms } : { a: m.a, b: m.b, ms };
     }
     if (step.type === "script") {
       const s = scripts && scripts.get(step.name);
       if (!s) throw new Error(`"${step.name}" is not in the library`);
-      const src = !stroke2 && isStroke(s) ? runScript(s, "speed") : s;
+      const src = !stroke && isStroke(s) ? runScript(s, "speed") : s;
       const second = src.channels && src.channels.V1 && src.channels.V1.actions.length ? src.channels.V1.actions : null;
-      return { a: fill(src.actions, ms), b: !stroke2 && second ? fill(second, ms) : null, ms };
+      return { a: fill(src.actions, ms), b: !stroke && second ? fill(second, ms) : null, ms };
     }
     const p = renderPattern(step.key, ms, { level: step.level ?? 70, speed: step.speed ?? 50, seed: step.seed || 1 });
-    return { a: p.a, b: stroke2 ? null : p.b, ms };
+    return { a: p.a, b: stroke ? null : p.b, ms };
   }
-  function composeScript(steps2, { stroke: stroke2 = false, title = "" } = {}, scripts = /* @__PURE__ */ new Map()) {
+  function composeScript(steps2, { stroke = false, title = "" } = {}, scripts = /* @__PURE__ */ new Map()) {
     if (!steps2.length) throw new Error("Add a step first");
     const A = [], B = [];
     let at2 = 0, two = false;
@@ -809,7 +840,7 @@
     };
     for (const step of steps2) {
       const last2 = A.length ? A[A.length - 1].pos : 50;
-      const out = renderStep(step, stroke2, scripts, last2);
+      const out = renderStep(step, stroke, scripts, last2);
       if (out.b) two = true;
       join(A, out.a, at2);
       join(B, out.b || out.a, at2);
@@ -821,7 +852,7 @@
       inverted: false,
       range: 100,
       actions: A,
-      metadata: { type: stroke2 ? "stroke" : "vibration", creator: "Ogg Queue", title: title || defaultName(at2), steps: steps2.length }
+      metadata: { type: stroke ? "stroke" : "vibration", creator: "Ogg Queue", title: title || defaultName(at2), steps: steps2.length }
     };
     if (two) script.channels = { V1: { actions: B } };
     return script;
@@ -1183,8 +1214,13 @@
   var ctl = "vibe";
   var ctlPicked = false;
   var hostKinds = [];
-  var spos = 50;
-  var stroke = null;
+  var st = { pos: 50, dir: 1, lower: 0, upper: 100, last: null, hold: null, latch: null, drag: null };
+  var pcts = [30, 55, 100];
+  try {
+    const p = JSON.parse(localStorage.getItem("ogg_together_stroke_speeds") || "null");
+    if (Array.isArray(p) && p.length === 3) pcts = p.map((v) => Math.min(100, Math.max(5, Number(v) || 30)));
+  } catch (_) {
+  }
   var spring = false;
   try {
     spring = localStorage.getItem("ogg_together_spring") === "1";
@@ -1211,7 +1247,7 @@
       const q = queueLevels();
       if (q) return q;
     }
-    if (tab === "manual" && ctl === "stroke") return [Math.round(spos)];
+    if (tab === "manual" && ctl === "stroke") return [Math.round(st.pos)];
     if (tab === "manual" || !pt && !mood) return [Math.round(level)];
     if (pt) {
       const speed = Number($2("ptspeed").value);
@@ -1250,12 +1286,7 @@
     $2("strokepane").hidden = ctl !== "stroke";
     for (const b of document.querySelectorAll("#ctlsw button")) b.classList.toggle("on", b.dataset.ctl === ctl);
     $2("ctlinfo").textContent = hostKinds.includes("stroke") ? hostKinds.length > 1 ? "Their toys: a stroker and a vibrator" : "Their toy is a stroker" : hostKinds.length ? "Their toys vibrate" : "";
-    $2("sdot").style.bottom = `${spos}%`;
-    $2("spct").textContent = `${Math.round(spos)}%`;
-    $2("sspeedv").textContent = `${$2("sspeed").value}%`;
-    $2("slenv").textContent = `${$2("slen").value}%`;
-    $2("sgo").textContent = stroke ? "■ Stop stroking" : "▶ Stroke";
-    $2("sgo").classList.toggle("on", Boolean(stroke));
+    stShow();
     $2("spring").checked = spring;
     const random = pt ? Boolean(pt.prog) : $2("ptsel").value === PATTERN_RANDOM;
     $2("speedlab").textContent = random ? "How busy" : "Speed";
@@ -1293,7 +1324,9 @@
     pt = null;
     mood = null;
     incoming = 0;
-    stroke = null;
+    st.hold = null;
+    st.latch = null;
+    st.drag = null;
     queueStop();
     $2("in").style.width = "0";
     if ($2("buzz").checked && navigator.vibrate) navigator.vibrate(0);
@@ -1419,30 +1452,141 @@
     ctlPicked = true;
     if (b.dataset.ctl !== ctl) {
       level = 0;
-      stroke = null;
+      st.hold = null;
+      st.latch = null;
       ctl = b.dataset.ctl;
     }
     show2();
   });
-  var spad = $2("spad");
-  var sat = (e) => {
-    const r = spad.getBoundingClientRect();
-    stroke = null;
-    spos = Math.min(100, Math.max(0, (r.bottom - e.clientY) / r.height * 100));
-    show2();
+  function stShow() {
+    $2("stband").style.bottom = `${st.lower}%`;
+    $2("stband").style.top = `${100 - st.upper}%`;
+    $2("stup").style.top = `calc(${100 - st.upper}% + 6px)`;
+    $2("stup").textContent = Math.round(st.upper);
+    $2("stlo").style.bottom = `calc(${st.lower}% + 6px)`;
+    $2("stlo").textContent = Math.round(st.lower);
+    $2("stshade").style.bottom = `${st.lower}%`;
+    $2("stshade").style.top = `${100 - st.upper}%`;
+    $2("stpos").style.bottom = `${st.pos}%`;
+    $2("stpct").textContent = Math.round(st.pos);
+    for (const b of document.querySelectorAll(".sthold")) b.classList.toggle("on", Number(b.dataset.speed) === st.hold);
+    for (const b of document.querySelectorAll(".stlatch")) {
+      const on = Number(b.dataset.speed) === st.latch;
+      b.classList.toggle("on", on);
+      b.textContent = on ? "■ Latched" : "⟳ Latch";
+    }
+    for (const i of [0, 1, 2]) {
+      const r = document.querySelector(`.stpctr[data-speed="${i}"]`);
+      if (document.activeElement !== r) r.value = String(pcts[i]);
+      document.querySelector(`.stpv[data-speed="${i}"]`).textContent = `${pcts[i]}%`;
+    }
+  }
+  var yPct = (el, e) => {
+    const r = el.getBoundingClientRect();
+    return Math.min(100, Math.max(0, (r.bottom - e.clientY) / r.height * 100));
   };
-  spad.addEventListener("pointerdown", (e) => {
-    spad.setPointerCapture(e.pointerId);
-    sat(e);
+  var rail = $2("strail");
+  var railGrab = null;
+  rail.addEventListener("pointerdown", (e) => {
+    rail.setPointerCapture(e.pointerId);
+    const p = yPct(rail, e);
+    railGrab = Math.abs(p - st.upper) < 9 ? { end: "upper" } : Math.abs(p - st.lower) < 9 ? { end: "lower" } : { end: "move", from: p, lo: st.lower, hi: st.upper };
   });
-  spad.addEventListener("pointermove", (e) => {
-    if (e.buttons || e.pointerType === "touch") sat(e);
+  rail.addEventListener("pointermove", (e) => {
+    if (!railGrab || !(e.buttons || e.pointerType === "touch")) return;
+    const p = yPct(rail, e);
+    if (railGrab.end === "upper") st.upper = Math.max(st.lower + 5, Math.round(p));
+    else if (railGrab.end === "lower") st.lower = Math.min(st.upper - 5, Math.round(p));
+    else {
+      const span = railGrab.hi - railGrab.lo;
+      const lo = Math.min(100 - span, Math.max(0, railGrab.lo + p - railGrab.from));
+      st.lower = Math.round(lo);
+      st.upper = Math.round(lo + span);
+    }
+    st.last = null;
+    stShow();
   });
-  $2("sgo").addEventListener("click", () => {
-    stroke = stroke ? null : { dir: spos < 50 ? 1 : -1 };
-    show2();
+  var railUp = () => {
+    railGrab = null;
+  };
+  rail.addEventListener("pointerup", railUp);
+  rail.addEventListener("pointercancel", railUp);
+  var lane = $2("stlane");
+  lane.addEventListener("pointerdown", (e) => {
+    lane.setPointerCapture(e.pointerId);
+    st.latch = null;
+    st.hold = null;
+    st.drag = yPct(lane, e);
+    st.pos = st.drag;
+    stShow();
   });
-  for (const id of ["sspeed", "slen"]) $2(id).addEventListener("input", show2);
+  lane.addEventListener("pointermove", (e) => {
+    if (st.drag !== null && (e.buttons || e.pointerType === "touch")) {
+      st.drag = yPct(lane, e);
+      st.pos = st.drag;
+      stShow();
+    }
+  });
+  var laneUp = () => {
+    st.drag = null;
+  };
+  lane.addEventListener("pointerup", laneUp);
+  lane.addEventListener("pointercancel", laneUp);
+  for (const b of document.querySelectorAll(".sthold")) {
+    const i = Number(b.dataset.speed);
+    b.addEventListener("pointerdown", (e) => {
+      try {
+        b.setPointerCapture(e.pointerId);
+      } catch (_) {
+      }
+      st.hold = i;
+      stShow();
+    });
+    const up = () => {
+      if (st.hold === i) {
+        st.hold = null;
+        stShow();
+      }
+    };
+    b.addEventListener("pointerup", up);
+    b.addEventListener("pointercancel", up);
+    b.addEventListener("contextmenu", (e) => e.preventDefault());
+  }
+  for (const b of document.querySelectorAll(".stlatch")) b.addEventListener("click", () => {
+    const i = Number(b.dataset.speed);
+    st.latch = st.latch === i ? null : i;
+    stShow();
+  });
+  for (const r of document.querySelectorAll(".stpctr")) r.addEventListener("input", () => {
+    pcts[Number(r.dataset.speed)] = Number(r.value);
+    try {
+      localStorage.setItem("ogg_together_stroke_speeds", JSON.stringify(pcts));
+    } catch (_) {
+    }
+    stShow();
+  });
+  $2("stlimit").addEventListener("click", () => {
+    const l = strokeSetLimit(st, st.pos);
+    if (l) Object.assign(st, l);
+    stShow();
+  });
+  $2("streset").addEventListener("click", () => {
+    Object.assign(st, STROKE_LIMITS_RESET);
+    stShow();
+  });
+  var stLast = performance.now();
+  setInterval(() => {
+    const now2 = performance.now();
+    const dt = now2 - stLast;
+    stLast = now2;
+    const speed = st.drag !== null ? null : st.hold ?? st.latch;
+    if (speed === null || speed === void 0 || ctl !== "stroke") return;
+    const r = strokeStep(st.pos, st.dir || 1, st.lower, st.upper, strokeVel(pcts[speed]), dt);
+    st.pos = r.pos;
+    st.dir = r.dir;
+    $2("stpos").style.bottom = `${st.pos}%`;
+    $2("stpct").textContent = Math.round(st.pos);
+  }, 30);
   var group = (label, entries) => {
     const g = document.createElement("optgroup");
     g.label = label;
@@ -1493,20 +1637,6 @@
   var last = performance.now();
   setInterval(() => {
     const now2 = performance.now();
-    if (stroke) {
-      const len = Number($2("slen").value);
-      const lo = 50 - len / 2, hi = 50 + len / 2;
-      spos += stroke.dir * Number($2("sspeed").value) / 100 * 0.4 * (now2 - last);
-      if (spos >= hi) {
-        spos = hi;
-        stroke.dir = -1;
-      } else if (spos <= lo) {
-        spos = lo;
-        stroke.dir = 1;
-      }
-      $2("sdot").style.bottom = `${spos}%`;
-      $2("spct").textContent = `${Math.round(spos)}%`;
-    }
     const v = levels(now2 - last);
     last = now2;
     const key = v.join(",");

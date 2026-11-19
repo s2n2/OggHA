@@ -11,6 +11,7 @@ import { aiRandom } from '../lib/ai.js';
 import { MOODS, buildMood } from '../lib/moods.js';
 import { sampleAt } from '../lib/outputs.js';
 import { PATTERNS, PATTERNS_DUAL, PATTERN_RANDOM, RandomProgram, patternDual, patternLevel, patternPeriod } from '../lib/patterns.js';
+import { STROKE_LIMITS_RESET, strokeSetLimit, strokeStep, strokeVel } from '../lib/stroke.js';
 import { initQueue, queueLevels, queueStop, refresh as queueRefresh } from './queue.js';
 
 const $ = (id) => document.getElementById(id);
@@ -31,8 +32,11 @@ let lastIn = 0;
 let ctl = 'vibe';              // the manual control: vibe pad or stroker
 let ctlPicked = false;         // picked by hand (else it follows the host's toys)
 let hostKinds = [];            // what kinds of toys I play (from the host)
-let spos = 50;                 // the stroker position (0-100)
-let stroke = null;             // auto stroke: { dir }
+// The stroker, as on the Play card: a range, a position, and three speeds to
+// hold or latch (a speed is % of top speed: 100% = a full stroke in 1/4 s).
+const st = { pos: 50, dir: 1, lower: 0, upper: 100, last: null, hold: null, latch: null, drag: null };
+let pcts = [30, 55, 100];
+try { const p = JSON.parse(localStorage.getItem('ogg_together_stroke_speeds') || 'null'); if (Array.isArray(p) && p.length === 3) pcts = p.map((v) => Math.min(100, Math.max(5, Number(v) || 30))); } catch (_) { /* private browsing */ }
 let spring = false;            // drop to 0 when let go
 try { spring = localStorage.getItem('ogg_together_spring') === '1'; } catch (_) { /* private browsing */ }
 let offer = [];                // toys the host offers
@@ -48,7 +52,7 @@ const send = (data) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(d
 // ---------------------------------------------------------- the levels
 function levels(dtMs) {
   if (tab !== 'manual') { const q = queueLevels(); if (q) return q; }
-  if (tab === 'manual' && ctl === 'stroke') return [Math.round(spos)];
+  if (tab === 'manual' && ctl === 'stroke') return [Math.round(st.pos)];
   if (tab === 'manual' || (!pt && !mood)) return [Math.round(level)];
   if (pt) {
     const speed = Number($('ptspeed').value);
@@ -88,12 +92,7 @@ function show() {
   $('strokepane').hidden = ctl !== 'stroke';
   for (const b of document.querySelectorAll('#ctlsw button')) b.classList.toggle('on', b.dataset.ctl === ctl);
   $('ctlinfo').textContent = hostKinds.includes('stroke') ? (hostKinds.length > 1 ? 'Their toys: a stroker and a vibrator' : 'Their toy is a stroker') : hostKinds.length ? 'Their toys vibrate' : '';
-  $('sdot').style.bottom = `${spos}%`;
-  $('spct').textContent = `${Math.round(spos)}%`;
-  $('sspeedv').textContent = `${$('sspeed').value}%`;
-  $('slenv').textContent = `${$('slen').value}%`;
-  $('sgo').textContent = stroke ? '■ Stop stroking' : '▶ Stroke';
-  $('sgo').classList.toggle('on', Boolean(stroke));
+  stShow();
   $('spring').checked = spring;
   const random = pt ? Boolean(pt.prog) : $('ptsel').value === PATTERN_RANDOM;
   $('speedlab').textContent = random ? 'How busy' : 'Speed';
@@ -130,7 +129,7 @@ function show() {
 }
 
 function stopAll(tell) {
-  level = 0; pt = null; mood = null; incoming = 0; stroke = null;
+  level = 0; pt = null; mood = null; incoming = 0; st.hold = null; st.latch = null; st.drag = null;
   queueStop();
   $('in').style.width = '0';
   if ($('buzz').checked && navigator.vibrate) navigator.vibrate(0);
@@ -204,16 +203,95 @@ $('ctlsw').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-ctl]');
   if (!b) return;
   ctlPicked = true;
-  if (b.dataset.ctl !== ctl) { level = 0; stroke = null; ctl = b.dataset.ctl; }
+  if (b.dataset.ctl !== ctl) { level = 0; st.hold = null; st.latch = null; ctl = b.dataset.ctl; }
   show();
 });
-// The stroker: drag to move it, or ▶ Stroke to go up and down.
-const spad = $('spad');
-const sat = (e) => { const r = spad.getBoundingClientRect(); stroke = null; spos = Math.min(100, Math.max(0, (r.bottom - e.clientY) / r.height * 100)); show(); };
-spad.addEventListener('pointerdown', (e) => { spad.setPointerCapture(e.pointerId); sat(e); });
-spad.addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType === 'touch') sat(e); });
-$('sgo').addEventListener('click', () => { stroke = stroke ? null : { dir: spos < 50 ? 1 : -1 }; show(); });
-for (const id of ['sspeed', 'slen']) $(id).addEventListener('input', show);
+// ---------------------------------------------------------- the stroker
+function stShow() {
+  $('stband').style.bottom = `${st.lower}%`;
+  $('stband').style.top = `${100 - st.upper}%`;
+  $('stup').style.top = `calc(${100 - st.upper}% + 6px)`;
+  $('stup').textContent = Math.round(st.upper);
+  $('stlo').style.bottom = `calc(${st.lower}% + 6px)`;
+  $('stlo').textContent = Math.round(st.lower);
+  $('stshade').style.bottom = `${st.lower}%`;
+  $('stshade').style.top = `${100 - st.upper}%`;
+  $('stpos').style.bottom = `${st.pos}%`;
+  $('stpct').textContent = Math.round(st.pos);
+  for (const b of document.querySelectorAll('.sthold')) b.classList.toggle('on', Number(b.dataset.speed) === st.hold);
+  for (const b of document.querySelectorAll('.stlatch')) {
+    const on = Number(b.dataset.speed) === st.latch;
+    b.classList.toggle('on', on);
+    b.textContent = on ? '■ Latched' : '⟳ Latch';
+  }
+  for (const i of [0, 1, 2]) {
+    const r = document.querySelector(`.stpctr[data-speed="${i}"]`);
+    if (document.activeElement !== r) r.value = String(pcts[i]);
+    document.querySelector(`.stpv[data-speed="${i}"]`).textContent = `${pcts[i]}%`;
+  }
+}
+const yPct = (el, e) => { const r = el.getBoundingClientRect(); return Math.min(100, Math.max(0, (r.bottom - e.clientY) / r.height * 100)); };
+// The range: drag an end, or the middle to move the whole range.
+const rail = $('strail');
+let railGrab = null;
+rail.addEventListener('pointerdown', (e) => {
+  rail.setPointerCapture(e.pointerId);
+  const p = yPct(rail, e);
+  railGrab = Math.abs(p - st.upper) < 9 ? { end: 'upper' } : Math.abs(p - st.lower) < 9 ? { end: 'lower' } : { end: 'move', from: p, lo: st.lower, hi: st.upper };
+});
+rail.addEventListener('pointermove', (e) => {
+  if (!railGrab || !(e.buttons || e.pointerType === 'touch')) return;
+  const p = yPct(rail, e);
+  if (railGrab.end === 'upper') st.upper = Math.max(st.lower + 5, Math.round(p));
+  else if (railGrab.end === 'lower') st.lower = Math.min(st.upper - 5, Math.round(p));
+  else {
+    const span = railGrab.hi - railGrab.lo;
+    const lo = Math.min(100 - span, Math.max(0, railGrab.lo + p - railGrab.from));
+    st.lower = Math.round(lo); st.upper = Math.round(lo + span);
+  }
+  st.last = null;
+  stShow();
+});
+const railUp = () => { railGrab = null; };
+rail.addEventListener('pointerup', railUp);
+rail.addEventListener('pointercancel', railUp);
+// The position: drag to move it (a hold or latch lets go).
+const lane = $('stlane');
+lane.addEventListener('pointerdown', (e) => { lane.setPointerCapture(e.pointerId); st.latch = null; st.hold = null; st.drag = yPct(lane, e); st.pos = st.drag; stShow(); });
+lane.addEventListener('pointermove', (e) => { if (st.drag !== null && (e.buttons || e.pointerType === 'touch')) { st.drag = yPct(lane, e); st.pos = st.drag; stShow(); } });
+const laneUp = () => { st.drag = null; };
+lane.addEventListener('pointerup', laneUp);
+lane.addEventListener('pointercancel', laneUp);
+// The speeds: hold to stroke, Latch to keep going.
+for (const b of document.querySelectorAll('.sthold')) {
+  const i = Number(b.dataset.speed);
+  b.addEventListener('pointerdown', (e) => { try { b.setPointerCapture(e.pointerId); } catch (_) { /* fine */ } st.hold = i; stShow(); });
+  const up = () => { if (st.hold === i) { st.hold = null; stShow(); } };
+  b.addEventListener('pointerup', up);
+  b.addEventListener('pointercancel', up);
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+for (const b of document.querySelectorAll('.stlatch')) b.addEventListener('click', () => { const i = Number(b.dataset.speed); st.latch = st.latch === i ? null : i; stShow(); });
+for (const r of document.querySelectorAll('.stpctr')) r.addEventListener('input', () => {
+  pcts[Number(r.dataset.speed)] = Number(r.value);
+  try { localStorage.setItem('ogg_together_stroke_speeds', JSON.stringify(pcts)); } catch (_) { /* private browsing */ }
+  stShow();
+});
+$('stlimit').addEventListener('click', () => { const l = strokeSetLimit(st, st.pos); if (l) Object.assign(st, l); stShow(); });
+$('streset').addEventListener('click', () => { Object.assign(st, STROKE_LIMITS_RESET); stShow(); });
+// The stroke moves smoothly between the 100 ms sends.
+let stLast = performance.now();
+setInterval(() => {
+  const now = performance.now();
+  const dt = now - stLast;
+  stLast = now;
+  const speed = st.drag !== null ? null : st.hold ?? st.latch;
+  if (speed === null || speed === undefined || ctl !== 'stroke') return;
+  const r = strokeStep(st.pos, st.dir || 1, st.lower, st.upper, strokeVel(pcts[speed]), dt);
+  st.pos = r.pos; st.dir = r.dir;
+  $('stpos').style.bottom = `${st.pos}%`;
+  $('stpct').textContent = Math.round(st.pos);
+}, 30);
 
 const group = (label, entries) => { const g = document.createElement('optgroup'); g.label = label; g.append(...entries.map(([k, t]) => new Option(t, k))); return g; };
 $('ptsel').replaceChildren(new Option('🎲 Random', PATTERN_RANDOM), group('Patterns', Object.entries(PATTERNS)), group('Two motors', Object.entries(PATTERNS_DUAL)));
@@ -243,15 +321,6 @@ $('stop').addEventListener('click', () => { stopAll(true); state('Stopped', fals
 let last = performance.now();
 setInterval(() => {
   const now = performance.now();
-  if (stroke) {
-    // Up and down over the length (centred), at the speed (100% = 400 %/s).
-    const len = Number($('slen').value);
-    const lo = 50 - len / 2, hi = 50 + len / 2;
-    spos += stroke.dir * Number($('sspeed').value) / 100 * 0.4 * (now - last);
-    if (spos >= hi) { spos = hi; stroke.dir = -1; } else if (spos <= lo) { spos = lo; stroke.dir = 1; }
-    $('sdot').style.bottom = `${spos}%`;
-    $('spct').textContent = `${Math.round(spos)}%`;
-  }
   const v = levels(now - last);
   last = now;
   const key = v.join(',');

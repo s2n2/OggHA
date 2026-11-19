@@ -407,9 +407,30 @@ button.on .chip{color:#072a2d;border-color:rgba(7,42,45,.35);background:rgba(255
 .ctlsw button{min-height:30px;border:0;border-radius:0;background:transparent;color:#99a9c5;font-size:12px;padding:0 11px}
 .ctlsw button.on{background:#24395a;color:#bef2ff}
 .sw{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700}
-#spad{position:relative;height:min(200px,30vh);border-radius:19px;background:#17243e;border:1px solid #364563;touch-action:none;overflow:hidden;user-select:none;-webkit-user-select:none}
-#sdot{position:absolute;left:16px;right:16px;height:14px;margin-bottom:-7px;bottom:50%;border-radius:9px;background:linear-gradient(90deg,#ff8fc0,#ffcf8a);box-shadow:0 0 14px rgba(255,160,170,.55)}
-#spct{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;padding-bottom:14px;font-size:34px;font-weight:800;pointer-events:none}
+.st{display:grid;grid-template-columns:minmax(140px,50%) 1fr;gap:10px}
+.sttags{display:grid;grid-template-columns:44% 1fr;gap:6px;margin-bottom:4px;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.05em;text-align:center}
+.sttrack{display:grid;grid-template-columns:44% 1fr;gap:6px;height:256px}
+.strail,.stlane{position:relative;border-radius:19px;border:1px solid #364563;background:#17243e;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:ns-resize}
+.sttrack .ticks{position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 calc(25% - 1px),rgba(255,255,255,.07) calc(25% - 1px) 25%);pointer-events:none}
+.stband{position:absolute;left:6px;right:6px;border-radius:10px;background:rgba(103,224,200,.22);pointer-events:none}
+.stband::before,.stband::after{content:'';position:absolute;left:18%;right:18%;height:6px;border-radius:3px;background:#67e0c8}
+.stband::before{top:-3px}.stband::after{bottom:-3px}
+.stband .grip{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:14px;color:rgba(103,224,200,.85)}
+.stlim{position:absolute;left:0;right:0;text-align:center;font-size:11px;font-weight:800;color:#bff5ea;pointer-events:none}
+.stshade{position:absolute;left:0;right:0;background:rgba(103,224,200,.08);border-top:1px dashed rgba(103,224,200,.45);border-bottom:1px dashed rgba(103,224,200,.45);pointer-events:none}
+.stpos{position:absolute;left:8%;right:8%;height:14px;margin-bottom:-7px;border-radius:7px;background:linear-gradient(90deg,#ff8aa0,#ffcf8a);box-shadow:0 0 12px rgba(255,138,160,.6)}
+.stlane .pct{position:absolute;top:8px;left:0;right:0;text-align:center;font-size:24px;font-weight:800;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.55);pointer-events:none}
+.stside{display:flex;flex-direction:column;gap:8px}
+.stspd{flex:1;display:flex;flex-direction:column;justify-content:center;gap:4px;padding:4px 6px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.025)}
+.stsl{display:flex;align-items:center;gap:6px}
+.stsl input{flex:1;min-width:0}
+.stsl b{flex:0 0 40px;text-align:right;font-size:12px;color:#bef2ff}
+.stctl{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.stctl button{min-height:40px;font-size:13px;padding:0 4px;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.stctl button.sthold.on{background:linear-gradient(110deg,#2fbfa9,#67e0c8);color:#062a24;border-color:transparent}
+.stctl button.stlatch{font-size:11.5px;background:#141d33;color:var(--muted)}
+.stctl button.stlatch.on{background:linear-gradient(110deg,#ff5c7a,#ff8aa0);color:#2a0710;border-color:transparent}
+.stside .row button{min-height:44px;font-size:13px}
 #pct{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;padding-bottom:14px;font-size:34px;font-weight:800;pointer-events:none}
 .row{display:flex;gap:8px;align-items:center}
 .row > *{flex:1}
@@ -482,11 +503,13 @@ button.on .chip{color:#072a2d;border-color:rgba(7,42,45,.35);background:rgba(255
   <div id="t-manual">
     <div class="ctlbar"><span class="muted" id="ctlinfo"></span><div class="ctlsw" id="ctlsw"><button data-ctl="vibe" class="on">〰 Vibe</button><button data-ctl="stroke">↕ Stroke</button></div></div>
     <div id="vibepane"><div id="pad"><div id="fill"></div><div id="pct">0%</div></div><label class="sw" style="margin-top:8px"><input type="checkbox" id="spring"> Drop to 0 when I let go</label></div>
-    <div id="strokepane" hidden><div id="spad"><div id="sdot"></div><div id="spct">50%</div></div>
-      <div class="slider"><label>Speed</label><input id="sspeed" type="range" min="5" max="100" step="1" value="40"><b id="sspeedv"></b></div>
-      <div class="slider"><label>Length</label><input id="slen" type="range" min="10" max="100" step="5" value="100"><b id="slenv"></b></div>
-      <button id="sgo" style="width:100%;margin-top:8px">▶ Stroke</button>
-      <div class="muted" style="margin-top:6px">Drag to move their stroker, or ▶ Stroke to go up and down.</div></div>
+    <div id="strokepane" hidden><div class="st">
+      <div><div class="sttags"><span>RANGE</span><span>POSITION</span></div><div class="sttrack">
+        <div class="strail" id="strail"><div class="ticks"></div><div class="stband" id="stband"><span class="grip">⇕</span></div><span class="stlim" id="stup"></span><span class="stlim" id="stlo"></span></div>
+        <div class="stlane" id="stlane"><div class="ticks"></div><div class="stshade" id="stshade"></div><div class="stpos" id="stpos"></div><span class="pct" id="stpct">50</span></div>
+      </div></div>
+      <div class="stside"><div class="stspd"><div class="stsl"><input class="stpctr" type="range" min="5" max="100" step="1" data-speed="2" aria-label="Fast speed"><b class="stpv" data-speed="2"></b></div><div class="stctl"><button class="sthold" data-speed="2">Fast</button><button class="stlatch" data-speed="2" title="Keep running at this speed">⟳ Latch</button></div></div><div class="stspd"><div class="stsl"><input class="stpctr" type="range" min="5" max="100" step="1" data-speed="1" aria-label="Medium speed"><b class="stpv" data-speed="1"></b></div><div class="stctl"><button class="sthold" data-speed="1">Medium</button><button class="stlatch" data-speed="1" title="Keep running at this speed">⟳ Latch</button></div></div><div class="stspd"><div class="stsl"><input class="stpctr" type="range" min="5" max="100" step="1" data-speed="0" aria-label="Slow speed"><b class="stpv" data-speed="0"></b></div><div class="stctl"><button class="sthold" data-speed="0">Slow</button><button class="stlatch" data-speed="0" title="Keep running at this speed">⟳ Latch</button></div></div><div class="row"><button id="stlimit">Set limit</button><button id="streset">Reset limits</button></div></div>
+    </div><div class="muted" style="margin-top:6px">Hold a speed (or Latch it) to stroke inside the range; drag the position to move it. Drag a range end, or its middle, to change the range.</div></div>
   </div>
   <div id="t-pattern" hidden><div class="row"><select id="ptsel"></select><button id="ptgo" style="flex:0 0 96px">▶ Play</button></div>
     <div class="slider"><label id="speedlab">Speed</label><input id="ptspeed" type="range" min="0" max="100" step="5" value="50"><b id="ptspeedv"></b></div>

@@ -50,6 +50,7 @@ export class OggStudioCard extends HTMLElement {
   get _canToggleKind() { if (this._variant.kind) return false; const b = this._baseParts; return b.includes('record') !== b.includes('stroke'); }
   get _kindKey() { return `oggstudio_rec_kind:${this.localName}`; }
   get _recKind() {
+    if (this._config && this._config.stroke_only) return 'stroke';
     if (this._variant.kind) return this._variant.kind;
     if (this._kind) return this._kind;
     let saved = null;
@@ -123,6 +124,7 @@ export class OggStudioCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    if (this._tgStrokeCard) this._tgStrokeCard.hass = hass;
     if (!this._registryLoaded) { this._registryLoaded = true; this._loadRegistry(); }
     this._update();
     if (this._cast) this._castSync();
@@ -176,7 +178,7 @@ export class OggStudioCard extends HTMLElement {
       <style>
 ${STYLES}
       </style>
-      <ha-card class="${simple ? 'simple' : ''}${this._variant.together ? 'tg' : ''}${this._config && this._config.media_only ? ' mediaonly' : ''}">
+      <ha-card class="${simple ? 'simple' : ''}${this._variant.together ? 'tg' : ''}${this._config && this._config.media_only ? ' mediaonly' : ''}${this._config && this._config.stroke_only ? ' strokeonly' : ''}">
         <div class="cover" id="cover" hidden>
           <h2 id="covername">Studio</h2>
           <div id="coverpin"><label>PIN</label><div class="row"><input id="pin" type="password" inputmode="numeric" autocomplete="off" aria-label="PIN"><button id="pingo" type="button" style="flex:0 0 auto">Open</button></div></div>
@@ -294,9 +296,7 @@ ${STYLES}
                 <div id="tgtoys" class="tgtoys"></div>
                 <div id="tgctl" class="tgctl" hidden><div class="tgctlh">Their toys <span id="tgctlname"></span></div>
                   <div id="tgcv" class="tgsl"><span>Level</span><input id="tgclevel" type="range" min="0" max="100" step="1" value="0" aria-label="Their toys' level"><b id="tgclevelv">0%</b></div>
-                  <div id="tgcs"><div class="tgsl"><span>Position</span><input id="tgcpos" type="range" min="0" max="100" step="1" value="50" aria-label="Their stroker's position"><b id="tgcposv">50%</b></div>
-                    <div class="tgsl"><span>Speed</span><input id="tgcspeed" type="range" min="5" max="100" step="1" value="40" aria-label="Stroke speed"><b id="tgcspeedv">40%</b></div>
-                    <button id="tgcgo" type="button">▶ Stroke</button></div>
+                  <div id="tgcs"></div>
                 </div>
                 <div class="row tgopts"><label class="check"><input id="tgsync" type="checkbox"> ⇄ Sync both</label><button id="tgrec" type="button" class="rec">● Record partner</button></div>
                 <div id="tgsendbox"><label>To my partner <b id="tgsendv">0%</b></label><input id="tgsend" type="range" min="0" max="100" step="1" value="0"></div>

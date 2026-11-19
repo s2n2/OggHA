@@ -95,6 +95,10 @@ button.vrec.on{background:linear-gradient(110deg,#ff5c7a,#ff8aa0);color:#2a0710}
 .head button{flex:0 0 auto;min-height:36px;padding:0 12px;font-size:13px}
 ha-card.locked > :not(#cover){display:none!important}
 ha-card.mediaonly{background:transparent;border:0;padding:0}
+ha-card.strokeonly{background:transparent;border:0;padding:0;box-shadow:none}
+ha-card.strokeonly > :not(#outhome):not(.toast):not(.ogg-cover){display:none!important}
+ha-card.strokeonly #outbox,ha-card.strokeonly #ctlhead,ha-card.strokeonly .ctltabs,ha-card.strokeonly #urec,ha-card.strokeonly #stinfo{display:none!important}
+ha-card.strokeonly #outhome,ha-card.strokeonly #ctlbox{border:0;background:transparent;padding:0;margin:0;box-shadow:none}
 ha-card.mediaonly > :not(#videobox):not(#sndbox):not(.toast):not(.ogg-cover){display:none!important}
 .cover{display:flex;flex-direction:column;gap:10px;padding:8px 0}
 .cover[hidden]{display:none}
