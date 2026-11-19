@@ -28,8 +28,21 @@ async def set_pulse(hass, entity_id: str, value: float) -> None:
     await hass.async_block_till_done()
 
 
+SEEN_VIEWERS: list[list[dict]] = []
+
+
+async def recv(ws) -> dict:
+    """The next message, skipping the viewer lists every open card is sent."""
+    while True:
+        msg = await ws.receive_json()
+        if msg.get("type") == "event" and set(msg["event"]) == {"viewers"}:
+            SEEN_VIEWERS.append(msg["event"]["viewers"])
+            continue
+        return msg
+
+
 async def next_event(ws) -> dict:
-    msg = await ws.receive_json()
+    msg = await recv(ws)
     assert msg["type"] == "event", msg
     return msg["event"]
 
@@ -46,16 +59,18 @@ async def test_others_see_held_states_and_the_owner_sees_them_live(
         owner = await hass_ws_client(hass, hass_access_token)
         other = await hass_ws_client(hass, hass_read_only_access_token)
         await owner.send_json({"id": 1, "type": "ogg/private/subscribe"})
-        assert (await owner.receive_json())["success"]
+        assert (await recv(owner))["success"]
         assert await next_event(owner) == {"on": False, "mine": False, "since": None}
         await other.send_json({"id": 1, "type": "ogg/private/subscribe"})
-        assert (await other.receive_json())["success"]
+        assert (await recv(other))["success"]
         await next_event(other)
+        # Both people are counted as viewing.
+        assert any(len(v) == 2 for v in SEEN_VIEWERS) or len(hass.data["ogg_private"].viewers()) == 2
 
         # The owner turns it on: every session hears; only theirs get states.
         await owner.send_json({"id": 2, "type": "ogg/private/set", "on": True})
         first = await next_event(owner)
-        result = await owner.receive_json()
+        result = await recv(owner)
         assert result["success"] and result["result"] == {"on": True}
         assert first["on"] and first["mine"]
         assert first["states"][pulse]["state"] == "2.0"
@@ -70,15 +85,15 @@ async def test_others_see_held_states_and_the_owner_sees_them_live(
 
         # Someone else can neither take it over nor turn it off.
         await other.send_json({"id": 2, "type": "ogg/private/set", "on": True})
-        assert (await other.receive_json())["error"]["code"] == "in_use"
+        assert (await recv(other))["error"]["code"] == "in_use"
         await other.send_json({"id": 3, "type": "ogg/private/set", "on": False})
-        assert (await other.receive_json())["error"]["code"] == "not_yours"
+        assert (await recv(other))["error"]["code"] == "not_yours"
         assert hass.states.get(pulse).state == "2.0"
 
         # Off: everyone sees the live state again.
         await owner.send_json({"id": 3, "type": "ogg/private/set", "on": False})
         await next_event(owner)
-        assert (await owner.receive_json())["result"] == {"on": False}
+        assert (await recv(owner))["result"] == {"on": False}
         assert hass.states.get(pulse).state == "7.0"
     finally:
         assert await hass.config_entries.async_unload(entry.entry_id)
@@ -92,11 +107,11 @@ async def test_a_second_session_of_the_owner_gets_the_live_states(
         pulse = pulse_entity(hass, entry)
         laptop = await hass_ws_client(hass, hass_access_token)
         await laptop.send_json({"id": 1, "type": "ogg/private/set", "on": True})
-        assert (await laptop.receive_json())["success"]
+        assert (await recv(laptop))["success"]
         await set_pulse(hass, pulse, 9.0)
         phone = await hass_ws_client(hass, hass_access_token)
         await phone.send_json({"id": 1, "type": "ogg/private/subscribe"})
-        assert (await phone.receive_json())["success"]
+        assert (await recv(phone))["success"]
         event = await next_event(phone)
         assert event["mine"] and event["states"][pulse]["state"] == "9.0"
         assert hass.states.get(pulse).state != "9.0"
