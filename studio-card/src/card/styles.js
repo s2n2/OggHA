@@ -358,6 +358,15 @@ ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d
 .outrow .outm{grid-column:3/5;grid-row:2;min-height:34px;font-size:12px;font-weight:600;color:#c5d2f0}
 .outrow .outai,.outrow .outtake{grid-column:3/5}
 .outrow + .outrow{margin-top:6px;padding-top:8px;border-top:1px solid rgba(174,194,246,.08)}
+.tgctl{display:flex;flex-direction:column;gap:8px;margin:10px 0 4px;padding:10px 12px;border:1px solid rgba(143,125,255,.3);border-radius:14px;background:rgba(143,125,255,.07)}
+.tgctl[hidden],#tgcv[hidden],#tgcs[hidden]{display:none}
+.tgctlh{font-size:12.5px;font-weight:800;color:#d5dcf7}
+.tgctlh span{font-weight:650;color:var(--muted)}
+#tgcs{display:flex;flex-direction:column;gap:8px}
+.tgsl{display:flex;align-items:center;gap:8px}
+.tgsl span{flex:0 0 64px;font-size:12px;color:var(--muted)}
+.tgsl input{flex:1;min-width:0}
+.tgsl b{flex:0 0 42px;text-align:right;font-size:12.5px}
 .tgtoys{display:flex;flex-direction:column;gap:6px;margin:10px 0 4px}
 .tgrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .tglab{flex:0 0 78px;font-size:11px;font-weight:700;color:#99a9c5}

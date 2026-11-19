@@ -28,7 +28,13 @@ let sent = '';
 let sentAt = 0;
 let incoming = 0;
 let lastIn = 0;
-let tapAt = 0;
+let ctl = 'vibe';              // the manual control: vibe pad or stroker
+let ctlPicked = false;         // picked by hand (else it follows the host's toys)
+let hostKinds = [];            // what kinds of toys I play (from the host)
+let spos = 50;                 // the stroker position (0-100)
+let stroke = null;             // auto stroke: { dir }
+let spring = false;            // drop to 0 when let go
+try { spring = localStorage.getItem('ogg_together_spring') === '1'; } catch (_) { /* private browsing */ }
 let offer = [];                // toys the host offers
 let mine = new Set();          // the ones picked as mine
 let allow = true;              // may my partner play my toys?
@@ -42,6 +48,7 @@ const send = (data) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(d
 // ---------------------------------------------------------- the levels
 function levels(dtMs) {
   if (tab !== 'manual') { const q = queueLevels(); if (q) return q; }
+  if (tab === 'manual' && ctl === 'stroke') return [Math.round(spos)];
   if (tab === 'manual' || (!pt && !mood)) return [Math.round(level)];
   if (pt) {
     const speed = Number($('ptspeed').value);
@@ -77,6 +84,17 @@ function show() {
   for (const t of ['manual', 'pattern', 'mood', 'queue']) $(`t-${t}`).hidden = t !== tab;
   $('fill').style.height = `${level}%`;
   $('pct').textContent = `${Math.round(level)}%`;
+  $('vibepane').hidden = ctl !== 'vibe';
+  $('strokepane').hidden = ctl !== 'stroke';
+  for (const b of document.querySelectorAll('#ctlsw button')) b.classList.toggle('on', b.dataset.ctl === ctl);
+  $('ctlinfo').textContent = hostKinds.includes('stroke') ? (hostKinds.length > 1 ? 'Their toys: a stroker and a vibrator' : 'Their toy is a stroker') : hostKinds.length ? 'Their toys vibrate' : '';
+  $('sdot').style.bottom = `${spos}%`;
+  $('spct').textContent = `${Math.round(spos)}%`;
+  $('sspeedv').textContent = `${$('sspeed').value}%`;
+  $('slenv').textContent = `${$('slen').value}%`;
+  $('sgo').textContent = stroke ? '■ Stop stroking' : '▶ Stroke';
+  $('sgo').classList.toggle('on', Boolean(stroke));
+  $('spring').checked = spring;
   const random = pt ? Boolean(pt.prog) : $('ptsel').value === PATTERN_RANDOM;
   $('speedlab').textContent = random ? 'How busy' : 'Speed';
   $('ptspeedv').textContent = random ? `${$('ptspeed').value}%` : `${patternPeriod(Number($('ptspeed').value)).toFixed(1)} s`;
@@ -112,7 +130,7 @@ function show() {
 }
 
 function stopAll(tell) {
-  level = 0; pt = null; mood = null; incoming = 0;
+  level = 0; pt = null; mood = null; incoming = 0; stroke = null;
   queueStop();
   $('in').style.width = '0';
   if ($('buzz').checked && navigator.vibrate) navigator.vibrate(0);
@@ -135,6 +153,12 @@ function connect() {
     if (Array.isArray(data.devices)) { offer = data.devices; mine = new Set([...mine].filter((k) => offer.some((d) => d.k === k))); show(); }
     if (typeof data.rec === 'boolean') $('recnote').hidden = !data.rec;
     if (typeof data.sync === 'boolean') { sync = data.sync; show(); }
+    if (Array.isArray(data.kinds)) {
+      hostKinds = data.kinds;
+      // A stroker alone: its control; otherwise the vibe pad (unless picked by hand).
+      if (!ctlPicked) ctl = hostKinds.includes('stroke') && !hostKinds.some((k) => k !== 'stroke') ? 'stroke' : 'vibe';
+      show();
+    }
   };
   ws.onclose = () => {
     ws = null;
@@ -165,14 +189,31 @@ $('sync').addEventListener('change', () => { sync = $('sync').checked; send({ sy
 for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => { tab = b.dataset.tab; if (tab === 'queue') queueRefresh(); show(); });
 const pad = $('pad');
 const at = (e) => { const r = pad.getBoundingClientRect(); level = Math.min(100, Math.max(0, (r.bottom - e.clientY) / r.height * 100)); show(); };
-pad.addEventListener('pointerdown', (e) => {
-  pad.setPointerCapture(e.pointerId);
-  const now = Date.now();
-  if (now - tapAt < 300) { level = 0; tapAt = 0; show(); return; }
-  tapAt = now;
-  at(e);
-});
+pad.addEventListener('pointerdown', (e) => { pad.setPointerCapture(e.pointerId); at(e); });
 pad.addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType === 'touch') at(e); });
+// Drop to 0: the pad springs back to zero when it is let go.
+const letGo = () => { if (spring) { level = 0; show(); } };
+pad.addEventListener('pointerup', letGo);
+pad.addEventListener('pointercancel', letGo);
+$('spring').addEventListener('change', () => {
+  spring = $('spring').checked;
+  try { localStorage.setItem('ogg_together_spring', spring ? '1' : '0'); } catch (_) { /* private browsing */ }
+});
+// Vibe or stroke, by hand.
+$('ctlsw').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-ctl]');
+  if (!b) return;
+  ctlPicked = true;
+  if (b.dataset.ctl !== ctl) { level = 0; stroke = null; ctl = b.dataset.ctl; }
+  show();
+});
+// The stroker: drag to move it, or ▶ Stroke to go up and down.
+const spad = $('spad');
+const sat = (e) => { const r = spad.getBoundingClientRect(); stroke = null; spos = Math.min(100, Math.max(0, (r.bottom - e.clientY) / r.height * 100)); show(); };
+spad.addEventListener('pointerdown', (e) => { spad.setPointerCapture(e.pointerId); sat(e); });
+spad.addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType === 'touch') sat(e); });
+$('sgo').addEventListener('click', () => { stroke = stroke ? null : { dir: spos < 50 ? 1 : -1 }; show(); });
+for (const id of ['sspeed', 'slen']) $(id).addEventListener('input', show);
 
 const group = (label, entries) => { const g = document.createElement('optgroup'); g.label = label; g.append(...entries.map(([k, t]) => new Option(t, k))); return g; };
 $('ptsel').replaceChildren(new Option('🎲 Random', PATTERN_RANDOM), group('Patterns', Object.entries(PATTERNS)), group('Two motors', Object.entries(PATTERNS_DUAL)));
@@ -202,6 +243,15 @@ $('stop').addEventListener('click', () => { stopAll(true); state('Stopped', fals
 let last = performance.now();
 setInterval(() => {
   const now = performance.now();
+  if (stroke) {
+    // Up and down over the length (centred), at the speed (100% = 400 %/s).
+    const len = Number($('slen').value);
+    const lo = 50 - len / 2, hi = 50 + len / 2;
+    spos += stroke.dir * Number($('sspeed').value) / 100 * 0.4 * (now - last);
+    if (spos >= hi) { spos = hi; stroke.dir = -1; } else if (spos <= lo) { spos = lo; stroke.dir = 1; }
+    $('sdot').style.bottom = `${spos}%`;
+    $('spct').textContent = `${Math.round(spos)}%`;
+  }
   const v = levels(now - last);
   last = now;
   const key = v.join(',');

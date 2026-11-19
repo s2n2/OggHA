@@ -1678,6 +1678,15 @@ ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d
 .outrow .outm{grid-column:3/5;grid-row:2;min-height:34px;font-size:12px;font-weight:600;color:#c5d2f0}
 .outrow .outai,.outrow .outtake{grid-column:3/5}
 .outrow + .outrow{margin-top:6px;padding-top:8px;border-top:1px solid rgba(174,194,246,.08)}
+.tgctl{display:flex;flex-direction:column;gap:8px;margin:10px 0 4px;padding:10px 12px;border:1px solid rgba(143,125,255,.3);border-radius:14px;background:rgba(143,125,255,.07)}
+.tgctl[hidden],#tgcv[hidden],#tgcs[hidden]{display:none}
+.tgctlh{font-size:12.5px;font-weight:800;color:#d5dcf7}
+.tgctlh span{font-weight:650;color:var(--muted)}
+#tgcs{display:flex;flex-direction:column;gap:8px}
+.tgsl{display:flex;align-items:center;gap:8px}
+.tgsl span{flex:0 0 64px;font-size:12px;color:var(--muted)}
+.tgsl input{flex:1;min-width:0}
+.tgsl b{flex:0 0 42px;text-align:right;font-size:12.5px}
 .tgtoys{display:flex;flex-direction:column;gap:6px;margin:10px 0 4px}
 .tgrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .tglab{flex:0 0 78px;font-size:11px;font-weight:700;color:#99a9c5}
@@ -1996,6 +2005,12 @@ ${STYLES}
                 <label class="check"><input id="tgaccept" type="checkbox"> Let my partner control my devices</label>
                 <label>From my partner</label><div class="meter"><i id="tgin"></i></div>
                 <div id="tgtoys" class="tgtoys"></div>
+                <div id="tgctl" class="tgctl" hidden><div class="tgctlh">Their toys <span id="tgctlname"></span></div>
+                  <div id="tgcv" class="tgsl"><span>Level</span><input id="tgclevel" type="range" min="0" max="100" step="1" value="0" aria-label="Their toys' level"><b id="tgclevelv">0%</b></div>
+                  <div id="tgcs"><div class="tgsl"><span>Position</span><input id="tgcpos" type="range" min="0" max="100" step="1" value="50" aria-label="Their stroker's position"><b id="tgcposv">50%</b></div>
+                    <div class="tgsl"><span>Speed</span><input id="tgcspeed" type="range" min="5" max="100" step="1" value="40" aria-label="Stroke speed"><b id="tgcspeedv">40%</b></div>
+                    <button id="tgcgo" type="button">▶ Stroke</button></div>
+                </div>
                 <div class="row tgopts"><label class="check"><input id="tgsync" type="checkbox"> ⇄ Sync both</label><button id="tgrec" type="button" class="rec">● Record partner</button></div>
                 <div id="tgsendbox"><label>To my partner <b id="tgsendv">0%</b></label><input id="tgsend" type="range" min="0" max="100" step="1" value="0"></div>
                 <div class="row" style="margin-top:8px"><button id="tgstop" type="button" class="stop">■ Stop both</button><button id="tgend" type="button">End session</button></div>
@@ -4988,7 +5003,7 @@ ${STYLES}
     }
     // Send output values (0-100; a stroker may get {goal, dur}) to the devices.
     // `path` 'partner': what a Together partner sends, for my own toys.
-    _outApply(values, seconds, path) {
+    _outApply(values, seconds, path, only) {
       if (!this._hass || !this._outs) return;
       if (this._so && path !== "partner") return;
       const now = performance.now();
@@ -4997,7 +5012,9 @@ ${STYLES}
       values = values.map((v, i) => this._outs[i] && this._outs[i].on === false ? null : v);
       const tg = this._tg;
       const partner = tg && tg.joined && tg.partnerAllow !== false && tg.partner && tg.partner.length ? tg.partner : null;
-      if (partner) {
+      if (only) {
+        targets = only.slice();
+      } else if (partner) {
         const pv = partner.map((t, j) => {
           const v = values[j % 2];
           return v === void 0 || v === null ? values[0] ?? null : v;
@@ -5009,9 +5026,6 @@ ${STYLES}
         if (tg.sync) {
           targets = [...targets, ...partner];
           values = [...values, ...pv];
-        } else if (path !== "partner") {
-          targets = partner.slice();
-          values = pv;
         }
       } else if (tg && path !== "partner") {
         const first = values.find((v) => v !== null && v !== void 0);
@@ -6729,6 +6743,24 @@ ${STYLES}
         this._tgShow();
       });
       $("tgrec").addEventListener("click", () => this._tgRecToggle());
+      $("tgclevel").addEventListener("input", () => {
+        if (this._tg) this._tg.cv = Number($("tgclevel").value);
+        this._tgCtlShow();
+      });
+      $("tgcpos").addEventListener("input", () => {
+        if (this._tg) {
+          this._tg.cstroke = null;
+          this._tg.cpos = Number($("tgcpos").value);
+        }
+        this._tgCtlShow();
+      });
+      $("tgcspeed").addEventListener("input", () => this._tgCtlShow());
+      $("tgcgo").addEventListener("click", () => {
+        const tg = this._tg;
+        if (!tg) return;
+        tg.cstroke = tg.cstroke ? null : { dir: (tg.cpos ?? 50) < 50 ? 1 : -1 };
+        this._tgCtlShow();
+      });
       this._tgShow();
     }
     _tgNew(role) {
@@ -6922,7 +6954,7 @@ ${STYLES}
         tg.partner = d.mine.map((k) => tg.offer[k]).filter(Boolean).slice(0, 4);
         if (tg.partner.join() !== before) {
           this._outStop();
-          this._toast(tg.partner.length ? "Your partner picked their toys: your controls now play them." : "Your partner put their toys back.");
+          this._toast(tg.partner.length ? 'Your partner picked their toys: play them with "Their toys" under Together.' : "Your partner put their toys back.");
         }
       }
       if (typeof d.sync === "boolean" && d.sync !== tg.sync) {
@@ -6967,6 +6999,13 @@ ${STYLES}
             tg.offer = offer;
             this._tgSend({ devices: items });
           }
+          const kinds = [...new Set((this._outs || []).map((o, i) => this._outDevice(i)).filter(Boolean).map((d) => d.linear && !d.vibe ? "stroke" : "vibe"))].sort();
+          const kkey = kinds.join(",");
+          if (kkey !== tg.kindsKey) {
+            tg.kindsKey = kkey;
+            this._tgSend({ kinds });
+          }
+          this._tgDrive(now);
         }
         const out = this._simple ? Math.round(tg.outLevel || 0) : Number($("tgsend").value) || 0;
         if (out !== tg.lastOut || out > 0 && now - tg.outAt >= 500) {
@@ -7002,10 +7041,53 @@ ${STYLES}
         this._outStop();
       }
     }
+    // Their toys (not with Sync: then my own controls play both).
+    _tgDrive(now) {
+      const tg = this._tg;
+      const partner = tg.partner && tg.partner.length && tg.partnerAllow !== false && !tg.sync ? tg.partner : null;
+      const dt = Math.min(250, now - (tg.cAt || now));
+      tg.cAt = now;
+      if (tg.cstroke) {
+        const v = Number(this._el("tgcspeed").value) / 100 * 0.4;
+        tg.cpos = (tg.cpos ?? 50) + tg.cstroke.dir * v * dt;
+        if (tg.cpos >= 100) {
+          tg.cpos = 100;
+          tg.cstroke.dir = -1;
+        } else if (tg.cpos <= 0) {
+          tg.cpos = 0;
+          tg.cstroke.dir = 1;
+        }
+        this._el("tgcpos").value = String(Math.round(tg.cpos));
+        this._el("tgcposv").textContent = `${Math.round(tg.cpos)}%`;
+      }
+      if (!partner) return;
+      const level = tg.cv || 0;
+      const moved = tg.cpos !== void 0 && tg.cpos !== tg.cSentPos;
+      if (!level && !tg.cLevelOn && !tg.cstroke && !moved) return;
+      tg.cLevelOn = level > 0;
+      tg.cSentPos = tg.cpos;
+      const values = partner.map((t) => t.split("|")[1] === "l" ? tg.cpos === void 0 ? null : { goal: tg.cpos, dur: 150 } : level);
+      this._outApply(values, 0.6, "theirs", partner);
+    }
+    _tgCtlShow() {
+      const tg = this._tg;
+      const $ = this._el;
+      if (!tg || !$) return;
+      $("tgclevelv").textContent = `${tg.cv || 0}%`;
+      $("tgcposv").textContent = `${Math.round(tg.cpos ?? Number($("tgcpos").value))}%`;
+      $("tgcspeedv").textContent = `${$("tgcspeed").value}%`;
+      $("tgcgo").textContent = tg.cstroke ? "■ Stop stroking" : "▶ Stroke";
+      $("tgcgo").className = tg.cstroke ? "stop" : "";
+    }
     // Stop here: nothing in, nothing out. With `tell`, the partner's side stops too.
     _tgStopLocal(tell) {
       const tg = this._tg;
       if (!tg || !this._el) return;
+      tg.cv = 0;
+      tg.cstroke = null;
+      tg.cLevelOn = false;
+      this._el("tgclevel").value = "0";
+      this._tgCtlShow();
       const $ = this._el;
       $("tgaccept").checked = false;
       $("tgsend").value = "0";
@@ -7083,6 +7165,16 @@ ${STYLES}
       $("tgrec").classList.toggle("on", Boolean(tg.rec));
       $("tgrec").disabled = !tg.joined || tg.role !== "host";
       $("tgsendbox").hidden = this._simple;
+      const showCtl = tg.role === "host" && tg.joined && theirs.length > 0 && !tg.sync;
+      $("tgctl").hidden = !showCtl;
+      if (showCtl) {
+        const strokers = theirs.filter((d) => d.linear && !d.vibe);
+        $("tgcv").hidden = strokers.length === theirs.length;
+        $("tgcs").hidden = !strokers.length;
+        const names = theirs.map((d) => esc2(d.name)).join(", ");
+        if ($("tgctlname").textContent !== names) $("tgctlname").textContent = names;
+        this._tgCtlShow();
+      }
     }
   };
 

@@ -102,6 +102,11 @@ def clean_message(data: Any) -> dict[str, Any] | None:
     mine = data.get("mine")
     if isinstance(mine, list) and len(mine) <= MAX_MINE and all(isinstance(k, str) and KEY.fullmatch(k) for k in mine):
         out["mine"] = list(dict.fromkeys(mine))
+    # The host says what kinds of toys the partner plays (their page then
+    # shows a stroker's control for a stroker).
+    kinds = data.get("kinds")
+    if isinstance(kinds, list) and len(kinds) <= len(KINDS) and all(k in KINDS for k in kinds):
+        out["kinds"] = list(dict.fromkeys(kinds))
     for flag in ("sync", "rec", "allow"):
         if isinstance(data.get(flag), bool):
             out[flag] = data[flag]
@@ -396,6 +401,15 @@ button.on{background:linear-gradient(110deg,#31c6b8,#54d4bc);color:#072a2d;borde
 button.on .chip{color:#072a2d;border-color:rgba(7,42,45,.35);background:rgba(255,255,255,.35)}
 #pad{position:relative;height:min(200px,30vh);border-radius:19px;background:#17243e;border:1px solid #364563;touch-action:none;overflow:hidden;user-select:none;-webkit-user-select:none}
 #fill{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(0deg,#31c6b8,#7bccfa)}
+.ctlbar{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ctlbar .muted{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctlsw{display:flex;border:1px solid #3a4a6c;border-radius:999px;overflow:hidden;flex:0 0 auto}
+.ctlsw button{min-height:30px;border:0;border-radius:0;background:transparent;color:#99a9c5;font-size:12px;padding:0 11px}
+.ctlsw button.on{background:#24395a;color:#bef2ff}
+.sw{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700}
+#spad{position:relative;height:min(200px,30vh);border-radius:19px;background:#17243e;border:1px solid #364563;touch-action:none;overflow:hidden;user-select:none;-webkit-user-select:none}
+#sdot{position:absolute;left:16px;right:16px;height:14px;margin-bottom:-7px;bottom:50%;border-radius:9px;background:linear-gradient(90deg,#ff8fc0,#ffcf8a);box-shadow:0 0 14px rgba(255,160,170,.55)}
+#spct{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;padding-bottom:14px;font-size:34px;font-weight:800;pointer-events:none}
 #pct{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;padding-bottom:14px;font-size:34px;font-weight:800;pointer-events:none}
 .row{display:flex;gap:8px;align-items:center}
 .row > *{flex:1}
@@ -465,7 +479,15 @@ button.on .chip{color:#072a2d;border-color:rgba(7,42,45,.35);background:rgba(255
 </section>
 <section><h2 id="ctlh">Your partner's toys</h2>
   <div class="tabs"><button data-tab="manual" class="on">✋ Manual</button><button data-tab="pattern">〰 Pattern</button><button data-tab="mood">◎ Mood</button><button data-tab="queue">📋 Queue</button></div>
-  <div id="t-manual"><div id="pad"><div id="fill"></div><div id="pct">0%</div></div><div class="muted" style="margin-top:6px">Slide up and down. Double-tap to drop to zero.</div></div>
+  <div id="t-manual">
+    <div class="ctlbar"><span class="muted" id="ctlinfo"></span><div class="ctlsw" id="ctlsw"><button data-ctl="vibe" class="on">〰 Vibe</button><button data-ctl="stroke">↕ Stroke</button></div></div>
+    <div id="vibepane"><div id="pad"><div id="fill"></div><div id="pct">0%</div></div><label class="sw" style="margin-top:8px"><input type="checkbox" id="spring"> Drop to 0 when I let go</label></div>
+    <div id="strokepane" hidden><div id="spad"><div id="sdot"></div><div id="spct">50%</div></div>
+      <div class="slider"><label>Speed</label><input id="sspeed" type="range" min="5" max="100" step="1" value="40"><b id="sspeedv"></b></div>
+      <div class="slider"><label>Length</label><input id="slen" type="range" min="10" max="100" step="5" value="100"><b id="slenv"></b></div>
+      <button id="sgo" style="width:100%;margin-top:8px">▶ Stroke</button>
+      <div class="muted" style="margin-top:6px">Drag to move their stroker, or ▶ Stroke to go up and down.</div></div>
+  </div>
   <div id="t-pattern" hidden><div class="row"><select id="ptsel"></select><button id="ptgo" style="flex:0 0 96px">▶ Play</button></div>
     <div class="slider"><label id="speedlab">Speed</label><input id="ptspeed" type="range" min="0" max="100" step="5" value="50"><b id="ptspeedv"></b></div>
     <div class="slider"><label>Strength</label><input id="ptstr" type="range" min="20" max="100" step="5" value="100"><b id="ptstrv"></b></div></div>

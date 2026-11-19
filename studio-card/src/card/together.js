@@ -25,6 +25,11 @@ export class TogetherPart {
     $('tgend').addEventListener('click', () => this._tgEnd());
     $('tgsync').addEventListener('change', () => { if (this._tg) { this._tg.sync = $('tgsync').checked; this._tgSend({ sync: this._tg.sync }); } this._tgShow(); });
     $('tgrec').addEventListener('click', () => this._tgRecToggle());
+    // Their toys: a level for a vibrator, a position (or a stroke) for a stroker.
+    $('tgclevel').addEventListener('input', () => { if (this._tg) this._tg.cv = Number($('tgclevel').value); this._tgCtlShow(); });
+    $('tgcpos').addEventListener('input', () => { if (this._tg) { this._tg.cstroke = null; this._tg.cpos = Number($('tgcpos').value); } this._tgCtlShow(); });
+    $('tgcspeed').addEventListener('input', () => this._tgCtlShow());
+    $('tgcgo').addEventListener('click', () => { const tg = this._tg; if (!tg) return; tg.cstroke = tg.cstroke ? null : { dir: (tg.cpos ?? 50) < 50 ? 1 : -1 }; this._tgCtlShow(); });
     this._tgShow();
   }
 
@@ -164,7 +169,7 @@ export class TogetherPart {
       // The toys my partner says are theirs (from those I offered).
       const before = tg.partner.join();
       tg.partner = d.mine.map((k) => tg.offer[k]).filter(Boolean).slice(0, 4);
-      if (tg.partner.join() !== before) { this._outStop(); this._toast(tg.partner.length ? 'Your partner picked their toys: your controls now play them.' : 'Your partner put their toys back.'); }
+      if (tg.partner.join() !== before) { this._outStop(); this._toast(tg.partner.length ? 'Your partner picked their toys: play them with "Their toys" under Together.' : 'Your partner put their toys back.'); }
     }
     if (typeof d.sync === 'boolean' && d.sync !== tg.sync) {
       // Either of us may switch Sync: both screens show the same.
@@ -195,6 +200,11 @@ export class TogetherPart {
         const { offer, items } = this._tgOffer();
         const key = JSON.stringify(items);
         if (key !== tg.offerKey) { tg.offerKey = key; tg.offer = offer; this._tgSend({ devices: items }); }
+        // What kinds of toys my partner plays (mine): their page shows a stroker's control for a stroker.
+        const kinds = [...new Set((this._outs || []).map((o, i) => this._outDevice(i)).filter(Boolean).map((d) => (d.linear && !d.vibe ? 'stroke' : 'vibe')))].sort();
+        const kkey = kinds.join(',');
+        if (kkey !== tg.kindsKey) { tg.kindsKey = kkey; this._tgSend({ kinds }); }
+        this._tgDrive(now);
       }
       // What my partner feels: my controls' level (the Play card), or the slider.
       const out = this._simple ? Math.round(tg.outLevel || 0) : (Number($('tgsend').value) || 0);
@@ -226,10 +236,47 @@ export class TogetherPart {
     }
   }
 
+  // Their toys (not with Sync: then my own controls play both).
+  _tgDrive(now) {
+    const tg = this._tg;
+    const partner = tg.partner && tg.partner.length && tg.partnerAllow !== false && !tg.sync ? tg.partner : null;
+    const dt = Math.min(250, now - (tg.cAt || now));
+    tg.cAt = now;
+    if (tg.cstroke) {
+      const v = Number(this._el('tgcspeed').value) / 100 * 0.4;      // 100% = 400 %/s
+      tg.cpos = (tg.cpos ?? 50) + tg.cstroke.dir * v * dt;
+      if (tg.cpos >= 100) { tg.cpos = 100; tg.cstroke.dir = -1; } else if (tg.cpos <= 0) { tg.cpos = 0; tg.cstroke.dir = 1; }
+      this._el('tgcpos').value = String(Math.round(tg.cpos));
+      this._el('tgcposv').textContent = `${Math.round(tg.cpos)}%`;
+    }
+    if (!partner) return;
+    const level = tg.cv || 0;
+    const moved = tg.cpos !== undefined && tg.cpos !== tg.cSentPos;
+    if (!level && !tg.cLevelOn && !tg.cstroke && !moved) return;
+    tg.cLevelOn = level > 0;
+    tg.cSentPos = tg.cpos;
+    const values = partner.map((t) => (t.split('|')[1] === 'l' ? (tg.cpos === undefined ? null : { goal: tg.cpos, dur: 150 }) : level));
+    this._outApply(values, 0.6, 'theirs', partner);
+  }
+
+  _tgCtlShow() {
+    const tg = this._tg;
+    const $ = this._el;
+    if (!tg || !$) return;
+    $('tgclevelv').textContent = `${tg.cv || 0}%`;
+    $('tgcposv').textContent = `${Math.round(tg.cpos ?? Number($('tgcpos').value))}%`;
+    $('tgcspeedv').textContent = `${$('tgcspeed').value}%`;
+    $('tgcgo').textContent = tg.cstroke ? '■ Stop stroking' : '▶ Stroke';
+    $('tgcgo').className = tg.cstroke ? 'stop' : '';
+  }
+
   // Stop here: nothing in, nothing out. With `tell`, the partner's side stops too.
   _tgStopLocal(tell) {
     const tg = this._tg;
     if (!tg || !this._el) return;
+    tg.cv = 0; tg.cstroke = null; tg.cLevelOn = false;
+    this._el('tgclevel').value = '0';
+    this._tgCtlShow();
     const $ = this._el;
     $('tgaccept').checked = false;
     $('tgsend').value = '0';
@@ -295,5 +342,16 @@ export class TogetherPart {
     $('tgrec').classList.toggle('on', Boolean(tg.rec));
     $('tgrec').disabled = !tg.joined || tg.role !== 'host';
     $('tgsendbox').hidden = this._simple;
+    // Their toys: shown once they have picked theirs (and Sync is off).
+    const showCtl = tg.role === 'host' && tg.joined && theirs.length > 0 && !tg.sync;
+    $('tgctl').hidden = !showCtl;
+    if (showCtl) {
+      const strokers = theirs.filter((d) => d.linear && !d.vibe);
+      $('tgcv').hidden = strokers.length === theirs.length;
+      $('tgcs').hidden = !strokers.length;
+      const names = theirs.map((d) => esc(d.name)).join(', ');
+      if ($('tgctlname').textContent !== names) $('tgctlname').textContent = names;
+      this._tgCtlShow();
+    }
   }
 }

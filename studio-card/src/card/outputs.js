@@ -170,7 +170,7 @@ export class OutputsPart {
 
   // Send output values (0-100; a stroker may get {goal, dur}) to the devices.
   // `path` 'partner': what a Together partner sends, for my own toys.
-  _outApply(values, seconds, path) {
+  _outApply(values, seconds, path, only) {
     if (!this._hass || !this._outs) return;
     if (this._so && path !== 'partner') return;      // screen off: Ogg plays it (screenoff.js)
     const now = performance.now();
@@ -181,14 +181,18 @@ export class OutputsPart {
     // what they send plays mine; with Sync, both play both.
     const tg = this._tg;
     const partner = tg && tg.joined && tg.partnerAllow !== false && tg.partner && tg.partner.length ? tg.partner : null;
-    if (partner) {
+    if (only) {
+      // Together's "Their toys" control: just those toys.
+      targets = only.slice();
+    } else if (partner) {
       const pv = partner.map((t, j) => { const v = values[j % 2]; return v === undefined || v === null ? (values[0] ?? null) : v; });
       if (path !== 'partner') {
         const first = pv.find((v) => v !== null && v !== undefined);
         tg.outLevel = typeof first === 'object' && first ? first.goal : (first || 0);
       }
+      // With Sync, my controls play both; without it, my controls stay on my
+      // toys and Together's "Their toys" control plays theirs.
       if (tg.sync) { targets = [...targets, ...partner]; values = [...values, ...pv]; }
-      else if (path !== 'partner') { targets = partner.slice(); values = pv; }
     } else if (tg && path !== 'partner') {
       const first = values.find((v) => v !== null && v !== undefined);
       tg.outLevel = typeof first === 'object' && first ? first.goal : (first || 0);

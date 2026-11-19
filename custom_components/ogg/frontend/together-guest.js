@@ -79,7 +79,7 @@
   };
 
   // studio-card/src/lib/moods.js
-  function moodTrack(start2, stroke) {
+  function moodTrack(start2, stroke2) {
     const a = [{ at: 0, pos: start2 }];
     let t = 0, v = start2;
     const b = {
@@ -91,7 +91,7 @@
       },
       to(p, ms) {
         p = clampN(Math.round(p), 0, 100);
-        if (stroke) ms = Math.max(ms, Math.abs(p - v) / (STROKE_TOP / 1e3));
+        if (stroke2) ms = Math.max(ms, Math.abs(p - v) / (STROKE_TOP / 1e3));
         t += Math.max(1, Math.round(ms));
         v = p;
         a.push({ at: t, pos: p });
@@ -742,7 +742,7 @@
     const mood2 = MOODS[key];
     if (!mood2) throw new Error("Unknown mood");
     const r = aiRandom(seed), k = clamp(strength) / 100;
-    const stroke = [], a = [], b = [];
+    const stroke2 = [], a = [], b = [];
     let at2 = 0, last2 = -1, two = false;
     const add2 = (to, track, by) => {
       for (const p of track) {
@@ -760,7 +760,7 @@
       last2 = i;
       const built = buildMood(mood2.combos[i][1], r);
       const len = Math.max(built.stroke[built.stroke.length - 1].at, ...built.vibe.map((v) => v[v.length - 1].at));
-      add2(stroke, built.stroke, at2);
+      add2(stroke2, built.stroke, at2);
       add2(a, built.vibe[0], at2);
       if (built.vibe[1]) two = true;
       add2(b, built.vibe[1] || built.vibe[0], at2);
@@ -768,32 +768,32 @@
     }
     const soft = (track, fn) => track.map((p) => ({ at: p.at, pos: Math.round(clamp(fn(p))) }));
     return {
-      stroke: cut(soft(stroke, (p) => k >= 1 ? p.pos : moodSoften(p.pos, k, p.at)), ms),
+      stroke: cut(soft(stroke2, (p) => k >= 1 ? p.pos : moodSoften(p.pos, k, p.at)), ms),
       a: cut(soft(a, (p) => p.pos * k), ms),
       b: two ? cut(soft(b, (p) => p.pos * k), ms) : null
     };
   }
-  function renderStep(step, stroke, scripts, last2 = 0) {
+  function renderStep(step, stroke2, scripts, last2 = 0) {
     const ms = Math.min(MAX_STEP_MS, Math.max(1e3, Math.round(step.ms || 6e4)));
     if (step.type === "pause") {
-      const hold = stroke ? last2 : 0;
+      const hold = stroke2 ? last2 : 0;
       return { a: [{ at: 0, pos: hold }, { at: ms, pos: hold }], b: null, ms };
     }
     if (step.type === "mood") {
       const m = renderMood(step.key, ms, { strength: step.level ?? 100, seed: step.seed || 1 });
-      return stroke ? { a: m.stroke, b: null, ms } : { a: m.a, b: m.b, ms };
+      return stroke2 ? { a: m.stroke, b: null, ms } : { a: m.a, b: m.b, ms };
     }
     if (step.type === "script") {
       const s = scripts && scripts.get(step.name);
       if (!s) throw new Error(`"${step.name}" is not in the library`);
-      const src = !stroke && isStroke(s) ? runScript(s, "speed") : s;
+      const src = !stroke2 && isStroke(s) ? runScript(s, "speed") : s;
       const second = src.channels && src.channels.V1 && src.channels.V1.actions.length ? src.channels.V1.actions : null;
-      return { a: fill(src.actions, ms), b: !stroke && second ? fill(second, ms) : null, ms };
+      return { a: fill(src.actions, ms), b: !stroke2 && second ? fill(second, ms) : null, ms };
     }
     const p = renderPattern(step.key, ms, { level: step.level ?? 70, speed: step.speed ?? 50, seed: step.seed || 1 });
-    return { a: p.a, b: stroke ? null : p.b, ms };
+    return { a: p.a, b: stroke2 ? null : p.b, ms };
   }
-  function composeScript(steps2, { stroke = false, title = "" } = {}, scripts = /* @__PURE__ */ new Map()) {
+  function composeScript(steps2, { stroke: stroke2 = false, title = "" } = {}, scripts = /* @__PURE__ */ new Map()) {
     if (!steps2.length) throw new Error("Add a step first");
     const A = [], B = [];
     let at2 = 0, two = false;
@@ -809,7 +809,7 @@
     };
     for (const step of steps2) {
       const last2 = A.length ? A[A.length - 1].pos : 50;
-      const out = renderStep(step, stroke, scripts, last2);
+      const out = renderStep(step, stroke2, scripts, last2);
       if (out.b) two = true;
       join(A, out.a, at2);
       join(B, out.b || out.a, at2);
@@ -821,7 +821,7 @@
       inverted: false,
       range: 100,
       actions: A,
-      metadata: { type: stroke ? "stroke" : "vibration", creator: "Ogg Queue", title: title || defaultName(at2), steps: steps2.length }
+      metadata: { type: stroke2 ? "stroke" : "vibration", creator: "Ogg Queue", title: title || defaultName(at2), steps: steps2.length }
     };
     if (two) script.channels = { V1: { actions: B } };
     return script;
@@ -1180,7 +1180,16 @@
   var sentAt = 0;
   var incoming = 0;
   var lastIn = 0;
-  var tapAt = 0;
+  var ctl = "vibe";
+  var ctlPicked = false;
+  var hostKinds = [];
+  var spos = 50;
+  var stroke = null;
+  var spring = false;
+  try {
+    spring = localStorage.getItem("ogg_together_spring") === "1";
+  } catch (_) {
+  }
   var offer = [];
   var mine = /* @__PURE__ */ new Set();
   var allow = true;
@@ -1202,6 +1211,7 @@
       const q = queueLevels();
       if (q) return q;
     }
+    if (tab === "manual" && ctl === "stroke") return [Math.round(spos)];
     if (tab === "manual" || !pt && !mood) return [Math.round(level)];
     if (pt) {
       const speed = Number($2("ptspeed").value);
@@ -1236,6 +1246,17 @@
     for (const t of ["manual", "pattern", "mood", "queue"]) $2(`t-${t}`).hidden = t !== tab;
     $2("fill").style.height = `${level}%`;
     $2("pct").textContent = `${Math.round(level)}%`;
+    $2("vibepane").hidden = ctl !== "vibe";
+    $2("strokepane").hidden = ctl !== "stroke";
+    for (const b of document.querySelectorAll("#ctlsw button")) b.classList.toggle("on", b.dataset.ctl === ctl);
+    $2("ctlinfo").textContent = hostKinds.includes("stroke") ? hostKinds.length > 1 ? "Their toys: a stroker and a vibrator" : "Their toy is a stroker" : hostKinds.length ? "Their toys vibrate" : "";
+    $2("sdot").style.bottom = `${spos}%`;
+    $2("spct").textContent = `${Math.round(spos)}%`;
+    $2("sspeedv").textContent = `${$2("sspeed").value}%`;
+    $2("slenv").textContent = `${$2("slen").value}%`;
+    $2("sgo").textContent = stroke ? "■ Stop stroking" : "▶ Stroke";
+    $2("sgo").classList.toggle("on", Boolean(stroke));
+    $2("spring").checked = spring;
     const random = pt ? Boolean(pt.prog) : $2("ptsel").value === PATTERN_RANDOM;
     $2("speedlab").textContent = random ? "How busy" : "Speed";
     $2("ptspeedv").textContent = random ? `${$2("ptspeed").value}%` : `${patternPeriod(Number($2("ptspeed").value)).toFixed(1)} s`;
@@ -1272,6 +1293,7 @@
     pt = null;
     mood = null;
     incoming = 0;
+    stroke = null;
     queueStop();
     $2("in").style.width = "0";
     if ($2("buzz").checked && navigator.vibrate) navigator.vibrate(0);
@@ -1316,6 +1338,11 @@
       if (typeof data.rec === "boolean") $2("recnote").hidden = !data.rec;
       if (typeof data.sync === "boolean") {
         sync = data.sync;
+        show2();
+      }
+      if (Array.isArray(data.kinds)) {
+        hostKinds = data.kinds;
+        if (!ctlPicked) ctl = hostKinds.includes("stroke") && !hostKinds.some((k) => k !== "stroke") ? "stroke" : "vibe";
         show2();
       }
     };
@@ -1366,19 +1393,56 @@
   };
   pad.addEventListener("pointerdown", (e) => {
     pad.setPointerCapture(e.pointerId);
-    const now2 = Date.now();
-    if (now2 - tapAt < 300) {
-      level = 0;
-      tapAt = 0;
-      show2();
-      return;
-    }
-    tapAt = now2;
     at(e);
   });
   pad.addEventListener("pointermove", (e) => {
     if (e.buttons || e.pointerType === "touch") at(e);
   });
+  var letGo = () => {
+    if (spring) {
+      level = 0;
+      show2();
+    }
+  };
+  pad.addEventListener("pointerup", letGo);
+  pad.addEventListener("pointercancel", letGo);
+  $2("spring").addEventListener("change", () => {
+    spring = $2("spring").checked;
+    try {
+      localStorage.setItem("ogg_together_spring", spring ? "1" : "0");
+    } catch (_) {
+    }
+  });
+  $2("ctlsw").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-ctl]");
+    if (!b) return;
+    ctlPicked = true;
+    if (b.dataset.ctl !== ctl) {
+      level = 0;
+      stroke = null;
+      ctl = b.dataset.ctl;
+    }
+    show2();
+  });
+  var spad = $2("spad");
+  var sat = (e) => {
+    const r = spad.getBoundingClientRect();
+    stroke = null;
+    spos = Math.min(100, Math.max(0, (r.bottom - e.clientY) / r.height * 100));
+    show2();
+  };
+  spad.addEventListener("pointerdown", (e) => {
+    spad.setPointerCapture(e.pointerId);
+    sat(e);
+  });
+  spad.addEventListener("pointermove", (e) => {
+    if (e.buttons || e.pointerType === "touch") sat(e);
+  });
+  $2("sgo").addEventListener("click", () => {
+    stroke = stroke ? null : { dir: spos < 50 ? 1 : -1 };
+    show2();
+  });
+  for (const id of ["sspeed", "slen"]) $2(id).addEventListener("input", show2);
   var group = (label, entries) => {
     const g = document.createElement("optgroup");
     g.label = label;
@@ -1429,6 +1493,20 @@
   var last = performance.now();
   setInterval(() => {
     const now2 = performance.now();
+    if (stroke) {
+      const len = Number($2("slen").value);
+      const lo = 50 - len / 2, hi = 50 + len / 2;
+      spos += stroke.dir * Number($2("sspeed").value) / 100 * 0.4 * (now2 - last);
+      if (spos >= hi) {
+        spos = hi;
+        stroke.dir = -1;
+      } else if (spos <= lo) {
+        spos = lo;
+        stroke.dir = 1;
+      }
+      $2("sdot").style.bottom = `${spos}%`;
+      $2("spct").textContent = `${Math.round(spos)}%`;
+    }
     const v = levels(now2 - last);
     last = now2;
     const key = v.join(",");

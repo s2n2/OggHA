@@ -292,6 +292,12 @@ ${STYLES}
                 <label class="check"><input id="tgaccept" type="checkbox"> Let my partner control my devices</label>
                 <label>From my partner</label><div class="meter"><i id="tgin"></i></div>
                 <div id="tgtoys" class="tgtoys"></div>
+                <div id="tgctl" class="tgctl" hidden><div class="tgctlh">Their toys <span id="tgctlname"></span></div>
+                  <div id="tgcv" class="tgsl"><span>Level</span><input id="tgclevel" type="range" min="0" max="100" step="1" value="0" aria-label="Their toys' level"><b id="tgclevelv">0%</b></div>
+                  <div id="tgcs"><div class="tgsl"><span>Position</span><input id="tgcpos" type="range" min="0" max="100" step="1" value="50" aria-label="Their stroker's position"><b id="tgcposv">50%</b></div>
+                    <div class="tgsl"><span>Speed</span><input id="tgcspeed" type="range" min="5" max="100" step="1" value="40" aria-label="Stroke speed"><b id="tgcspeedv">40%</b></div>
+                    <button id="tgcgo" type="button">▶ Stroke</button></div>
+                </div>
                 <div class="row tgopts"><label class="check"><input id="tgsync" type="checkbox"> ⇄ Sync both</label><button id="tgrec" type="button" class="rec">● Record partner</button></div>
                 <div id="tgsendbox"><label>To my partner <b id="tgsendv">0%</b></label><input id="tgsend" type="range" min="0" max="100" step="1" value="0"></div>
                 <div class="row" style="margin-top:8px"><button id="tgstop" type="button" class="stop">■ Stop both</button><button id="tgend" type="button">End session</button></div>

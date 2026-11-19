@@ -1,3 +1,9 @@
+## 3.12.0 - Together: their toys, strokers and drop to 0
+- Play card, Together: a "Their toys" control plays the toys your partner picked as theirs: a level for a vibrator, a position or ▶ Stroke for a stroker. Your own controls now stay on your own toys (with Sync, they play both, as before).
+- Partner page: a Vibe / Stroke switch on Manual; it picks Stroke by itself when the toys they play are a stroker such as The Handy (drag to move it, or ▶ Stroke with speed and length).
+- Partner page: "Drop to 0 when I let go" replaces double-tap, which did not work on phones.
+- Needs a Home Assistant restart (the partner page and its messages live in Ogg).
+
 ## 3.11.0 - Stroker controls on the Easy card and Control Deck
 - Easy card: Manual has a Vibe / Stroke switch in its corner. Stroke drives a stroker such as The Handy: drag the bar to move it, or ▶ Stroke to go up and down at a speed and length (inside its limits). It starts on Vibe, or on Stroke when only strokers are picked; flip it any time.
 - Record follows the switch, so a stroke can be recorded (and saved as a stroke script) for a partner with only a vibrator here, and the other way round.
