@@ -1,3 +1,8 @@
+## 3.17.0 - Video delay per toy
+- Every toy's ⚙ settings has a Video delay: − / + in 25 ms steps (up to 2 s), tap the number for none.
+- Video sync plays each toy's script at its own time: + later, − earlier, so toys with different lag line up with the video.
+- Kept in Home Assistant with the toy's limits, so every card and phone uses it.
+
 ## 3.16.3 - Easy card tidy-up
 - Easy card: the people count is a small outlined badge again (under "Ogg").
 - Easy card: "Play now" is now "Manual".

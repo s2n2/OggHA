@@ -136,3 +136,15 @@ async def test_a_starter_never_replaces_a_script_of_the_same_name(hass, hass_sto
     await setup_entry(hass)
     assert hass.data[LIBRARY].scripts[name]["script"]["actions"][-1]["at"] == 1000
 
+
+
+def test_limits_keep_a_video_delay():
+    from custom_components.ogg.studio.library import NO_LIMITS, clean_limits
+
+    assert clean_limits({})["delay"] == 0
+    assert clean_limits({"max": 100, "lo": 0, "hi": 100, "speed": 100}) == NO_LIMITS   # older saved limits
+    assert clean_limits({"delay": 175.4})["delay"] == 175
+    assert clean_limits({"delay": -9000})["delay"] == -2000
+    assert clean_limits({"delay": 9000})["delay"] == 2000
+    with pytest.raises(HomeAssistantError):
+        clean_limits({"delay": "soon"})

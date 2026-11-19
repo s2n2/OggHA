@@ -4,7 +4,7 @@
 // every card. Its limits (kept in Home Assistant for every card: nothing goes
 // past them), and on the Play card how it follows and which motor.
 import { esc } from './core.js';
-import { limitsFor, limitsText } from './limits.js';
+import { MAX_DELAY_MS, limitsFor, limitsText } from './limits.js';
 
 const STYLE = `
 .ogg-dset{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(5,9,20,.62);backdrop-filter:blur(3px)}
@@ -30,7 +30,14 @@ const STYLE = `
 .ogg-dset .seg button.on{background:#24395a;color:#bef2ff}
 .ogg-dset .seg button.on.his{background:rgba(70,140,230,.28);color:#cfe3ff}
 .ogg-dset .seg button.on.hers{background:rgba(230,90,160,.26);color:#ffd2ea}
+.ogg-dset .delay{display:grid;grid-template-columns:44px 1fr 44px;gap:8px;align-items:center}
+.ogg-dset .delay button{min-height:38px;border-radius:12px;border:1px solid #364563;background:#17233c;color:#e9ecfb;font:inherit;font-size:18px;font-weight:800;cursor:pointer;touch-action:manipulation}
+.ogg-dset .delay button:active{background:#24395a}
+.ogg-dset .delay output{text-align:center;font-size:15px;font-weight:800;color:#bef2ff;font-variant-numeric:tabular-nums;cursor:pointer}
 `;
+
+const DELAY_STEP = 25;
+const delayText = (ms) => (ms ? `${ms > 0 ? '+' : '−'}${Math.abs(ms)} ms` : 'None');
 
 const ensureStyle = (root) => {
   if (root.querySelector('style[data-ogg-dset]')) return;
@@ -71,6 +78,9 @@ export function openDeviceSettings(root, { hass, dev, allLimits, extra = [], not
     ${extra.length || note ? '<div class="sep"></div>' : ''}
     ${vibe ? slider('max', 'Top intensity', 0) : ''}
     ${dev.linear ? slider('lo', 'Stroke range from', 0) + slider('hi', 'Stroke range to', 0) + slider('speed', 'Top stroke speed', 5) : ''}
+    <div class="sep"></div>
+    <div class="grp"><label>Video delay</label><div class="delay"><button type="button" data-delay="-1" aria-label="Earlier">−</button><output data-delayv title="Tap for none">${delayText(lim.delay)}</output><button type="button" data-delay="1" aria-label="Later">+</button></div>
+    <div class="hint" style="margin-top:2px">Lines this toy up with a video in Video sync: + plays its script later, − earlier (25 ms a tap). Tap the number for none.</div></div>
     <div class="hint">Limits: nothing goes past these, whatever is driving (pads, scripts, moods, audio or a partner). They are kept in Home Assistant for every card.</div>
   </div>`;
   const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); };
@@ -91,6 +101,21 @@ export function openDeviceSettings(root, { hass, dev, allLimits, extra = [], not
       .catch((e) => toast && toast(e.message || String(e)));
   });
   for (const sel of wrap.querySelectorAll('select[data-extra]')) sel.addEventListener('change', () => extra[Number(sel.dataset.extra)].onChange(sel.value));
+  // Saving: the card's own copy at once, Home Assistant a moment later.
+  let saveTimer = null;
+  const save = (what) => {
+    if (onLimits) onLimits(dev.stop, lim);
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => hass.callService('ogg', 'studio_set_limits', { entity_id: dev.stop, ...lim })
+      .then(() => toast && toast(what === 'delay' ? `${dev.name}: video delay ${delayText(lim.delay)}.` : `Limits for ${dev.name}: ${limitsText(lim) || 'none'}.`))
+      .catch((e) => toast && toast('Could not save the settings: ' + (e.message || e))), what === 'delay' ? 600 : 0);
+  };
+  const showDelay = () => { wrap.querySelector('[data-delayv]').textContent = delayText(lim.delay); };
+  for (const b of wrap.querySelectorAll('button[data-delay]')) b.addEventListener('click', () => {
+    lim = { ...lim, delay: Math.max(-MAX_DELAY_MS, Math.min(MAX_DELAY_MS, (lim.delay || 0) + Number(b.dataset.delay) * DELAY_STEP)) };
+    showDelay(); save('delay');
+  });
+  wrap.querySelector('[data-delayv]').addEventListener('click', () => { if (lim.delay) { lim = { ...lim, delay: 0 }; showDelay(); save('delay'); } });
   for (const input of wrap.querySelectorAll('input[data-field]')) {
     input.addEventListener('input', () => { wrap.querySelector(`[data-v="${input.dataset.field}"]`).textContent = `${input.value}%`; });
     input.addEventListener('change', () => {
@@ -103,10 +128,7 @@ export function openDeviceSettings(root, { hass, dev, allLimits, extra = [], not
         const el = wrap.querySelector(`input[data-field="${f}"]`);
         if (el) { el.value = String(lim[f]); wrap.querySelector(`[data-v="${f}"]`).textContent = `${lim[f]}%`; }
       }
-      if (onLimits) onLimits(dev.stop, lim);
-      hass.callService('ogg', 'studio_set_limits', { entity_id: dev.stop, ...lim })
-        .then(() => toast && toast(`Limits for ${dev.name}: ${limitsText(lim) || 'none'}.`))
-        .catch((e) => toast && toast('Could not save the limits: ' + (e.message || e)));
+      save('limits');
     });
   }
   root.appendChild(wrap);

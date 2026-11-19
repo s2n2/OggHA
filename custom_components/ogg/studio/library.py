@@ -23,17 +23,20 @@ CLAIM_SECONDS = 12   # a controller refreshes its claim every few seconds
 MAX_MS = 6 * 60 * 60 * 1000
 MAX_PLAYLISTS = 50
 MAX_PLAYLIST_ITEMS = 200
-NO_LIMITS = {"max": 100, "lo": 0, "hi": 100, "speed": 100}
+NO_LIMITS = {"max": 100, "lo": 0, "hi": 100, "speed": 100, "delay": 0}
+MAX_DELAY_MS = 2000
 
 
 def clean_limits(data: Any) -> dict[str, int]:
-    """Per-device safety limits: top intensity, stroke range and top stroke speed (all %)."""
-    def num(key: str, low: int) -> int:
+    """Per-device settings: top intensity, stroke range and top stroke speed (all %),
+    and a delay (ms, + later / - earlier) that lines the toy up with a video."""
+    def num(key: str, low: int, high: int = 100) -> int:
         value = data.get(key, NO_LIMITS[key]) if isinstance(data, dict) else NO_LIMITS[key]
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
             raise HomeAssistantError(f"Invalid limit: {key}")
-        return int(round(min(100, max(low, value))))
-    limits = {"max": num("max", 0), "lo": num("lo", 0), "hi": num("hi", 0), "speed": num("speed", 5)}
+        return int(round(min(high, max(low, value))))
+    limits = {"max": num("max", 0), "lo": num("lo", 0), "hi": num("hi", 0), "speed": num("speed", 5),
+              "delay": num("delay", -MAX_DELAY_MS, MAX_DELAY_MS)}
     if limits["hi"] - limits["lo"] < 5:
         raise HomeAssistantError("The stroke range must be at least 5% long")
     return limits

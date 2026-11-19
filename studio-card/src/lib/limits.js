@@ -5,7 +5,9 @@
 //   max    top vibration level, % of full power
 //   lo, hi the stroke range a stroker stays inside, %
 //   speed  top stroke speed, % of full speed
-export const NO_LIMITS = { max: 100, lo: 0, hi: 100, speed: 100 };
+//   delay  ms this toy plays a video's script later (+) or earlier (-)
+export const NO_LIMITS = { max: 100, lo: 0, hi: 100, speed: 100, delay: 0 };
+export const MAX_DELAY_MS = 2000;
 export const LIMIT_FULL_SPEED = 400;      // position units per second at 100%
 
 export const limitsFor = (all, stop) => ({ ...NO_LIMITS, ...((all && all[stop]) || {}) });
@@ -33,5 +35,6 @@ export function limitsText(lim) {
   if (lim.max < 100) bits.push(`top ${lim.max}%`);
   if (lim.lo > 0 || lim.hi < 100) bits.push(`range ${lim.lo}-${lim.hi}%`);
   if (lim.speed < 100) bits.push(`speed ${lim.speed}%`);
+  if (lim.delay) bits.push(`delay ${lim.delay > 0 ? '+' : ''}${lim.delay} ms`);
   return bits.join(' · ');
 }

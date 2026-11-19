@@ -3332,6 +3332,12 @@ ${VIEWERS_STYLE}
     get _strokeKindRec() {
       return this._recKind === "stroke";
     }
+    // A toy's own video delay (its settings ⚙): + plays it later, − earlier.
+    _outDelay(i) {
+      const p = parseTarget(this._outTargetValue(i));
+      const dev = p && (this._devices || []).find((d) => d.id === p.id);
+      return dev ? Number(this._limits(dev).delay) || 0 : 0;
+    }
     // The slider has the devices: recording with it, or holding it over a script.
     get _vHeld() {
       return Boolean(this._vrec || this._hbActive || this._tap && this._tap.video && !this._vraw);
@@ -3357,9 +3363,9 @@ ${VIEWERS_STYLE}
           if (!p) return null;
           const cache = this._vconvs || (this._vconvs = {});
           if (p.motor === "l") {
-            return script && this._goalFrom(i, this._vraw, ms, video.playbackRate, cache) || { goal: this._simple ? this._lim(value) : value, dur: 120 };
+            return script && this._goalFrom(i, this._vraw, ms - this._outDelay(i), video.playbackRate, cache) || { goal: this._simple ? this._lim(value) : value, dur: 120 };
           }
-          if (o.m === FOLLOW_AI) return script ? this._mapScript(this._vraw, ms, cache)[i] : this._aiStroke(i, value, this._vVel);
+          if (o.m === FOLLOW_AI) return script ? this._mapScript(this._vraw, ms - this._outDelay(i), cache)[i] : this._aiStroke(i, value, this._vVel);
           if (o.m === FOLLOW_STROKER) return this._simple ? this._lim(value) : value;
           return Math.min(100, Math.max(0, liveIntensity(o.m, value, this._vVel)));
         });
@@ -3383,11 +3389,22 @@ ${VIEWERS_STYLE}
           if (this._vsRange) this._vsRange.pos = vals[0];
         }
         for (const i of [0, 1]) if (!this._padActive || !this._padActive[i]) this._setPad(i, vals[i]);
+        const later = {};
+        const valsAt = (d) => {
+          if (!later[d]) {
+            let v = this._mapScript(this._vraw, ms - d, this._vconvs);
+            if (this._simple) v = v.map((x) => this._vvScale(x));
+            later[d] = v;
+          }
+          return later[d];
+        };
         const out = this._outIdx.map((i) => {
           const p = parseTarget(this._outTargetValue(i));
+          const d = this._vraw ? this._outDelay(i) : 0;
           if (p && p.motor === "l") {
-            return this._vraw && this._goalFrom(i, this._vraw, ms, video.playbackRate, this._vconvs || (this._vconvs = {})) || { goal: this._vals[i % 2], dur: 150 };
+            return this._vraw && this._goalFrom(i, this._vraw, ms - d, video.playbackRate, this._vconvs || (this._vconvs = {})) || { goal: this._vals[i % 2], dur: 150 };
           }
+          if (d && !(this._padActive && this._padActive[i])) return valsAt(d)[i];
           return i < 2 ? this._vals[i] : vals[i];
         });
         this._outApply(out, 0.6);
@@ -4970,7 +4987,8 @@ ${VIEWERS_STYLE}
   };
 
   // studio-card/src/lib/limits.js
-  var NO_LIMITS = { max: 100, lo: 0, hi: 100, speed: 100 };
+  var NO_LIMITS = { max: 100, lo: 0, hi: 100, speed: 100, delay: 0 };
+  var MAX_DELAY_MS = 2e3;
   var LIMIT_FULL_SPEED = 400;
   var limitsFor = (all, stop) => ({ ...NO_LIMITS, ...all && all[stop] || {} });
   var isLimited = (lim) => lim.max < 100 || lim.lo > 0 || lim.hi < 100 || lim.speed < 100;
@@ -4990,6 +5008,7 @@ ${VIEWERS_STYLE}
     if (lim.max < 100) bits.push(`top ${lim.max}%`);
     if (lim.lo > 0 || lim.hi < 100) bits.push(`range ${lim.lo}-${lim.hi}%`);
     if (lim.speed < 100) bits.push(`speed ${lim.speed}%`);
+    if (lim.delay) bits.push(`delay ${lim.delay > 0 ? "+" : ""}${lim.delay} ms`);
     return bits.join(" · ");
   }
 
@@ -5018,7 +5037,13 @@ ${VIEWERS_STYLE}
 .ogg-dset .seg button.on{background:#24395a;color:#bef2ff}
 .ogg-dset .seg button.on.his{background:rgba(70,140,230,.28);color:#cfe3ff}
 .ogg-dset .seg button.on.hers{background:rgba(230,90,160,.26);color:#ffd2ea}
+.ogg-dset .delay{display:grid;grid-template-columns:44px 1fr 44px;gap:8px;align-items:center}
+.ogg-dset .delay button{min-height:38px;border-radius:12px;border:1px solid #364563;background:#17233c;color:#e9ecfb;font:inherit;font-size:18px;font-weight:800;cursor:pointer;touch-action:manipulation}
+.ogg-dset .delay button:active{background:#24395a}
+.ogg-dset .delay output{text-align:center;font-size:15px;font-weight:800;color:#bef2ff;font-variant-numeric:tabular-nums;cursor:pointer}
 `;
+  var DELAY_STEP = 25;
+  var delayText = (ms) => ms ? `${ms > 0 ? "+" : "−"}${Math.abs(ms)} ms` : "None";
   var ensureStyle = (root) => {
     if (root.querySelector("style[data-ogg-dset]")) return;
     const s = document.createElement("style");
@@ -5050,6 +5075,9 @@ ${VIEWERS_STYLE}
     ${extra.length || note ? '<div class="sep"></div>' : ""}
     ${vibe ? slider("max", "Top intensity", 0) : ""}
     ${dev.linear ? slider("lo", "Stroke range from", 0) + slider("hi", "Stroke range to", 0) + slider("speed", "Top stroke speed", 5) : ""}
+    <div class="sep"></div>
+    <div class="grp"><label>Video delay</label><div class="delay"><button type="button" data-delay="-1" aria-label="Earlier">−</button><output data-delayv title="Tap for none">${delayText(lim.delay)}</output><button type="button" data-delay="1" aria-label="Later">+</button></div>
+    <div class="hint" style="margin-top:2px">Lines this toy up with a video in Video sync: + plays its script later, − earlier (25 ms a tap). Tap the number for none.</div></div>
     <div class="hint">Limits: nothing goes past these, whatever is driving (pads, scripts, moods, audio or a partner). They are kept in Home Assistant for every card.</div>
   </div>`;
     const close = () => {
@@ -5079,6 +5107,27 @@ ${VIEWERS_STYLE}
       hass.callService("select", "select_option", { entity_id: dev.owner, option: v }).then(() => toast && toast(`${dev.name}: ${v === "unassigned" ? "unassigned" : v === "his" ? "his" : "hers"}.`)).catch((e) => toast && toast(e.message || String(e)));
     });
     for (const sel of wrap.querySelectorAll("select[data-extra]")) sel.addEventListener("change", () => extra[Number(sel.dataset.extra)].onChange(sel.value));
+    let saveTimer = null;
+    const save = (what) => {
+      if (onLimits) onLimits(dev.stop, lim);
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => hass.callService("ogg", "studio_set_limits", { entity_id: dev.stop, ...lim }).then(() => toast && toast(what === "delay" ? `${dev.name}: video delay ${delayText(lim.delay)}.` : `Limits for ${dev.name}: ${limitsText(lim) || "none"}.`)).catch((e) => toast && toast("Could not save the settings: " + (e.message || e))), what === "delay" ? 600 : 0);
+    };
+    const showDelay = () => {
+      wrap.querySelector("[data-delayv]").textContent = delayText(lim.delay);
+    };
+    for (const b of wrap.querySelectorAll("button[data-delay]")) b.addEventListener("click", () => {
+      lim = { ...lim, delay: Math.max(-MAX_DELAY_MS, Math.min(MAX_DELAY_MS, (lim.delay || 0) + Number(b.dataset.delay) * DELAY_STEP)) };
+      showDelay();
+      save("delay");
+    });
+    wrap.querySelector("[data-delayv]").addEventListener("click", () => {
+      if (lim.delay) {
+        lim = { ...lim, delay: 0 };
+        showDelay();
+        save("delay");
+      }
+    });
     for (const input of wrap.querySelectorAll("input[data-field]")) {
       input.addEventListener("input", () => {
         wrap.querySelector(`[data-v="${input.dataset.field}"]`).textContent = `${input.value}%`;
@@ -5101,8 +5150,7 @@ ${VIEWERS_STYLE}
             wrap.querySelector(`[data-v="${f}"]`).textContent = `${lim[f]}%`;
           }
         }
-        if (onLimits) onLimits(dev.stop, lim);
-        hass.callService("ogg", "studio_set_limits", { entity_id: dev.stop, ...lim }).then(() => toast && toast(`Limits for ${dev.name}: ${limitsText(lim) || "none"}.`)).catch((e) => toast && toast("Could not save the limits: " + (e.message || e)));
+        save("limits");
       });
     }
     root.appendChild(wrap);

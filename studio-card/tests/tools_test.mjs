@@ -6,9 +6,11 @@ const { limitsFor, isLimited, limitLevels, limitMove, limitsText, heatmap, heatC
 
 // ---- limits
 const none = limitsFor({}, 'button.a_stop');
-assert.deepStrictEqual(none, { max: 100, lo: 0, hi: 100, speed: 100 });
+assert.deepStrictEqual(none, { max: 100, lo: 0, hi: 100, speed: 100, delay: 0 });
 assert.strictEqual(isLimited(none), false);
 assert.strictEqual(limitsText(none), '');
+assert.strictEqual(limitsText({ ...none, delay: -75 }), 'delay -75 ms');
+assert.strictEqual(isLimited({ ...none, delay: 200 }), false);   // a delay is not a limit
 const lim = limitsFor({ 'button.a_stop': { max: 60, lo: 20, hi: 80, speed: 50 } }, 'button.a_stop');
 assert.strictEqual(isLimited(lim), true);
 assert.deepStrictEqual(limitLevels(lim, [100, 50, 150, -5]), [60, 30, 60, 0]);

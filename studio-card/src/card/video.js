@@ -126,6 +126,13 @@ export class VideoPart {
 
   get _strokeKindRec() { return this._recKind === 'stroke'; }
 
+  // A toy's own video delay (its settings ⚙): + plays it later, − earlier.
+  _outDelay(i) {
+    const p = parseTarget(this._outTargetValue(i));
+    const dev = p && (this._devices || []).find((d) => d.id === p.id);
+    return dev ? Number(this._limits(dev).delay) || 0 : 0;
+  }
+
   // The slider has the devices: recording with it, or holding it over a script.
   get _vHeld() { return Boolean(this._vrec || this._hbActive || (this._tap && this._tap.video && !this._vraw)); }
 
@@ -149,9 +156,9 @@ export class VideoPart {
         if (!p) return null;
         const cache = this._vconvs || (this._vconvs = {});
         if (p.motor === 'l') {
-          return (script && this._goalFrom(i, this._vraw, ms, video.playbackRate, cache)) || { goal: this._simple ? this._lim(value) : value, dur: 120 };
+          return (script && this._goalFrom(i, this._vraw, ms - this._outDelay(i), video.playbackRate, cache)) || { goal: this._simple ? this._lim(value) : value, dur: 120 };
         }
-        if (o.m === FOLLOW_AI) return script ? this._mapScript(this._vraw, ms, cache)[i] : this._aiStroke(i, value, this._vVel);
+        if (o.m === FOLLOW_AI) return script ? this._mapScript(this._vraw, ms - this._outDelay(i), cache)[i] : this._aiStroke(i, value, this._vVel);
         if (o.m === FOLLOW_STROKER) return this._simple ? this._lim(value) : value;
         return Math.min(100, Math.max(0, liveIntensity(o.m, value, this._vVel)));
       });
@@ -171,11 +178,23 @@ export class VideoPart {
       let vals = this._mapScript(this._vraw || { actions: [] }, ms, this._vconvs || (this._vconvs = {}));
       if (this._simple && this._vraw) { vals = vals.map((v) => this._vvScale(v)); if (this._vsRange) this._vsRange.pos = vals[0]; }
       for (const i of [0, 1]) if (!this._padActive || !this._padActive[i]) this._setPad(i, vals[i]);
+      // A toy with its own delay gets the script at its own time.
+      const later = {};
+      const valsAt = (d) => {
+        if (!later[d]) {
+          let v = this._mapScript(this._vraw, ms - d, this._vconvs);
+          if (this._simple) v = v.map((x) => this._vvScale(x));
+          later[d] = v;
+        }
+        return later[d];
+      };
       const out = this._outIdx.map((i) => {
         const p = parseTarget(this._outTargetValue(i));
+        const d = this._vraw ? this._outDelay(i) : 0;
         if (p && p.motor === 'l') {
-          return (this._vraw && this._goalFrom(i, this._vraw, ms, video.playbackRate, this._vconvs || (this._vconvs = {}))) || { goal: this._vals[i % 2], dur: 150 };
+          return (this._vraw && this._goalFrom(i, this._vraw, ms - d, video.playbackRate, this._vconvs || (this._vconvs = {}))) || { goal: this._vals[i % 2], dur: 150 };
         }
+        if (d && !(this._padActive && this._padActive[i])) return valsAt(d)[i];
         return i < 2 ? this._vals[i] : vals[i];
       });
       this._outApply(out, 0.6);

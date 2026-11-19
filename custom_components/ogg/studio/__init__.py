@@ -59,6 +59,7 @@ LIMITS_SCHEMA = vol.Schema(
         vol.Optional("lo", default=0): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
         vol.Optional("hi", default=100): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
         vol.Optional("speed", default=100): vol.All(vol.Coerce(float), vol.Range(min=5, max=100)),
+        vol.Optional("delay", default=0): vol.All(vol.Coerce(float), vol.Range(min=-2000, max=2000)),
     }
 )
 PLAYLIST_SCHEMA = vol.Schema({vol.Required("name"): cv.string, vol.Required("items"): list,
@@ -103,7 +104,7 @@ async def async_setup_studio(hass: HomeAssistant) -> None:
         return {"stopped": stopped} if call.return_response else None
 
     async def set_limits(call: ServiceCall) -> None:
-        studio_library(hass).set_limits(call.data["entity_id"], {k: call.data[k] for k in ("max", "lo", "hi", "speed")})
+        studio_library(hass).set_limits(call.data["entity_id"], {k: call.data[k] for k in ("max", "lo", "hi", "speed", "delay")})
 
     async def save_playlist(call: ServiceCall) -> ServiceResponse:
         name = studio_library(hass).save_playlist(call.data["name"], call.data["items"], call.data["loop"])
