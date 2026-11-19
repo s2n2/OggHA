@@ -10024,6 +10024,21 @@ button.rec.on{background:linear-gradient(110deg,#ff5c7a,#ff8aa0);color:#2a0710}
 .pad .fill{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(0deg,#2fbfa9,#67e0c8)}
 .pad.b .fill{background:linear-gradient(0deg,#8f7dff,#ff8fc0)}
 .pad .lab{position:absolute;top:10px;left:12px;right:12px;font-size:12px;font-weight:750;color:#e9ecfb;text-shadow:0 1px 4px rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#k-manual{position:relative}
+.ctlsw{position:absolute;top:8px;right:8px;z-index:3;display:flex;border:1px solid #3a4a6c;border-radius:999px;overflow:hidden;background:rgba(14,21,39,.85)}
+.ctlsw button{min-height:0;height:26px;padding:0 10px;border:0;border-radius:0;background:transparent;font-size:11.5px;font-weight:750;color:var(--muted)}
+.ctlsw button.on{background:#22385a;color:#c4f1ff}
+#strokesec .sthead{padding-right:150px;min-height:28px;align-items:center}
+.strokesec{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.sthead{font-size:13px;font-weight:800;color:#d5dcf7;display:flex;gap:6px;align-items:baseline}
+.sthead span{font-weight:650;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.strow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:10px;align-items:stretch}
+.stside{display:flex;flex-direction:column;gap:10px;justify-content:center}
+.stside .sl{flex-direction:column;align-items:stretch;gap:4px}
+.stside .sl span{display:flex;justify-content:space-between}
+.pad.l{background:#141d33}
+.pad.l .fill{background:linear-gradient(0deg,rgba(255,143,192,.18),rgba(255,207,138,.12))}
+.pad.l .dot{position:absolute;left:14px;right:14px;height:14px;margin-bottom:-7px;border-radius:9px;background:linear-gradient(90deg,#ff8fc0,#ffcf8a);box-shadow:0 0 14px rgba(255,160,170,.55);bottom:50%}
 .pad .val{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-size:32px;font-weight:850;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.55);font-variant-numeric:tabular-nums}
 select{width:100%;box-sizing:border-box;background:var(--field);color:var(--ink);border:1px solid var(--edge);border-radius:14px;padding:12px;font:inherit;font-size:15px;font-weight:650}
 .sl{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted)}
@@ -10180,6 +10195,49 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       if (t.length === 1) return { two: Boolean(t[0].dual), map: [{ d: t[0], ch: t[0].dual ? "ab" : "a" }] };
       return { two: t.length > 1, map: t.map((d, i) => ({ d, ch: i % 2 ? "b" : "a" })) };
     }
+    // The sliders' channels: vibrators only (a stroker has its own control).
+    _vibeChannels() {
+      const t = this._targets().filter((d) => d.vibe);
+      if (t.length === 1) return { two: Boolean(t[0].dual), map: [{ d: t[0], ch: t[0].dual ? "ab" : "a" }] };
+      return { two: t.length > 1, map: t.map((d, i) => ({ d, ch: i % 2 ? "b" : "a" })) };
+    }
+    _strokers() {
+      return this._targets().filter((d) => d.linear && !d.vibe);
+    }
+    // One control at a time, with a switch in the corner: vibration by default,
+    // the stroker when only strokers are picked. Picking one by hand keeps it
+    // (until the picked toys change), so a stroke can be recorded for a partner
+    // with only a vibrator here, and the other way round.
+    _showSections(toysChanged) {
+      if (!this._$) return;
+      if (toysChanged) this._ctlPicked = false;
+      if (!this._ctlPicked) {
+        const strokers = this._strokers();
+        const auto = strokers.length && !this._targets().some((d) => d.vibe) ? "stroke" : "vibe";
+        if (auto !== this._ctl) this._setCtl(auto, false);
+      }
+      const ctl = this._ctl || "vibe";
+      this._$("vibesec").hidden = ctl !== "vibe";
+      this._$("strokesec").hidden = ctl !== "stroke";
+      for (const b of this._$("ctlsw").querySelectorAll("button")) b.classList.toggle("on", b.dataset.ctl === ctl);
+      const names = this._strokers().map((d) => d.name);
+      this._$("stnames").textContent = names.length ? names.join(", ") : "no stroker picked: it only records";
+    }
+    _setCtl(ctl, byHand) {
+      if (byHand) this._ctlPicked = true;
+      if (ctl === this._ctl) {
+        this._showSections();
+        return;
+      }
+      if (this._stroke) this._strokeStop(true);
+      if (this._pads.some((v) => v > 0)) {
+        this._pads = [0, 0];
+        this._showPads();
+        this._manual();
+      }
+      this._ctl = ctl;
+      this._showSections();
+    }
     // ------------------------------------------------------------ layout
     _build() {
       this.attachShadow({ mode: "open" });
@@ -10191,7 +10249,22 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       <div class="modes"><button type="button" data-mode="play"><span>▶</span>Play now</button><button type="button" data-mode="queue"><span>📋</span>Queue &amp; replay</button><button type="button" data-mode="other"><span>⋯</span>Other</button></div>
       <div class="panel" id="p-play">
         <div class="kinds"><button type="button" data-kind="manual">✋ Manual</button><button type="button" data-kind="pattern">〰️ Pattern</button><button type="button" data-kind="mood">🎭 Mood</button><button type="button" data-kind="script">📜 Script</button></div>
-        <div id="k-manual" class="panel"><div class="pads" id="pads"></div><label class="sw"><input type="checkbox" id="spring"> Drop to 0 when I let go</label><div class="hint" id="padhint">Slide up and down. Double-tap to drop to zero.</div></div>
+        <div id="k-manual" class="panel">
+          <div class="ctlsw" id="ctlsw" role="group" aria-label="Vibrate or stroke"><button type="button" data-ctl="vibe" title="Vibration sliders">〰️ Vibe</button><button type="button" data-ctl="stroke" title="Stroker control">↕️ Stroke</button></div>
+          <div id="vibesec" class="panel"><div class="pads" id="pads"></div><label class="sw"><input type="checkbox" id="spring"> Drop to 0 when I let go</label><div class="hint" id="padhint">Slide up and down. Double-tap to drop to zero.</div></div>
+          <div id="strokesec" class="strokesec" hidden>
+            <div class="sthead">↕️ Stroker <span id="stnames"></span></div>
+            <div class="strow">
+              <div class="pad l" id="stpad" role="slider" aria-label="Stroker position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" tabindex="0"><div class="fill" id="stfill"></div><div class="dot" id="stdot"></div><div class="lab">Position</div><div class="val" id="stval">50%</div></div>
+              <div class="stside">
+                <label class="sl"><span>Speed <b id="stspeedv"></b></span><input type="range" id="stspeed" min="${STROKE_PCT_MIN}" max="100" step="1"></label>
+                <label class="sl"><span>Length <b id="stlenv"></b></span><input type="range" id="stlen" min="10" max="100" step="5"></label>
+                <button class="go big" id="stgo" type="button">▶ Stroke</button>
+              </div>
+            </div>
+            <div class="hint">Drag the bar to move it, or ▶ Stroke to go up and down at that speed.</div>
+          </div>
+        </div>
         <div id="k-pattern" class="panel">
           <select id="ptsel" aria-label="Pattern">${ptOpts}</select>
           <label class="sl"><span>Strength</span><input type="range" id="ptstr" min="5" max="100" step="5" value="70"><b id="ptstrv">70%</b></label>
@@ -10261,6 +10334,11 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         this._toast("Stopped.");
       });
       this._bindPads();
+      this._bindStroker();
+      $("ctlsw").addEventListener("click", (e) => {
+        const b = e.target.closest("button[data-ctl]");
+        if (b) this._setCtl(b.dataset.ctl, true);
+      });
       this._setMode(this._mode, true);
       this._setKind(this._kind, true);
     }
@@ -10370,10 +10448,11 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       }
       this._$("scren").disabled = !names.length;
       if (this._queueCard) this._queueCard.externalTargets = this._targets().map((d) => d.stop);
-      const key = JSON.stringify(this._channels().map.map((x) => [x.d.stop, x.ch]));
+      const key = JSON.stringify([this._channels().map.map((x) => [x.d.stop, x.ch]), this._strokers().map((d) => d.stop)]);
       if (key !== this._chKey) {
         this._chKey = key;
         this._showPads();
+        this._showSections(true);
         if (this._mode === "other") this._media();
       }
     }
@@ -10424,10 +10503,9 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       this._refresh();
     }
     _showPads() {
-      const { two, map } = this._channels();
-      const label = (ch) => map.filter((x) => x.d.vibe && x.ch.includes(ch)).map((x) => x.ch === "ab" ? `${x.d.name} · motor ${ch === "a" ? 1 : 2}` : x.d.name).join(" + ") || "No vibrator";
-      const strokers = map.filter((x) => !x.d.vibe).map((x) => x.d.name);
-      this._$("padhint").textContent = `Slide up and down. Double-tap to drop to zero.${strokers.length ? ` ${strokers.join(", ")} follow${strokers.length === 1 ? "s" : ""} patterns, moods and scripts.` : ""}`;
+      const { two, map } = this._vibeChannels();
+      const label = (ch) => map.filter((x) => x.ch.includes(ch)).map((x) => x.ch === "ab" ? `${x.d.name} · motor ${ch === "a" ? 1 : 2}` : x.d.name).join(" + ") || "No vibrator";
+      this._$("padhint").textContent = "Slide up and down. Double-tap to drop to zero.";
       const box = this._$("pads");
       box.classList.toggle("two", two);
       box.innerHTML = (two ? ["a", "b"] : ["a"]).map((ch, i) => `<div class="pad ${ch}" data-i="${i}" role="slider" aria-label="${esc(label(ch))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(this._pads[i])}" tabindex="0"><div class="fill" style="height:${this._pads[i]}%"></div><div class="lab">${esc(label(ch))}</div><div class="val">${Math.round(this._pads[i])}%</div></div>`).join("");
@@ -10525,8 +10603,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
     _send() {
       const lim = this._st(this._studio);
       const limits = lim && lim.attributes.limits;
-      for (const { d, ch } of this._channels().map) {
-        if (!d.vibe) continue;
+      for (const { d, ch } of this._vibeChannels().map) {
         const max = limitsFor(limits, d.stop).max / 100;
         const a = this._pads[0], b = this._pads[1] ?? a;
         const levels = ch === "ab" ? [a, b] : ch === "b" ? d.dual ? [b, b] : [b] : d.dual ? [a, a] : [a];
@@ -10537,6 +10614,132 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         clearInterval(this._liveTimer);
         this._liveTimer = null;
       }
+    }
+    // ------------------------------------------------------------ stroker
+    _bindStroker() {
+      const $ = this._$;
+      const kept = keepGet2();
+      this._stPos = 50;
+      $("stspeed").value = String(Number.isFinite(kept.stspeed) ? kept.stspeed : 40);
+      $("stlen").value = String(Number.isFinite(kept.stlen) ? kept.stlen : 100);
+      const showVals = () => {
+        $("stspeedv").textContent = `${$("stspeed").value}%`;
+        $("stlenv").textContent = `${$("stlen").value}%`;
+      };
+      showVals();
+      $("stspeed").addEventListener("input", () => {
+        showVals();
+        keepSet2({ stspeed: Number($("stspeed").value) });
+      });
+      $("stlen").addEventListener("input", () => {
+        showVals();
+        keepSet2({ stlen: Number($("stlen").value) });
+      });
+      $("stgo").addEventListener("click", () => {
+        if (this._stroke) this._strokeStop();
+        else this._strokeStart();
+      });
+      const pad = $("stpad");
+      const set = (e) => {
+        const r = pad.getBoundingClientRect();
+        if (!r.height) return;
+        this._strokeMove(Math.round(Math.min(100, Math.max(0, (r.bottom - e.clientY) / r.height * 100))));
+      };
+      pad.addEventListener("pointerdown", (e) => {
+        try {
+          pad.setPointerCapture(e.pointerId);
+        } catch (_) {
+        }
+        set(e);
+      });
+      pad.addEventListener("pointermove", (e) => {
+        if (e.buttons || e.pointerType === "touch") set(e);
+      });
+      pad.addEventListener("keydown", (e) => {
+        if (!["ArrowUp", "ArrowDown"].includes(e.key)) return;
+        e.preventDefault();
+        this._strokeMove(Math.min(100, Math.max(0, this._stPos + (e.key === "ArrowUp" ? 5 : -5))));
+      });
+      this._strokeShow();
+    }
+    _strokeShow() {
+      const $ = this._$;
+      if (!$) return;
+      const p = Math.round(this._stPos);
+      $("stdot").style.bottom = `${p}%`;
+      $("stfill").style.height = `${p}%`;
+      $("stval").textContent = `${p}%`;
+      $("stpad").setAttribute("aria-valuenow", String(p));
+      $("stgo").textContent = this._stroke ? "■ Stop stroking" : "▶ Stroke";
+      $("stgo").className = this._stroke ? "stop big" : "go big";
+    }
+    // One move to every picked stroker, inside its own limits.
+    _strokeSend(goal, dur) {
+      const lim = this._st(this._studio);
+      const limits = lim && lim.attributes.limits;
+      this._stLast = this._stLast || {};
+      for (const d of this._strokers()) {
+        const m = limitMove(limitsFor(limits, d.stop), { goal, dur }, this._stLast[d.stop] ?? null);
+        this._stLast[d.stop] = m.goal;
+        this._hass.callService("ogg", "linear", { entity_id: d.stop, position: Math.round(m.goal), duration: Math.max(50, Math.round(m.dur)) }, void 0, false).catch(() => {
+        });
+      }
+    }
+    // Dragging the bar: the stroker follows (stroking or a pattern stops).
+    _strokeMove(pos) {
+      if (this._playing) this._halt(true);
+      if (this._stroke) this._strokeStop(true);
+      this._stPos = pos;
+      this._strokeShow();
+      const now = performance.now();
+      if (now - (this._stSentAt || 0) < 80) {
+        clearTimeout(this._stLate);
+        this._stLate = setTimeout(() => {
+          this._stSentAt = performance.now();
+          this._strokeSend(this._stPos, 150);
+        }, 90);
+        return;
+      }
+      this._stSentAt = now;
+      this._strokeSend(pos, 150);
+    }
+    // ▶ Stroke: up and down over the length (centred), at the speed.
+    _strokeStart() {
+      if (this._playing) this._halt(true);
+      this._stroke = { dir: this._stPos < 50 ? 1 : -1, from: this._stPos, goal: this._stPos, t0: performance.now(), dur: 0 };
+      const leg = () => {
+        const s = this._stroke;
+        if (!s) return;
+        const len = Number(this._$("stlen").value);
+        const lo = 50 - len / 2, hi = 50 + len / 2;
+        s.from = this._stPos;
+        s.goal = s.dir > 0 ? hi : lo;
+        s.dir = -s.dir;
+        s.dur = Math.max(80, Math.abs(s.goal - s.from) / strokeVel(Number(this._$("stspeed").value)));
+        s.t0 = performance.now();
+        this._strokeSend(s.goal, s.dur);
+        s.timer = setTimeout(leg, s.dur);
+      };
+      leg();
+      this._stAnim = setInterval(() => {
+        const s = this._stroke;
+        if (!s) return;
+        const k = Math.min(1, (performance.now() - s.t0) / Math.max(1, s.dur));
+        this._stPos = s.from + (s.goal - s.from) * k;
+        this._strokeShow();
+      }, 50);
+      this._strokeShow();
+    }
+    _strokeStop(quiet) {
+      const s = this._stroke;
+      this._stroke = null;
+      if (s) clearTimeout(s.timer);
+      clearInterval(this._stAnim);
+      this._stAnim = null;
+      clearTimeout(this._stLate);
+      if (s && this._hass) this._strokeSend(this._stPos, 200);
+      this._strokeShow();
+      if (s && !quiet) this._toast("Stroking stopped.");
     }
     // ------------------------------------------------------------ patterns, moods, scripts
     _again(kind, fn) {
@@ -10616,6 +10819,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
     _halt(quiet) {
       clearInterval(this._liveTimer);
       this._liveTimer = null;
+      if (this._stroke) this._strokeStop(true);
       const had = this._playing || this._pads.some((v) => v > 0);
       this._playing = null;
       this._pads = [0, 0];
@@ -10653,20 +10857,21 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
           this._showPlay();
           return;
         }
-        const end = (track) => [...track, { at: t, pos: track[track.length - 1].pos }, { at: t + 1, pos: 0 }];
-        this._take = { version: "1.0", inverted: false, range: 100, actions: end(r.a), metadata: { type: "vibration", creator: "Ogg Easy" } };
+        const end = (track) => r.stroke ? [...track, { at: t, pos: track[track.length - 1].pos }] : [...track, { at: t, pos: track[track.length - 1].pos }, { at: t + 1, pos: 0 }];
+        this._take = { version: "1.0", inverted: false, range: 100, actions: end(r.a), metadata: { type: r.stroke ? "stroke" : "vibration", creator: "Ogg Easy" } };
         if (r.two) this._take.channels = { V1: { actions: end(r.b) } };
         this._takeLen = t;
         this._showPlay();
         return;
       }
-      const two = this._channels().two;
-      this._rec = { t0: performance.now(), a: [], b: [], two, last: null };
+      const stroke = this._kind === "manual" && this._ctl === "stroke" && !this._playing;
+      const two = !stroke && this._channels().two;
+      this._rec = { t0: performance.now(), a: [], b: [], two, stroke, last: null };
       this._recTimer = setInterval(() => {
         const r = this._rec;
         if (!r) return;
         const t = Math.round(performance.now() - r.t0);
-        const [a, b] = this._levelsNow();
+        const [a, b] = r.stroke ? [Math.round(this._stPos), 0] : this._levelsNow();
         const key = `${a},${b}`;
         if (key !== r.last) {
           if (r.a.length && r.seen) {

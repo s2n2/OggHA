@@ -1,3 +1,8 @@
+## 3.11.0 - Stroker controls on the Easy card and Control Deck
+- Easy card: Manual has a Vibe / Stroke switch in its corner. Stroke drives a stroker such as The Handy: drag the bar to move it, or ▶ Stroke to go up and down at a speed and length (inside its limits). It starts on Vibe, or on Stroke when only strokers are picked; flip it any time.
+- Record follows the switch, so a stroke can be recorded (and saved as a stroke script) for a partner with only a vibrator here, and the other way round.
+- Control Deck (card v2.5.0): connected strokers are listed, with a position slider and Stop (they were hidden, having no Pulse or Run).
+
 ## 3.10.3 - Manual stroker controls
 - Play card: the manual stroke controls (drag the bar, Fast / Medium / Slow, Latch) move a stroker such as The Handy again. Its hidden "devices follow" switch missed a device being picked, so manual moves were never sent (scripts were unaffected). Now any picked, active device follows.
 

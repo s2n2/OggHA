@@ -253,6 +253,12 @@
     .section-head span{font-size:11px;color:var(--muted);text-align:right}
     .device-list{display:flex;flex-direction:column;gap:10px}
     .device{border:1px solid var(--border);border-radius:19px;padding:14px;background:linear-gradient(145deg,rgba(255,255,255,.056),rgba(255,255,255,.025));transition:border-color .15s ease,background .15s ease}
+    .stroke-row{display:flex;align-items:center;gap:12px;margin-top:12px}
+    .stroke-row[hidden]{display:none}
+    .stroke-row label{font-size:12.5px;font-weight:700;color:var(--muted, #9aa6c8);flex:none}
+    .stroke-row input{flex:1;min-width:0;accent-color:#ff9fb5}
+    .stroke-row b{flex:none;min-width:42px;text-align:right;font-variant-numeric:tabular-nums}
+    .device.stroker [data-role="sparkline"],.device.stroker .config-grid,.device.stroker .run-wrap,.device.stroker [data-role="pulse"],.device.stroker [data-role="hold-row"]{display:none!important}
     .device.running{border-color:rgba(104,227,206,.37);background:linear-gradient(145deg,rgba(52,194,174,.1),rgba(115,107,215,.045))}
     .device-top{display:grid;grid-template-columns:36px minmax(0,1fr);grid-template-rows:auto auto;align-items:start;gap:7px 9px;margin-bottom:12px;min-width:0}
     .device-avatar{grid-column:1;grid-row:1/3}
@@ -460,7 +466,7 @@
           <div class="section-head"><h3>Connected devices</h3><div class="head-right"><div class="filter-chips" role="group" aria-label="Show devices"><button data-filter="all" type="button">All</button><button data-filter="his" type="button">His</button><button data-filter="hers" type="button">Hers</button></div><span id="list-subtitle">Live from Ogg</span></div></div>
           <div id="devices" class="device-list"></div>
           <div id="empty" class="empty">${icon('nodes')}<strong id="empty-title">No connected devices</strong><p id="empty-detail">Devices appear here when Ogg connects to them.</p></div>
-          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v2.4.2</span></div>
+          <div class="foot">${icon('shield')}<span>Connections and commands by IntiHA & Ogg · card v2.5.0</span></div>
         </div>`;
       this.shadowRoot.appendChild(root);
       this._shell = root;
@@ -554,7 +560,7 @@
       const knownKeys = {
         connected: ':connected', run: ':run', pulse: ':pulse', stop: ':stop',
         pattern: ':pattern', motor_mode: ':motor_mode', period: ':period', motor2: ':motor_level_1', owner: ':owner', intensity: ':intensity', commands: ':connect_this_device',
-        status: ':status', battery: ':battery', remaining: ':remaining',
+        status: ':status', battery: ':battery', remaining: ':remaining', position: ':linear_0',
       };
       const hubKeys = {
         enabled: ':enabled', connected: ':connected', pulse_duration: ':pulse_duration',
@@ -611,7 +617,7 @@
         if (!feedbackByName.has(key)) feedbackByName.set(key, []);
         feedbackByName.get(key).push(entry.entity_id);
       }
-      const devices = [...groups.values()].filter((d) => d.connected && (d.pulse || d.run));
+      const devices = [...groups.values()].filter((d) => d.connected && (d.pulse || d.run || d.position));
       for (const d of devices) {
         const matches = feedbackByName.get(this._nameKey(d.name)) || [];
         if (matches.length === 1) d.reported_intensity = matches[0];
@@ -811,13 +817,14 @@
           <div data-role="hold-row" class="hold-row"><button data-role="hold-1" class="hold-btn" type="button"><small>press &amp; hold</small><b data-role="hold-1-label">Run</b></button><button data-role="hold-2" class="hold-btn" type="button" hidden><small>press &amp; hold</small><b>Out</b></button></div>
           <button data-role="stop" class="device-action stop" type="button" title="Stop device" aria-label="Stop device">${icon('stop')}</button>
         </div>
+        <div class="stroke-row" data-role="stroke-row" hidden><label>Position</label><input data-role="position" type="range" min="0" max="100" step="1" aria-label="Stroker position"><b data-role="posv">–</b></div>
         <div class="config-grid">
           <div class="control-group pattern-setting"><label>Pattern</label><div class="select-shell"><select data-role="pattern" aria-label="Device pattern"></select>${icon('chevron')}</div></div>
           <div class="control-group" data-role="cycle-group"><label>Cycle time</label><div class="select-shell"><select data-role="cycle" aria-label="Pattern cycle time"></select>${icon('chevron')}</div></div>
           <div class="control-group"><label data-role="intensity-label">Intensity</label><div class="select-shell"><select data-role="intensity" aria-label="Device intensity"></select>${icon('chevron')}</div></div>
         </div>`;
       const refs = {};
-      for (const part of ['name','caption','sparkline','spark-key','lane1','lane2','base1','base2','req1','req2','edge1','edge2','rep1','rep2','vreq1','vreq2','vrep1','vrep2','permission','permission-text','run','pulse','stop','hold-row','hold-1','hold-2','owner','pattern','cycle','intensity','cycle-group','intensity-label']) refs[part] = el.querySelector(`[data-role="${part}"]`);
+      for (const part of ['name','caption','sparkline','spark-key','lane1','lane2','base1','base2','req1','req2','edge1','edge2','rep1','rep2','vreq1','vreq2','vrep1','vrep2','permission','permission-text','run','pulse','stop','hold-row','hold-1','hold-2','owner','pattern','cycle','intensity','cycle-group','intensity-label','stroke-row','position','posv']) refs[part] = el.querySelector(`[data-role="${part}"]`);
       const view = { root: el, refs, device, spark: { points: [], points2: [], dual: false, actualPoints: [], actualPoints2: [], active: false, startedAt: 0, pattern: 'steady', period: 2, intensity: 0, reportedEntity: null, reportedLevel: null } };
       this._paintSpark(view);
       refs.permission.addEventListener('click', () => this._togglePermission(view.device));
@@ -830,6 +837,17 @@
       refs.pattern.addEventListener('change', (event) => this._select(view.device.pattern, event.target.value));
       refs.cycle.addEventListener('change', (event) => this._setNumber(view.device.period, event.target.value));
       refs.intensity.addEventListener('change', (event) => this._setNumber(view.device.intensity, event.target.value));
+      // A stroker: drag to move it (live, through Ogg's linear move).
+      const move = (final) => {
+        const value = Number(refs.position.value);
+        refs.posv.textContent = `${value}%`;
+        const now = performance.now();
+        if (!final && now - (view.movedAt || 0) < 120) return;
+        view.movedAt = now;
+        if (this._hass && view.device.stop) this._hass.callService('ogg', 'linear', { entity_id: view.device.stop, position: value, duration: 300 }).catch((e) => this._showError(e?.message || 'Could not move it'));
+      };
+      refs.position.addEventListener('input', () => { view.dragging = true; move(false); });
+      refs.position.addEventListener('change', () => { view.dragging = false; move(true); });
       return view;
     }
 
@@ -842,6 +860,17 @@
       const running = this._state(device.run)?.state === 'on';
       const pulsing = status === 'pulse';
       view.root.classList.toggle('running', running || pulsing);
+      // A stroker (position only): a position slider and Stop.
+      const stroker = Boolean(device.position) && !device.pulse && !device.run;
+      view.root.classList.toggle('stroker', stroker);
+      r['stroke-row'].hidden = !stroker;
+      if (stroker) {
+        const pos = Number(this._state(device.position)?.state);
+        if (!view.dragging && Number.isFinite(pos) && this.shadowRoot.activeElement !== r.position) {
+          r.position.value = String(Math.round(pos));
+          r.posv.textContent = `${Math.round(pos)}%`;
+        }
+      }
       const graph = view.spark;
       const active = running || pulsing || status === 'continuous';
       if (active && !graph.active) graph.startedAt = performance.now();
@@ -877,7 +906,7 @@
       this._paintSpark(view);
       const remaining = Number(this._state(device.remaining)?.state);
       const battery = Number(this._state(device.battery)?.state);
-      const details = [pulsing ? 'Pulsing' : running ? 'Running' : 'Connected · Ready'];
+      const details = [pulsing ? 'Pulsing' : running ? 'Running' : stroker ? 'Connected · Ready · stroker' : 'Connected · Ready'];
       if (pulsing && Number.isFinite(remaining) && remaining > 0) details.push(`${remaining.toFixed(1)}s left`);
       if (Number.isFinite(battery) && this._available(device.battery)) details.push(`${Math.round(battery)}% battery`);
       r.caption.textContent = details.join('  ·  ');
@@ -912,6 +941,7 @@
       r.owner.classList.toggle('hers', owner === 'hers');
 
       r.stop.disabled = !this._available(device.stop);
+      r.position.disabled = !permitted || !this._available(device.stop);
       r.pulse.setAttribute('aria-label', `Pulse ${name}`);
       r.stop.setAttribute('aria-label', `Stop ${name}`);
       const pattern = this._state(device.pattern);
