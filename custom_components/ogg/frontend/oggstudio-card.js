@@ -10989,6 +10989,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         this._manual();
       };
       let tapAt = 0;
+      let zeroed = false;
       box.addEventListener("pointerdown", (e) => {
         const pad = e.target.closest(".pad");
         if (!pad) return;
@@ -11000,21 +11001,24 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         if (now - tapAt < 300) {
           this._pads[Number(pad.dataset.i)] = 0;
           tapAt = 0;
+          zeroed = true;
           this._showPads();
           this._manual();
           return;
         }
+        zeroed = false;
         tapAt = now;
         set(pad, e);
       });
       box.addEventListener("pointermove", (e) => {
         const pad = e.target.closest(".pad");
-        if (pad && (e.buttons || e.pointerType === "touch")) set(pad, e);
+        if (pad && !zeroed && (e.buttons || e.pointerType === "touch")) set(pad, e);
       });
       const spring = this._$("spring");
       spring.checked = Boolean(keepGet2().spring);
       spring.addEventListener("change", () => keepSet2({ spring: spring.checked }));
       const release = (e) => {
+        zeroed = false;
         const pad = e.target.closest(".pad");
         if (!pad || !spring.checked) return;
         this._pads[Number(pad.dataset.i)] = 0;

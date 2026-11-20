@@ -1,3 +1,6 @@
+## 3.17.2 - Easy card double-tap
+- Easy card: double-tap to drop a slider to zero works on a phone now (the finger no longer puts it straight back).
+
 ## 3.17.1 - Stop all on the Easy card
 - Easy card: the big ■ Stop is now ■ Stop all, which stops everything Ogg plays on every card and toy (like the Play card's).
 - Easy card: a Stop all from another card stops what it is playing too.

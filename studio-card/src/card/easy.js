@@ -564,21 +564,24 @@ export class OggEasyCard extends HTMLElement {
       this._manual();
     };
     let tapAt = 0;
+    let zeroed = false;     // a double-tap dropped it: the finger is ignored until it lifts
     box.addEventListener('pointerdown', (e) => {
       const pad = e.target.closest('.pad');
       if (!pad) return;
       try { pad.setPointerCapture(e.pointerId); } catch (_) { /* fine */ }
       const now = Date.now();
-      if (now - tapAt < 300) { this._pads[Number(pad.dataset.i)] = 0; tapAt = 0; this._showPads(); this._manual(); return; }
+      if (now - tapAt < 300) { this._pads[Number(pad.dataset.i)] = 0; tapAt = 0; zeroed = true; this._showPads(); this._manual(); return; }
+      zeroed = false;
       tapAt = now;
       set(pad, e);
     });
-    box.addEventListener('pointermove', (e) => { const pad = e.target.closest('.pad'); if (pad && (e.buttons || e.pointerType === 'touch')) set(pad, e); });
+    box.addEventListener('pointermove', (e) => { const pad = e.target.closest('.pad'); if (pad && !zeroed && (e.buttons || e.pointerType === 'touch')) set(pad, e); });
     // Drop to 0: a slider springs back to zero when it is let go.
     const spring = this._$('spring');
     spring.checked = Boolean(keepGet().spring);
     spring.addEventListener('change', () => keepSet({ spring: spring.checked }));
     const release = (e) => {
+      zeroed = false;
       const pad = e.target.closest('.pad');
       if (!pad || !spring.checked) return;
       this._pads[Number(pad.dataset.i)] = 0;
