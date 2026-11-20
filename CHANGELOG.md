@@ -1,3 +1,7 @@
+## 3.17.1 - Stop all on the Easy card
+- Easy card: the big ■ Stop is now ■ Stop all, which stops everything Ogg plays on every card and toy (like the Play card's).
+- Easy card: a Stop all from another card stops what it is playing too.
+
 ## 3.17.0 - Video delay per toy
 - Every toy's ⚙ settings has a Video delay: − / + in 25 ms steps (up to 2 s), tap the number for none.
 - Video sync plays each toy's script at its own time: + later, − earlier, so toys with different lag line up with the video.

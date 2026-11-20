@@ -10694,7 +10694,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
           <div class="row"><button class="go" id="scgo" type="button">▶ Play</button><label class="sw"><input type="checkbox" id="scloop"> Loop</label></div>
         </div>
         <div class="recrow"><button class="rec" id="rec" type="button">● Record</button><button id="save" type="button" disabled>💾 Save</button><span class="recinfo" id="recinfo">Record what plays, then save it.</span></div>
-        <button class="stop big" id="stopall" type="button">■ Stop</button>
+        <button class="stop big" id="stopall" type="button" title="Stop everything Ogg is playing, on every card">■ Stop all</button>
       </div>
       <div class="panel embed" id="p-queue"></div>
       <div class="panel embed" id="p-other"></div>
@@ -10759,10 +10759,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       $("lockb").addEventListener("click", () => lockAll());
       $("rec").addEventListener("click", () => this._recToggle());
       $("save").addEventListener("click", () => this._save());
-      $("stopall").addEventListener("click", () => {
-        this._halt();
-        this._toast("Stopped.");
-      });
+      $("stopall").addEventListener("click", () => this._stopAll());
       this._bindPads();
       $("ctlsw").addEventListener("click", (e) => {
         const b = e.target.closest("button[data-ctl]");
@@ -10848,6 +10845,15 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       if (!this._$ || !this._hass) return;
       const $ = this._$;
       paintViewers(this.shadowRoot, (t) => this._toast(t));
+      const studio = this._studio && this._hass.states[this._studio];
+      const panic = studio ? studio.attributes.panic || 0 : void 0;
+      if (panic !== void 0) {
+        if (this._panicSeen !== void 0 && panic !== this._panicSeen && (this._playing || this._pads.some((v) => v > 0))) {
+          this._halt(true);
+          this._toast("Everything was stopped.");
+        }
+        this._panicSeen = panic;
+      }
       const people = this.shadowRoot.querySelector("[data-viewers]");
       $("title").hidden = Boolean(people && !people.hidden && !(this._config && this._config.title));
       if (this._config && this._config.title) $("title").textContent = this._config.title;
@@ -11128,6 +11134,12 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         this._hass.callService("ogg", "play_script", { entity_id: d.stop, script, output, speed: 1, loop: p.loop, ...p.loop ? { max_seconds: 21600 } : {} }).catch((e) => this._toast(`Could not play on ${d.name}: ${e.message || e}`));
       }
       this._toast(`Playing ${p.label}.`);
+    }
+    // ■ Stop all: everything Ogg plays, on every card and every toy (like the Play card's).
+    _stopAll() {
+      this._halt(true);
+      this._toast("Everything stopped.");
+      if (this._hass) this._hass.callService("ogg", "studio_panic", {}, void 0, false).catch((e) => this._toast("Stop all did not reach Home Assistant: " + (e.message || e)));
     }
     _halt(quiet) {
       clearInterval(this._liveTimer);
