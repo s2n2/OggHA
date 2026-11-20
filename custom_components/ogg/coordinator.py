@@ -1838,6 +1838,10 @@ class OggHub:
         The first pass starts start_ms in; later passes (looping) from 0.
         """
         key = device.key
+        # Home Assistant starts background tasks eagerly: this runs before the
+        # caller has recorded it in _linear_runs. Yield once so it has, or the
+        # first check below sees another task and the script ends unplayed.
+        await asyncio.sleep(0)
         first = True
         began = time.monotonic()
         offset = max(0.0, float(start_ms or 0))

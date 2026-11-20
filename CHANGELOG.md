@@ -1,3 +1,6 @@
+## 3.17.3 - Stroker scripts play again
+- Patterns, moods and scripts played by Home Assistant on a stroker (the Easy card, queues, screen off) ended before their first move with recent Home Assistant versions, which start background tasks straight away. They play again; manual controls were never affected.
+
 ## 3.17.2 - Easy card double-tap
 - Easy card: double-tap to drop a slider to zero works on a phone now (the finger no longer puts it straight back).
 

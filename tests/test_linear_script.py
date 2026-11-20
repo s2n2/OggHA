@@ -142,3 +142,17 @@ def test_vibration_script_starts_part_way_then_loops_from_the_start():
     assert abs(looped.levels(1.0, 1)[0] - 0.5) < 1e-9 and not looped.finished(99)
     assert ScriptProgram(channels, start_ms=9999).start_ms == 0
 
+
+async def test_plays_when_home_assistant_starts_the_task_eagerly():
+    """HA runs a background task up to its first await before returning it."""
+    hub, _, sent, _ = make_hub()
+
+    class EagerEntry:
+        def async_create_background_task(self, hass, coro, name):
+            return asyncio.get_running_loop().create_task(coro, name=name, eager_start=True)
+
+    hub.entry = EagerEntry()
+    await hub.async_play_linear("k", script((0, 10), (100, 90), (200, 10)))
+    await asyncio.wait_for(asyncio.shield(hub._linear_runs["k"]), 2)
+    assert [p for _, p, _ in sent] == [10, 90, 10]
+
