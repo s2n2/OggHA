@@ -1767,9 +1767,16 @@ class OggHub:
                 ],
             }
             try:
+                sent = time.monotonic()
                 response = await client.request("LinearCmd", payload)
                 if "Ok" not in response:
                     raise ProtocolError("Unexpected acknowledgement")
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug(
+                        "Linear %s: %.0f%% over %d ms (%s), ack %.0f ms",
+                        key, position, duration, "script" if _script else "live",
+                        (time.monotonic() - sent) * 1000,
+                    )
             except ProtocolError as err:
                 # Quiet: live following retries on the next stroke turn, so
                 # do not latch a device error or log at warning level.
