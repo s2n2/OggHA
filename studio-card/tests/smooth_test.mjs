@@ -4,6 +4,11 @@ import assert from 'assert';
 import { smoothActions, smoothPoints, smoothedFor, SMOOTH_MIN_SEGMENT_MS } from '../src/lib/smooth.js';
 import { NO_LIMITS } from '../src/lib/limits.js';
 import { OutputsPart } from '../src/card/outputs.js';
+import { aiVibeToStroke } from '../src/lib/ai.js';
+
+globalThis.HTMLElement = globalThis.HTMLElement || class {};
+globalThis.window = globalThis.window || Object.assign(globalThis, { addEventListener() {}, removeEventListener() {} });
+const { OggQueueCard } = await import('../src/card/queuecard.js');
 
 const turns = (pts) => pts.filter((b, i) => i > 0 && i < pts.length - 1 && (b[1] - pts[i - 1][1]) * (pts[i + 1][1] - b[1]) < 0);
 
@@ -60,5 +65,24 @@ const turns = (pts) => pts.filter((b, i) => i > 0 && i < pts.length - 1 && (b[1]
   OutputsPart.prototype._outLinear.call(card, dev, { goal: 90, dur: 600, target: true }, 0);
   OutputsPart.prototype._outLinear.call(card, dev, { goal: 10, dur: 500, target: true }, 600);
   assert.deepStrictEqual(calls.map((c) => [c.position, c.duration]), [[90, 600], [10, 500]]);
+}
+// A vibration recording (or pattern) on a stroker: strokes that follow its
+// feel, never its levels as positions (a pulse was a jump).
+{
+  const pulses = [];
+  for (let t = 0; t < 30000; t += 1000) pulses.push({ at: t, pos: 0 }, { at: t + 50, pos: 75 }, { at: t + 500, pos: 75 }, { at: t + 550, pos: 0 });
+  const jumps = (a) => a.slice(1).filter((x, i) => Math.abs(x.pos - a[i].pos) >= 30 && x.at - a[i].at <= 60).length;
+  assert.ok(jumps(pulses) > 40, 'the recording is all jumps as positions');
+  const card = Object.create(OggQueueCard.prototype);
+  Object.defineProperty(card, '_saved', { value: { attributes: { limits: {} } } });
+  const out = card._forDevice({ stop: 'button.h', linear: 'number.h', vibe: false }, { actions: pulses });
+  assert.strictEqual(out.output, 'linear');
+  assert.strictEqual(jumps(out.script.actions), 0, 'no jumps on the stroker');
+  const strokes = turns(out.script.actions.map((a) => [a.at, a.pos]));
+  assert.ok(strokes.length > 20, `it strokes (${strokes.length} turns)`);
+  assert.deepStrictEqual(out.script.actions, aiVibeToStroke(pulses).actions.map((a) => ({ at: a.at, pos: a.pos })));
+  // A stroke recording stays as it was recorded.
+  const stroke = { actions: [{ at: 0, pos: 10 }, { at: 600, pos: 90 }, { at: 1200, pos: 10 }], metadata: { type: 'stroke' } };
+  assert.deepStrictEqual(card._forDevice({ stop: 'button.h', linear: 'number.h', vibe: false }, stroke).script.actions, stroke.actions);
 }
 console.log('stroker smoothing passed');

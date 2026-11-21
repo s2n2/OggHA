@@ -12,6 +12,7 @@
 // they carry on with the screen off; the sliders drive the toys live.
 import { esc } from '../lib/core.js';
 import { isStroke, runScript } from '../lib/convert.js';
+import { aiVibeToStroke } from '../lib/ai.js';
 import { limitMove, limitsFor } from '../lib/limits.js';
 import { MOODS } from '../lib/moods.js';
 import { sampleAt } from '../lib/outputs.js';
@@ -21,6 +22,13 @@ import { VIEWERS_STYLE, oggPrivate, paintViewers, viewersBadge } from '../lib/pr
 import { lockAll, makeCover, studioSettings } from '../lib/cover.js';
 import { GEAR_STYLE, gearHtml, openDeviceSettings } from '../lib/devsettings.js';
 import { OUT_KEY } from '../lib/outputs.js';
+
+// A vibration track as strokes for a stroker (cached per track).
+const STROKES = new WeakMap();
+const strokesFor = (track) => {
+  if (!STROKES.has(track)) STROKES.set(track, aiVibeToStroke(track).actions);
+  return STROKES.get(track);
+};
 
 export const EASY_TAG = 'ogg-easy-card';
 const KEEP = 'ogg_easy_card';
@@ -671,7 +679,9 @@ export class OggEasyCard extends HTMLElement {
       let script, output;
       if (d.linear && !d.vibe) {
         let prev = null;
-        const src = p.tracks.stroke || p.tracks.a;
+        // A vibration pattern or recording played as positions made the
+        // stroker jump (a pulse is a jump); strokes that follow its feel instead.
+        const src = p.tracks.stroke || strokesFor(p.tracks.a);
         script = { actions: src.map((a, i) => { const m = limitMove(L, { goal: a.pos, dur: i ? a.at - src[i - 1].at : 500 }, prev); prev = m.goal; return { at: a.at, pos: Math.round(m.goal) }; }) };
         output = 'linear';
       } else {

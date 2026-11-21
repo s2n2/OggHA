@@ -1,3 +1,6 @@
+## 3.18.1 - Patterns and recordings stroke smoothly
+- **Patterns and vibration recordings on a stroker:** the Easy card's patterns (and scripts) and the Queue's recordings were sent to a stroker as positions, so every pulse or step in the level was a jump - 30% or more of the stroke in a twentieth of a second, dozens of times a minute (Pulse, Heartbeat, Echo, Chachacha, Tempo). A stroker now gets strokes that follow the pattern's or recording's feel (its rhythm and intensity as stroke speed and depth): no jumps, no move quicker than the Bluetooth link carries. Stroke recordings and moods (which have their own stroke track) play as they are.
+
 ## 3.18.0 - Smooth strokers
 - **Smoother Handy (and other strokers):** a stroker's moves are Bluetooth writes that took 100-300 ms (sometimes nearly a second) to land through a proxy. Dense or wobbly timelines asked for more moves than that carries, and Ogg waited on each acknowledgement, so the stroker rushed, stopped and lurched, then caught up in a burst.
   - Stroke timelines are cleaned before they play (patterns, moods, scripts, queues, recordings, video sync): every real turn, pause and change of speed stays; points on a straight line, wobbles under 4% and moves quicker than 150 ms go. Strokes too fast for Bluetooth keep their depth at a pace it carries.

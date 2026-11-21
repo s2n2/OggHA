@@ -10075,8 +10075,9 @@ ha-card.embedded .head{display:none}
       const lim = limitsFor(this._saved && this._saved.attributes.limits, d.stop);
       if (d.linear && !d.vibe) {
         let prev = null;
-        const actions = script.actions.map((a, i) => {
-          const dur = i ? a.at - script.actions[i - 1].at : 500;
+        const src = isStroke(script) ? script.actions : aiVibeToStroke(script.actions).actions;
+        const actions = src.map((a, i) => {
+          const dur = i ? a.at - src[i - 1].at : 500;
           const m = limitMove(lim, { goal: a.pos, dur }, prev);
           prev = m.goal;
           return { at: a.at, pos: Math.round(m.goal) };
@@ -10563,6 +10564,11 @@ ha-card.embedded .head{display:none}
   };
 
   // studio-card/src/card/easy.js
+  var STROKES = /* @__PURE__ */ new WeakMap();
+  var strokesFor = (track) => {
+    if (!STROKES.has(track)) STROKES.set(track, aiVibeToStroke(track).actions);
+    return STROKES.get(track);
+  };
   var EASY_TAG = "ogg-easy-card";
   var KEEP2 = "ogg_easy_card";
   var LOOP_MS = 10 * 60 * 1e3;
@@ -11336,7 +11342,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         let script, output;
         if (d.linear && !d.vibe) {
           let prev = null;
-          const src = p.tracks.stroke || p.tracks.a;
+          const src = p.tracks.stroke || strokesFor(p.tracks.a);
           script = { actions: src.map((a, i) => {
             const m = limitMove(L, { goal: a.pos, dur: i ? a.at - src[i - 1].at : 500 }, prev);
             prev = m.goal;

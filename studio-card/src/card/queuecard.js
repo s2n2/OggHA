@@ -13,6 +13,7 @@
 // page as its current take.
 import { decodeText, encodeCode, esc } from '../lib/core.js';
 import { isStroke, runScript } from '../lib/convert.js';
+import { aiVibeToStroke } from '../lib/ai.js';
 import { limitMove, limitsFor } from '../lib/limits.js';
 import { MOODS } from '../lib/moods.js';
 import { PATTERNS, PATTERNS_DUAL, PATTERN_RANDOM } from '../lib/patterns.js';
@@ -586,10 +587,13 @@ export class OggQueueCard extends HTMLElement {
   _forDevice(d, script) {
     const lim = limitsFor(this._saved && this._saved.attributes.limits, d.stop);
     if (d.linear && !d.vibe) {
-      // A stroker: positions, inside its range and top speed.
+      // A stroker: positions, inside its range and top speed. A vibration
+      // recording played as positions made it jump (every pulse a jump), so
+      // it gets strokes that follow the recording's feel instead.
       let prev = null;
-      const actions = script.actions.map((a, i) => {
-        const dur = i ? a.at - script.actions[i - 1].at : 500;
+      const src = isStroke(script) ? script.actions : aiVibeToStroke(script.actions).actions;
+      const actions = src.map((a, i) => {
+        const dur = i ? a.at - src[i - 1].at : 500;
         const m = limitMove(lim, { goal: a.pos, dur }, prev);
         prev = m.goal;
         return { at: a.at, pos: Math.round(m.goal) };
