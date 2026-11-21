@@ -13,7 +13,11 @@ const FOLLOW_SEND_MS = 60;       // a move every 60 ms (the link carries it: wri
 const FOLLOW_DELAY_MS = 40;      // the finger's path is replayed this far behind (+ link + one move = ~0.2 s)
 const FOLLOW_OVERLAP_MS = 15;    // each move lasts a touch past the next one, so it never stops between them
 const FOLLOW_SMOOTH_MS = 15;     // light finger smoothing (time constant)
-const FOLLOW_DEADBAND = 1.5;     // % : smaller changes are not sent
+const FOLLOW_DEADBAND = 1.5;     // % : a smaller turn back is not sent (a finger's tremor)
+const FOLLOW_STEP = 0.9;         // % : on the way, every step about this big is sent (Buttplug moves in whole %)
+const FOLLOW_CRAWL_MS = 1000;    // a slow finger's step covers up to this much of its path
+const FOLLOW_REST_MS = 150;      // a finger still this long before a step was resting, not creeping
+const FOLLOW_PACE_MS = 400;      // a creeping finger's pace is taken over this long
 const FOLLOW_KEEP_MS = 1500;     // finger path kept for the replay
 const FOLLOW_SETTLE_MS = 150;    // the last move after letting go (at least)
 const FOLLOW_MAX_BEHIND_MS = 250; // the replay never falls further behind the finger than this
@@ -366,6 +370,7 @@ export class OutputsPart {
       if (!last) {
         // The first move: straight to the finger (from wherever it is).
         f.tau = now;
+        f.sent = f.pos;
         move = { goal: f.pos, dur: FOLLOW_SETTLE_MS };
       } else {
         // Each move lands before the next replaces it: the Handy starts a
@@ -374,15 +379,41 @@ export class OutputsPart {
         // turn, and fast strokes came out shallow and wandering (measured).
         if (now - last.at < Math.max(live ? FOLLOW_SEND_MS : 400, (last.dur || 0) - FOLLOW_OVERLAP_MS)) return;
         const until = now - FOLLOW_DELAY_MS;
+        const sent = f.sent ?? last.goal;
         // Faster than it can go, it skips the finger's smaller wiggles
         // (the biggest turn in the time it was busy wins) and stays close.
-        const from = Math.max(f.tau === null ? until - FOLLOW_SEND_MS : f.tau, until - FOLLOW_MAX_BEHIND_MS);
+        // A finger creeping (a step or so from the last move) is not behind:
+        // its step covers all the time it took.
+        const creeping = Math.abs(pathAt(f.hist, until) - sent) <= 2 * FOLLOW_STEP;
+        const from = Math.max(f.tau === null ? until - FOLLOW_SEND_MS : f.tau, until - (creeping ? FOLLOW_CRAWL_MS : FOLLOW_MAX_BEHIND_MS));
         if (until <= from) return;
         const pick = followStep(f.hist, from, until, last.goal);
+        const d = pick.pos - last.goal;
+        const dir = Math.sign(d);
+        // On the way every whole step goes (a slow finger moves smoothly,
+        // not a hop every few hundred ms); a small turn back is tremor.
+        // Not sent: the next move covers this bit of path too.
+        if (Math.abs(d) < (f.dir && dir !== f.dir ? FOLLOW_DEADBAND : FOLLOW_STEP)) return;
+        // Since when the finger has been on its way from the last move: a
+        // finger that rested there, then moved, takes only the time it moved.
+        let left = from;
+        for (const [t, p] of f.hist) {
+          if (t > pick.at) break;
+          if (t >= from && (p - sent) * dir <= 0.25) left = t;
+        }
+        let took = pick.at - (left - from > FOLLOW_REST_MS ? left : from);
+        // One creeping on: the step at its pace over the last moments, so
+        // the steps join up (a screen moves a slow finger a pixel at a time).
+        if (creeping) {
+          const span = Math.min(FOLLOW_PACE_MS, until - f.hist[0][0]);
+          const pace = span > 0 ? Math.abs(pathAt(f.hist, until) - pathAt(f.hist, until - span)) / span : 0;
+          if (pace > 0) took = Math.min(took, Math.abs(d) / pace);
+        }
         f.tau = pick.at;
-        if (Math.abs(pick.pos - last.goal) < FOLLOW_DEADBAND) return;
+        f.sent = pick.pos;
+        f.dir = dir;
         // The time the finger took for this bit of path, and never faster than the stroker goes.
-        move = { goal: pick.pos, dur: Math.max(pick.at - from, FOLLOW_SEND_MS, Math.abs(pick.pos - last.goal) / top) + FOLLOW_OVERLAP_MS };
+        move = { goal: pick.pos, dur: Math.max(took, FOLLOW_SEND_MS, Math.abs(d) / top) + FOLLOW_OVERLAP_MS };
       }
     }
     const goal = clamp(move.goal);

@@ -455,6 +455,15 @@ export class PlayPart {
     return Math.round(st.lower + (Math.min(100, Math.max(0, v)) / 100) * (st.upper - st.lower));
   }
 
+  // Back from a stroker's position to the 0-100 of a slider (or script) that
+  // _lim spreads over the stroke range.
+  _unlim(pos) {
+    const st = this._st;
+    if (!this._simple || !st) return pos;
+    const span = st.upper - st.lower;
+    return span > 0 ? Math.min(100, Math.max(0, (pos - st.lower) / span * 100)) : 0;
+  }
+
   _isLinear(i) { const p = parseTarget(this._outTargetValue(i)); return Boolean(p && p.motor === 'l'); }
 
   // Vibrate / Stroke is chosen by hand; picking a device sets it to suit
@@ -592,8 +601,10 @@ export class PlayPart {
     if (!this._strokeKind) { this._vvTick(); return; }
     const hand = this._vsHand;
     if (hand !== null && hand !== undefined) {
-      // A finger on the slider under the video: the position, inside the range.
-      const p = Math.min(r.upper, Math.max(r.lower, hand));
+      // A finger on the slider under the video: the position, spread over the
+      // range like a script (and a recording) is, so the same place on the
+      // slider is the same place on the stroker whether recording or not.
+      const p = this._simple ? this._lim(hand) : Math.min(r.upper, Math.max(r.lower, hand));
       const vel = dt > 0 ? (p - r.pos) / dt * 1000 : 0;
       if (p !== r.pos || this._vsLastPos !== p) this._strokeOut(p, vel);
       r.pos = p;
@@ -674,7 +685,7 @@ export class PlayPart {
       const lab = this._strokeKind ? 'Position' : 'Intensity';
       const labEl = $('hb1').querySelector('.lab');
       if (labEl.textContent !== lab) labEl.textContent = lab;
-      if (!$('hb1').classList.contains('active')) this._showHBar(0, r ? r.pos : 0);
+      if (!$('hb1').classList.contains('active')) this._showHBar(0, r ? (this._strokeKind ? this._unlim(r.pos) : r.pos) : 0);
     }
     if (!on) return;
     const stroke = this._strokeKind;

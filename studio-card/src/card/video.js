@@ -353,7 +353,9 @@ export class VideoPart {
     for (const id of ['hb1', 'hb2']) $(id).classList.toggle('rec', this._vrec);
     if (this._vrec) {
       // A vibrator starts from nothing; a stroker from where it is.
-      if (!this._strokeKindRec) { this._setHBar(0, 0); this._setHBar(1, 0); } else if (this._st) this._hvals[0] = Math.round(this._st.pos);
+      // A stroker's place on the slider: the Play card spreads the slider over
+      // the stroke range, so its own position there was a jump away.
+      if (!this._strokeKindRec) { this._setHBar(0, 0); this._setHBar(1, 0); } else if (this._st) this._hvals[0] = Math.round(this._unlim ? this._unlim(this._st.pos) : this._st.pos);
       this._toast('Recording: play the video and drag the bars.');
       if (!$('video').paused) { this._videoHalt(); this._videoRun(); }
     } else {

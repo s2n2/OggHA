@@ -4327,7 +4327,7 @@ ${VIEWERS_STYLE}
         if (!this._strokeKindRec) {
           this._setHBar(0, 0);
           this._setHBar(1, 0);
-        } else if (this._st) this._hvals[0] = Math.round(this._st.pos);
+        } else if (this._st) this._hvals[0] = Math.round(this._unlim ? this._unlim(this._st.pos) : this._st.pos);
         this._toast("Recording: play the video and drag the bars.");
         if (!$("video").paused) {
           this._videoHalt();
@@ -5965,6 +5965,10 @@ ${VIEWERS_STYLE}
   var FOLLOW_OVERLAP_MS = 15;
   var FOLLOW_SMOOTH_MS = 15;
   var FOLLOW_DEADBAND = 1.5;
+  var FOLLOW_STEP = 0.9;
+  var FOLLOW_CRAWL_MS = 1e3;
+  var FOLLOW_REST_MS = 150;
+  var FOLLOW_PACE_MS = 400;
   var FOLLOW_KEEP_MS = 1500;
   var FOLLOW_SETTLE_MS = 150;
   var FOLLOW_MAX_BEHIND_MS = 250;
@@ -6341,16 +6345,34 @@ ${VIEWERS_STYLE}
         while (f.hist.length > 2 && f.hist[1][0] < now - FOLLOW_KEEP_MS) f.hist.shift();
         if (!last) {
           f.tau = now;
+          f.sent = f.pos;
           move = { goal: f.pos, dur: FOLLOW_SETTLE_MS };
         } else {
           if (now - last.at < Math.max(live ? FOLLOW_SEND_MS : 400, (last.dur || 0) - FOLLOW_OVERLAP_MS)) return;
           const until = now - FOLLOW_DELAY_MS;
-          const from = Math.max(f.tau === null ? until - FOLLOW_SEND_MS : f.tau, until - FOLLOW_MAX_BEHIND_MS);
+          const sent = f.sent ?? last.goal;
+          const creeping = Math.abs(pathAt(f.hist, until) - sent) <= 2 * FOLLOW_STEP;
+          const from = Math.max(f.tau === null ? until - FOLLOW_SEND_MS : f.tau, until - (creeping ? FOLLOW_CRAWL_MS : FOLLOW_MAX_BEHIND_MS));
           if (until <= from) return;
           const pick = followStep(f.hist, from, until, last.goal);
+          const d = pick.pos - last.goal;
+          const dir = Math.sign(d);
+          if (Math.abs(d) < (f.dir && dir !== f.dir ? FOLLOW_DEADBAND : FOLLOW_STEP)) return;
+          let left = from;
+          for (const [t, p] of f.hist) {
+            if (t > pick.at) break;
+            if (t >= from && (p - sent) * dir <= 0.25) left = t;
+          }
+          let took = pick.at - (left - from > FOLLOW_REST_MS ? left : from);
+          if (creeping) {
+            const span = Math.min(FOLLOW_PACE_MS, until - f.hist[0][0]);
+            const pace = span > 0 ? Math.abs(pathAt(f.hist, until) - pathAt(f.hist, until - span)) / span : 0;
+            if (pace > 0) took = Math.min(took, Math.abs(d) / pace);
+          }
           f.tau = pick.at;
-          if (Math.abs(pick.pos - last.goal) < FOLLOW_DEADBAND) return;
-          move = { goal: pick.pos, dur: Math.max(pick.at - from, FOLLOW_SEND_MS, Math.abs(pick.pos - last.goal) / top) + FOLLOW_OVERLAP_MS };
+          f.sent = pick.pos;
+          f.dir = dir;
+          move = { goal: pick.pos, dur: Math.max(took, FOLLOW_SEND_MS, Math.abs(d) / top) + FOLLOW_OVERLAP_MS };
         }
       }
       const goal = clamp3(move.goal);
@@ -8950,6 +8972,14 @@ ${VIEWERS_STYLE}
       if (!this._simple || !st) return v;
       return Math.round(st.lower + Math.min(100, Math.max(0, v)) / 100 * (st.upper - st.lower));
     }
+    // Back from a stroker's position to the 0-100 of a slider (or script) that
+    // _lim spreads over the stroke range.
+    _unlim(pos) {
+      const st = this._st;
+      if (!this._simple || !st) return pos;
+      const span = st.upper - st.lower;
+      return span > 0 ? Math.min(100, Math.max(0, (pos - st.lower) / span * 100)) : 0;
+    }
     _isLinear(i) {
       const p = parseTarget(this._outTargetValue(i));
       return Boolean(p && p.motor === "l");
@@ -9123,7 +9153,7 @@ ${VIEWERS_STYLE}
       }
       const hand = this._vsHand;
       if (hand !== null && hand !== void 0) {
-        const p = Math.min(r.upper, Math.max(r.lower, hand));
+        const p = this._simple ? this._lim(hand) : Math.min(r.upper, Math.max(r.lower, hand));
         const vel2 = dt > 0 ? (p - r.pos) / dt * 1e3 : 0;
         if (p !== r.pos || this._vsLastPos !== p) this._strokeOut(p, vel2);
         r.pos = p;
@@ -9213,7 +9243,7 @@ ${VIEWERS_STYLE}
         const lab = this._strokeKind ? "Position" : "Intensity";
         const labEl = $("hb1").querySelector(".lab");
         if (labEl.textContent !== lab) labEl.textContent = lab;
-        if (!$("hb1").classList.contains("active")) this._showHBar(0, r ? r.pos : 0);
+        if (!$("hb1").classList.contains("active")) this._showHBar(0, r ? this._strokeKind ? this._unlim(r.pos) : r.pos : 0);
       }
       if (!on) return;
       const stroke = this._strokeKind;

@@ -109,3 +109,60 @@ console.log('stroker smoothing passed');
   assert.ok(depth[depth.length >> 1] >= 60, `fast finger strokes stay deep (${depth[depth.length >> 1]}%)`);
   assert.ok(calls.every((c, i) => i === 0 || c.at - calls[i - 1].at >= calls[i - 1].duration - 15), 'no fast move is cut short');
 }
+
+// A slow finger (5 %/s, whole screen pixels): the stroker creeps with it in
+// small steps that join up, not a hop of a few % every few hundred ms with
+// stops between (measured on the Handy as jumpy slow control).
+{
+  const calls = [];
+  let now = 0;
+  const card = { _linLast: {}, _linFollow: {}, _limits: () => NO_LIMITS,
+    _hass: { services: { ogg: { linear: {} } }, callService: (d, s, data) => { calls.push({ ...data, at: now }); return Promise.resolve(); } } };
+  const dev = { id: 'h', stop: 'button.h' };
+  const px = 100 / 380;
+  for (now = 0; now <= 4600; now += 20) {
+    const finger = now < 300 ? 40 : now > 4300 ? 60 : 40 + 20 * (now - 300) / 4000;
+    OutputsPart.prototype._outLinear.call(card, dev, { goal: Math.round(finger / px) * px, dur: 120 }, now);
+  }
+  const moving = calls.filter((c) => c.at > 600 && c.at < 4300);
+  assert.ok(moving.length >= 15, `a slow finger moves it in small steps (${moving.length})`);
+  for (let i = 1; i < moving.length; i++) {
+    const c = moving[i], prev = moving[i - 1];
+    const speed = Math.abs(c.position - prev.position) / c.duration * 1000;
+    assert.ok(speed <= 10, `no hop faster than twice the finger (${speed.toFixed(1)} %/s)`);
+    assert.ok(c.at - prev.at <= prev.duration + 100, `steps join up (gap ${c.at - prev.at - prev.duration} ms)`);
+  }
+}
+
+// A finger at rest with a pixel or two of shake sends nothing.
+{
+  const calls = [];
+  let now = 0, seed = 5;
+  const card = { _linLast: {}, _linFollow: {}, _limits: () => NO_LIMITS,
+    _hass: { services: { ogg: { linear: {} } }, callService: (d, s, data) => { calls.push({ ...data, at: now }); return Promise.resolve(); } } };
+  const dev = { id: 'h', stop: 'button.h' };
+  for (now = 0; now <= 4000; now += 20) {
+    seed = (seed * 16807) % 2147483647;
+    OutputsPart.prototype._outLinear.call(card, dev, { goal: 50 + (seed / 2147483647 - 0.5) * 0.8, dur: 120 }, now);
+  }
+  assert.strictEqual(calls.length, 1, `a resting finger sends only its first move (${calls.length})`);
+}
+console.log('slow finger following passed');
+
+// The Play card spreads the slider under the video over the stroke range (as
+// it does a script and a recording), and a recording starts from the
+// stroker's own place on that slider, so starting one does not jump it.
+{
+  const { PlayPart } = await import('../src/card/play.js');
+  const card = { _simple: true, _st: { lower: 30, upper: 90, pos: 60 } };
+  const lim = (v) => PlayPart.prototype._lim.call(card, v);
+  const unlim = (p) => PlayPart.prototype._unlim.call(card, p);
+  assert.strictEqual(lim(0), 30);
+  assert.strictEqual(lim(100), 90);
+  for (const pos of [30, 45, 60, 77, 90]) assert.strictEqual(lim(Math.round(unlim(pos))), pos, `slider and stroker agree at ${pos}`);
+  assert.strictEqual(unlim(10), 0);
+  assert.strictEqual(unlim(95), 100);
+  card._st = { lower: 50, upper: 50 };
+  assert.strictEqual(unlim(50), 0);
+  console.log('video slider range mapping passed');
+}
