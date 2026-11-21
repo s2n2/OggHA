@@ -34,6 +34,7 @@ An offline server is a connection state, rather than a failed integration setup.
 | **Native protocol** | Enables the guarded classic We-Vibe path when the server and exact model qualify. |
 | **Rotation / Position** | Retains manual controls for advertised rotary or linear features. These are separate from vibration patterns. |
 | **`ogg.linear` service** | Live stroker following (The Handy, Launch, Keon): `position` 0-100 over `duration` ms, sent as one LinearCmd without stopping first; the newest call wins. Used by OggStudio's Stroker mode. |
+| **Smooth strokers** | A stroker's moves are Bluetooth writes that take a moment to land through a proxy, so stroke timelines are cleaned before they play: every real turn, pause and change of speed stays; points on a straight line, wobbles under 4% and moves quicker than 150 ms go. The player never waits on a slow acknowledgement (no catch-up bursts), and live finger control is smoothed and paced, trailing the finger by a fraction of a second. Recordings are saved clean. |
 
 Ogg sends no motor-start commands during discovery. A brief disconnect can
 preserve a **transient desired Run/Pulse intention for up to 30 seconds**.

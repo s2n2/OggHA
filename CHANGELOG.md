@@ -1,3 +1,11 @@
+## 3.18.0 - Smooth strokers
+- **Smoother Handy (and other strokers):** a stroker's moves are Bluetooth writes that took 100-300 ms (sometimes nearly a second) to land through a proxy. Dense or wobbly timelines asked for more moves than that carries, and Ogg waited on each acknowledgement, so the stroker rushed, stopped and lurched, then caught up in a burst.
+  - Stroke timelines are cleaned before they play (patterns, moods, scripts, queues, recordings, video sync): every real turn, pause and change of speed stays; points on a straight line, wobbles under 4% and moves quicker than 150 ms go. Strokes too fast for Bluetooth keep their depth at a pace it carries.
+  - The player sends each move alongside the timeline and aims it at its point's time: a slow acknowledgement no longer holds the timeline back or causes a burst.
+  - Live control (dragging the stroke bar, pads, video and sound following) is smoothed and paced to what the link carries, each move overlapping the next so the stroker keeps moving; a finger at rest is not chased, and letting go settles gently where it ended instead of jumping. It trails the finger by a fraction of a second.
+  - New stroke recordings are saved clean (turns, pauses and speed changes, without the finger's wobble).
+- Works best with IntiHA 2.7.0, whose stroker moves no longer wait for each Bluetooth write's response.
+
 ## 3.17.3 - Stroker scripts play again
 - Patterns, moods and scripts played by Home Assistant on a stroker (the Easy card, queues, screen off) ended before their first move with recent Home Assistant versions, which start background tasks straight away. They play again; manual controls were never affected.
 
