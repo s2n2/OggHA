@@ -64,7 +64,7 @@ async def test_a_move_starts_a_stream_in_step_with_the_server_clock(stream):
     paths = [path for _, path, _ in stream.api.calls]
     assert paths[:3] == ["/mode2", "/hsp/setup", "/hsp/play"]
     play = stream.api.calls[2][2]
-    assert play["pause_on_starving"] is False
+    assert play["pause_on_starving"] is True        # out of points it stops, never runs on
     # server_time is the local time it was sent, on the server's clock.
     assert abs(play["server_time"] - (time.monotonic() * 1000 + stream.api.offset_ms)) < 1000
     # The first move: from wherever it is, to 80, a lead ahead plus its 300 ms.
@@ -227,25 +227,28 @@ async def test_no_move_while_the_handy_is_off_wifi():
     assert moves == []
 
 
-async def test_the_last_move_ends_with_a_hold_sent_just_in_time(stream):
-    # After its last point the Handy runs on to the end of the stroke: a hold stops it.
-    stream.move(60, 300)
+async def test_after_a_pause_the_stream_is_put_back_in_step(stream):
+    # The Handy pauses (and its clock with it) when it runs out of points: the
+    # next move goes with /hsp/play from our time now, not as an add.
+    stream.move(60, 100)
     await settle(stream, 0.3)
-    assert [x for _, x in stream.api.points()] == [60]          # the hold waits
-    await settle(stream, 1.2)
-    points = stream.api.points()
-    assert [x for _, x in points] == [60, 60]
-    assert points[1][0] - points[0][0] == handy_wifi.TAIL_HOLD_MS
-    # ... and it got there before the move ended (a lead's worth of travel time in hand).
-    hold_sent = next(i for i, (_, path, _) in enumerate(stream.api.calls) if path == "/hsp/add")
-    assert hold_sent
+    await asyncio.sleep(stream.lead_s + 0.3)          # its last point is past: it has paused
+    stream.move(20, 300)
+    await settle(stream, 0.4)
+    plays = [body for _, path, body in stream.api.calls if path == "/hsp/play"]
+    assert len(plays) == 2 and [path for _, path, _ in stream.api.calls].count("/hsp/setup") == 1
+    second = plays[1]
+    assert second["pause_on_starving"] is True
+    assert second["start_time"] == pytest.approx((time.monotonic() - stream._t0) * 1000, abs=600)
+    xs = [p["x"] for p in second["add"]["points"]]
+    assert xs == [60, 20]                               # waits where it stopped, then moves
+    assert second["add"]["tail_point_stream_index"] == 3
 
 
-async def test_a_following_move_replaces_the_waiting_hold(stream):
-    stream.move(60, 300)
+async def test_moves_in_quick_succession_go_as_adds(stream):
+    stream.move(60, 600)
     await settle(stream, 0.3)
-    stream.move(20, 300)            # a finger moving on: no hold in between
-    await settle(stream, 0.3)
-    xs = [x for _, x in stream.api.points()]
-    assert xs in ([60], [60, 20])          # straight on from 60 to 20: the end hold at 60 never went
-    assert stream._pending and stream._pending[-1].hold and stream._pending[-1].x == 20
+    stream.move(20, 600)                                # well before the first one ends
+    await settle(stream, 0.4)
+    paths = [path for _, path, _ in stream.api.calls]
+    assert paths.count("/hsp/play") == 1 and "/hsp/add" in paths

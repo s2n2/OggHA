@@ -1,3 +1,10 @@
+## 3.21.0b3 - The Handy over Wi-Fi (beta)
+
+Measured on the Handy (firmware 4.3) with its position read 25 times a second over Bluetooth while it was driven over Wi-Fi:
+
+- **No run-on, without timing tricks:** out of points, the Handy's stream carries on in the same direction to the end of the stroke. Beta 2 sent an end hold just in time, but a hold must reach the Handy about a second ahead over Wi-Fi, and a short move still ran on. The stream now plays with *pause on starving*: out of points the Handy stops where the last one put it (measured: it stays), and the next move puts its clock back in step with Ogg's (measured: the move after a 3 s pause came on time).
+- Moves in quick succession still go as simple additions to the buffer, so live control has no extra delay.
+
 ## 3.21.0b2 - The Handy over Wi-Fi (beta)
 
 Fixes from testing beta 1 on the Handy (firmware 4.3):

@@ -57,7 +57,6 @@ MAX_ADD = 100             # points per request (the API's limit)
 LEAD_MIN_S = 0.5
 LEAD_MAX_S = 3.0
 HOLD_GAP_MS = 20          # a move starting later than this after the last point first holds
-TAIL_HOLD_MS = 300        # each move ends with a hold this long after it (see HandyStream)
 SYNC_SAMPLES = 6
 RESYNC_S = 600.0
 MODE_HSP = 4
@@ -157,7 +156,6 @@ class HandyApi:
 class _Point:
     t: int        # ms of stream time
     x: int        # 0-100
-    hold: bool = False   # the end hold after the last move (replaced if another move comes)
 
 
 class HandyStream:
@@ -167,12 +165,12 @@ class HandyStream:
     t0. Moves and timelines become points; a background task sends them in
     batches (at most every FLUSH_S) once they are within HORIZON_S.
 
-    After its last point the Handy carries on in the same direction to the
-    end of the stroke (measured: a stream ending at 80 ran on to 100), so the
-    last move always ends with a hold point TAIL_HOLD_MS later (measured: it
-    stays). That hold is sent only just in time to reach the Handy before the
-    move ends: a move that follows (a finger moving on) replaces it, so it
-    never delays the next move.
+    Out of points, the Handy would carry on in the same direction to the end
+    of the stroke (measured: a stream ending at 80 ran on to 100). So it
+    plays with pause_on_starving: out of points it stops where the last one
+    put it, its clock paused (measured: it stays). Its clock is then behind
+    ours, so points after a pause go with /hsp/play from our time now, which
+    puts it back in step (measured: the next move came on time).
     """
 
     def __init__(self, api: HandyApi, on_change: Callable[[], None]) -> None:
@@ -251,35 +249,22 @@ class HandyStream:
         self._add(start, x)
         return start
 
-    def _drop_hold(self) -> None:
-        if self._pending and self._pending[-1].hold:
-            self._pending.pop()
-
-    def _end_with_hold(self) -> None:
-        last = self._last
-        if last is not None and not last.hold:
-            self._pending.append(_Point(last.t + TAIL_HOLD_MS, last.x, hold=True))
-
     def move(self, x: float, duration_ms: float, *, start: float | None = None) -> None:
         """Go to x over duration_ms from local time start (default: now + lead)."""
-        self._drop_hold()
         begin = self._make_room(self._ms(start if start is not None else time.monotonic() + self.lead_s))
         last = self._last
         if last is not None and begin - last.t > HOLD_GAP_MS:
             self._add(begin, last.x)      # stays where it is until the move starts
         # With nothing before it, the Handy goes there from wherever it is.
         self._add(begin + max(1, int(duration_ms)), x)
-        self._end_with_hold()
         self._wake.set()
 
     def timeline(self, points: list[tuple[float, float]]) -> None:
         """Points at local times (a timeline played here), after what is there."""
         if not points:
             return
-        self._drop_hold()
         for at, x in points:
             self._add(self._ms(at), x)
-        self._end_with_hold()
         self._wake.set()
 
     # ------------------------------------------------------------- control
@@ -317,18 +302,18 @@ class HandyStream:
         await self.stop()
 
     # ------------------------------------------------------------- sending
-    def _hold_send_by(self, point: _Point) -> int:
-        """Stream time by which an end hold must go to reach the Handy before its move ends."""
-        return point.t - TAIL_HOLD_MS - int((self.lead_s - FLUSH_S) * 1000)
-
     def _due_in(self) -> float | None:
-        """Seconds until the next waiting point should go (None: nothing waits)."""
+        """Seconds until the first waiting point is within the horizon (None: nothing waits)."""
         if not self._pending:
             return None
-        first = self._pending[0]
-        if first.hold:
-            return max(0.0, (self._hold_send_by(first) - self._ms(time.monotonic())) / 1000)
-        return max(0.0, (first.t - self._ms(time.monotonic() + HORIZON_S)) / 1000)
+        return max(0.0, (self._pending[0].t - self._ms(time.monotonic() + HORIZON_S)) / 1000)
+
+    def _starved_by_then(self) -> bool:
+        """Will the Handy have run out of points (and paused) before these reach it?"""
+        if self._sent is None:
+            return True
+        reach = (self.lead_s - FLUSH_S - 0.15) * 1000
+        return self._ms(time.monotonic()) + reach >= self._sent.t
 
     async def _run(self) -> None:
         while True:
@@ -359,13 +344,13 @@ class HandyStream:
     async def _send_due(self) -> None:
         horizon = self._ms(time.monotonic() + HORIZON_S)
         batch = [p for p in self._pending[:MAX_ADD] if p.t <= horizon]
-        if batch and batch[-1].hold and self._ms(time.monotonic()) < self._hold_send_by(batch[-1]):
-            batch.pop()           # not yet: another move may still replace it
         if not batch:
             return
         add: dict[str, Any] = {"points": [{"t": p.t, "x": p.x} for p in batch]}
         if not self.playing:
             await self._begin(add)
+        elif self._starved_by_then():
+            await self._play(add)       # paused out of points: back in step with ours
         else:
             add["tail_point_stream_index"] = self._tail + len(batch)
             sent = self._ms(time.monotonic())
@@ -380,22 +365,27 @@ class HandyStream:
         self._sent = batch[-1]
 
     async def _begin(self, add: dict[str, Any]) -> None:
-        """A new stream: HSP mode, a fresh session, then play in step with the server's clock."""
+        """A new stream: HSP mode and a fresh session, then play."""
         await self.api.call("PUT", "/mode2", {"mode": MODE_HSP})
         await self.api.call("PUT", "/hsp/setup", {})
-        self._tail = len(add["points"])
+        self._tail = 0
+        await self._play(add)
+        self.playing = True
+        self._on_change()
+
+    async def _play(self, add: dict[str, Any]) -> None:
+        """Play from our stream time now (on the server's clock), with these points."""
+        self._tail += len(add["points"])
         add["tail_point_stream_index"] = self._tail
         now = time.monotonic()
         sent = self._ms(now)
         state = await self.api.call("PUT", "/hsp/play", {
-            "start_time": max(0, self._ms(now)),
+            "start_time": max(0, sent),
             "server_time": int(now * 1000 + self.api.offset_ms),
-            "pause_on_starving": False,
+            "pause_on_starving": True,
             "add": add,
         })
-        self.playing = True
         self._check_late(state, add["points"][0]["t"], sent)
-        self._on_change()
 
     def _check_late(self, state: dict[str, Any], first_t: int, sent: int) -> None:
         """How long the points took to reach the Handy; late ones place live moves further ahead."""
