@@ -76,15 +76,15 @@ async def test_a_move_starts_a_stream_in_step_with_the_server_clock(stream):
 
 async def test_moves_hold_then_go_and_are_sent_together(stream):
     stream.move(20, 200)
-    await settle(stream)
-    stream.move(90, 300)          # later: holds at 20 until this move starts
+    await settle(stream, 0.7)
+    stream.move(90, 300)          # a while later: holds at 20 until this move starts
     await settle(stream)
     points = stream.api.points()
     assert [x for _, x in points] == [20, 20, 90]
     assert points[2][0] - points[1][0] == 300
     assert all(b[0] > a[0] for a, b in zip(points, points[1:]))
-    adds = [body for _, path, body in stream.api.calls if path == "/hsp/add"]
-    assert adds and adds[-1]["tail_point_stream_index"] == 3
+    sends = [body if path == "/hsp/add" else body["add"] for _, path, body in stream.api.calls if path in ("/hsp/add", "/hsp/play")]
+    assert sends[-1]["tail_point_stream_index"] == 3
 
 
 async def test_a_newer_move_replaces_what_is_left_of_an_older_one(stream):
@@ -252,3 +252,75 @@ async def test_moves_in_quick_succession_go_as_adds(stream):
     await settle(stream, 0.4)
     paths = [path for _, path, _ in stream.api.calls]
     assert paths.count("/hsp/play") == 1 and "/hsp/add" in paths
+
+
+async def test_a_script_target_asked_again_adds_nothing(stream):
+    # The card asks for a script's next point again about every second.
+    start = time.monotonic() + 1.0
+    stream.move(80, 2000, start=start)
+    stream.move(80, 1500, start=start + 0.5)
+    stream.move(80, 1000, start=start + 1.0)
+    assert [p.x for p in stream._pending] == [80]
+
+
+async def test_overlapping_moves_arrive_on_time_and_never_drift(stream):
+    # Live moves each overlap the last a little (and some get sent in between):
+    # every move still arrives when it was meant to.
+    base = time.monotonic() + 1.0
+    for i in range(20):
+        stream.move(20 if i % 2 else 80, 200, start=base + i * 0.185)
+        if i % 3 == 0:
+            await asyncio.sleep(0.3)          # some go out before the next arrives
+    await settle(stream, 0.4)
+    points = stream.api.points() + [(p.t, p.x) for p in stream._pending]
+    last_meant = stream._ms(base + 19 * 0.185) + 200
+    assert points[-1][1] == 20
+    assert abs(points[-1][0] - last_meant) <= 20      # no drift (it was 15 ms per move, adding up)
+
+
+async def test_a_script_played_by_the_card_lands_on_time(stream, monkeypatch):
+    # As the Play card plays a script: each next point is asked a lead ahead
+    # (its connected sensor's lead_ms, rounded), with the time left to it; the
+    # same point is asked again each second while far off. Every stroke lands
+    # at its own time, the last as surely as the first.
+    monkeypatch.setattr(handy_wifi, "FLUSH_S", 0.05)
+    actions = [(1500 + i * 700, 15 if i % 2 else 90) for i in range(8)] + [(1500 + 7 * 700 + 2500, 50)]
+    lead = stream.lead_s
+    card_lead = round(lead * 1000 / 50) * 50 / 1000
+    t0 = time.monotonic()
+    asked = {}
+    while (now := time.monotonic() - t0) < actions[-1][0] / 1000:
+        ms = (now + card_lead) * 1000
+        nxt = next(((at, x) for at, x in actions if at > ms), None)
+        if nxt and (asked.get(nxt[0]) is None or now - asked[nxt[0]] >= 1.0):
+            asked[nxt[0]] = now
+            stream.move(nxt[1], nxt[0] - ms)
+        await asyncio.sleep(0.02)
+    await settle(stream, 0.3)
+    points = stream.api.points() + [(p.t, p.x) for p in stream._pending]
+    for at, x in actions:
+        want = stream._ms(t0) + at          # the card reads it a lead ahead; Ogg places it a lead ahead
+        got = [t for t, px in points if px == x and abs(t - want) <= 80]
+        assert got, f"the point {x} at {at} ms did not land on time"
+
+
+async def test_a_finger_with_jittery_timing_moves_without_stops_or_cut_turns(stream):
+    # Live moves reach Home Assistant a little early or late: each still carries
+    # straight on from the last (no hold point, no turn cut short), and the
+    # delay stays the same (no drift).
+    import random
+    rnd = random.Random(3)
+    base = time.monotonic() + stream.lead_s
+    meant, xs = base, []
+    for i in range(16):
+        x = 85 if i % 2 else 15
+        xs.append(x)
+        stream.move(x, 180, start=meant + rnd.uniform(-0.05, 0.08))
+        meant += 0.18
+        if i % 4 == 0:
+            await asyncio.sleep(0.3)
+    await settle(stream, 0.4)
+    points = stream.api.points() + [(p.t, p.x) for p in stream._pending]
+    assert [x for _, x in points] == xs                 # every turn, nothing in between
+    assert abs(points[-1][0] - stream._ms(meant)) <= 100
+

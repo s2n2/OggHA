@@ -57,6 +57,8 @@ MAX_ADD = 100             # points per request (the API's limit)
 LEAD_MIN_S = 0.5
 LEAD_MAX_S = 3.0
 HOLD_GAP_MS = 20          # a move starting later than this after the last point first holds
+REPEAT_MS = 60            # the same point asked again (arriving within this): nothing new
+CHAIN_MS = 250            # a move meant to start this close to the last point carries straight on from it
 SYNC_SAMPLES = 6
 RESYNC_S = 600.0
 MODE_HSP = 4
@@ -250,13 +252,36 @@ class HandyStream:
         return start
 
     def move(self, x: float, duration_ms: float, *, start: float | None = None) -> None:
-        """Go to x over duration_ms from local time start (default: now + lead)."""
-        begin = self._make_room(self._ms(start if start is not None else time.monotonic() + self.lead_s))
+        """Go to x over duration_ms from local time start (default: now + lead).
+
+        It arrives when it was meant to (start + duration), even when it has
+        to start later than meant because the Handy already has points past
+        that: pushing the whole move back made each overlap add up, so a
+        script drifted further and further behind (a script's next point is
+        asked again every second, and each live move overlaps the last).
+        """
+        x = min(100.0, max(0.0, x))
+        duration = max(1, int(duration_ms))
+        meant = self._ms(start if start is not None else time.monotonic() + self.lead_s)
+        end = meant + duration
         last = self._last
-        if last is not None and begin - last.t > HOLD_GAP_MS:
-            self._add(begin, last.x)      # stays where it is until the move starts
+        if last is not None and round(x) == last.x and abs(end - last.t) <= REPEAT_MS:
+            return                        # already going there, arriving then (asked again)
+        if last is None or abs(meant - last.t) > CHAIN_MS:
+            begin = self._make_room(meant)
+            last = self._last
+            if last is not None and begin - last.t > HOLD_GAP_MS:
+                self._add(begin, last.x)      # stays where it is until the move starts
+        # Otherwise it carries straight on from the last point. Moves reach Home
+        # Assistant a little early or late (tens of ms): a stop before each late
+        # one and a cut-short turn before each early one made a finger jerky.
+        last = self._last
+        if last is not None and end <= last.t:
+            end = last.t + min(duration, 150)   # late for its time: there soon, never in a jump
         # With nothing before it, the Handy goes there from wherever it is.
-        self._add(begin + max(1, int(duration_ms)), x)
+        self._add(end, x)
+        _LOGGER.debug("Handy Wi-Fi move: %.0f%% at +%d ms (meant %+d ms, lead %.2f s)",
+                      x, end - self._ms(time.monotonic()), end - meant - duration, self.lead_s)
         self._wake.set()
 
     def timeline(self, points: list[tuple[float, float]]) -> None:
@@ -357,6 +382,9 @@ class HandyStream:
             state = await self.api.call("PUT", "/hsp/add", add)
             self._tail += len(batch)
             self._check_late(state, batch[0].t, sent)
+        _LOGGER.debug("Handy Wi-Fi sent %d points (%d..%d ms ahead), %s", len(batch),
+                      batch[0].t - self._ms(time.monotonic()), batch[-1].t - self._ms(time.monotonic()),
+                      "add" if self.playing else "play")
         # Only what was sent goes (a newer move may have replaced the rest meanwhile).
         if self._pending[: len(batch)] == batch:
             del self._pending[: len(batch)]

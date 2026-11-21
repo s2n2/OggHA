@@ -1,3 +1,13 @@
+## 3.21.0b4 - The Handy over Wi-Fi (beta)
+
+From trying beta 3 by hand (finger control felt awful, scripts unsure):
+
+- **No more drift:** when a move had to start after a point the Handy already had, the whole move was pushed back by the overlap. A script's next point is asked again every second and each live move overlaps the last a little, so the delay kept growing (and the late-point check then raised it further: 1.8 s instead of ~1 s). Every move now arrives at its own time; a point asked again adds nothing.
+- **Smooth finger control:** moves reach Home Assistant a little early or late (tens of ms). Each late one got a stop before it and each early one cut the previous turn short, so strokes came out jerky and shallow. A move meant to start within 0.25 s of where the last one ends now carries straight on from it.
+- Moves and sends are logged at debug level (custom_components.ogg.handy_wifi).
+
+Over Wi-Fi a finger still runs about a second behind (Ohdoki's servers are in Europe and the Handy's own link to them is the slow part); scripts and videos are read that far ahead, so they stay in time.
+
 ## 3.21.0b3 - The Handy over Wi-Fi (beta)
 
 Measured on the Handy (firmware 4.3) with its position read 25 times a second over Bluetooth while it was driven over Wi-Fi:
