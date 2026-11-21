@@ -1,3 +1,6 @@
+## 3.18.2 - Saved scripts on a stroker from Home Assistant
+- **`ogg.studio_play` on a stroker** (automations, scripts, the saved-script entities): a stroke script was first turned into vibration levels meant for a vibrator, and those levels were then played as positions - the stroker jumped about instead of following the script. A stroker now plays a stroke script as it is, and a vibration script as strokes by feel (the same planner as the cards, now in Home Assistant too and checked against the card's), inside its stroke range.
+
 ## 3.18.1 - Patterns and recordings stroke smoothly
 - **Patterns and vibration recordings on a stroker:** the Easy card's patterns (and scripts) and the Queue's recordings were sent to a stroker as positions, so every pulse or step in the level was a jump - 30% or more of the stroke in a twentieth of a second, dozens of times a minute (Pulse, Heartbeat, Echo, Chachacha, Tempo). A stroker now gets strokes that follow the pattern's or recording's feel (its rhythm and intensity as stroke speed and depth): no jumps, no move quicker than the Bluetooth link carries. Stroke recordings and moods (which have their own stroke track) play as they are.
 

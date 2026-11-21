@@ -15,10 +15,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 
 from .const import LIBRARY, OGG_DOMAIN, OLD_DOMAIN, QUEUES, SPEEDS
 from .convert import RUN_MODES, run_script
+from .feel import stroker_script
 from .library import Library, clean_script, limit_script, script_info
 from .privacy import STUDIO_OPTIONS, async_setup_privacy, async_setup_privacy_entry, require_user
 from .queues import WHO, Queues
@@ -85,6 +87,18 @@ def studio_library(hass: HomeAssistant) -> Library:
     return library
 
 
+
+def _is_stroker(hass: HomeAssistant, entity_id: str) -> bool:
+    """True for an Ogg device that only strokes (a linear actuator, no motors)."""
+    entry = er.async_get(hass).async_get(entity_id)
+    if entry is None or entry.platform != OGG_DOMAIN or entry.config_entry_id is None:
+        return False
+    config_entry = hass.config_entries.async_get_entry(entry.config_entry_id)
+    hub = getattr(config_entry, "runtime_data", None)
+    parts = str(entry.unique_id).split(":")
+    device = getattr(hub, "devices", {}).get(parts[1]) if len(parts) >= 3 else None
+    return bool(device is not None and not device.motor_count and device.linear_count)
+
 async def async_setup_studio(hass: HomeAssistant) -> None:
     """Services, websocket commands and links (once, from Ogg's async_setup)."""
     await async_setup_video(hass)
@@ -147,13 +161,20 @@ async def async_setup_studio(hass: HomeAssistant) -> None:
         mode = call.data.get("mode")
         if name and mode:
             library.set_mode(name, mode)
-        script = run_script(script, mode or (library.mode(name) if name else None))
-        script = limit_script(script, device_limits(hass, library, call.data["entity_id"]))
+        limits = device_limits(hass, library, call.data["entity_id"])
+        if _is_stroker(hass, call.data["entity_id"]):
+            # A stroker plays strokes: a stroke script as it is (not turned into
+            # vibration first), a vibration script as strokes by feel (its levels
+            # as positions made it jump at every pulse).
+            script, output = stroker_script(script, limits), "linear"
+        else:
+            script = run_script(script, mode or (library.mode(name) if name else None))
+            script, output = limit_script(script, limits), "vibrate"
         speed: Any = call.data.get("speed", library.speed)
         factor = float(str(speed).rstrip("x"))
         await hass.services.async_call(
             OGG_DOMAIN, "play_script",
-            {"entity_id": call.data["entity_id"], "script": script, "speed": factor, "loop": call.data["loop"]},
+            {"entity_id": call.data["entity_id"], "script": script, "speed": factor, "loop": call.data["loop"], "output": output},
             blocking=True,
         )
 

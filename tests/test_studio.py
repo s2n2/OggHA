@@ -150,3 +150,34 @@ def test_limits_keep_a_video_delay():
     assert clean_limits({"delay": 9000})["delay"] == 2000
     with pytest.raises(HomeAssistantError):
         clean_limits({"delay": "soon"})
+
+
+async def test_studio_play_gives_a_stroker_strokes(hass, monkeypatch):
+    """A stroker gets a stroke script as it is, and a vibration script as strokes
+    by feel (its levels as positions made it jump at every pulse)."""
+    import custom_components.ogg.studio as studio
+
+    await setup_entry(hass)
+    played = []
+
+    async def fake_play(call):
+        played.append(dict(call.data))
+
+    hass.services.async_register(DOMAIN, "play_script", fake_play)
+    stroke = {"actions": [{"at": 0, "pos": 10}, {"at": 600, "pos": 90}, {"at": 1200, "pos": 10}],
+              "metadata": {"type": "stroke"}}
+    pulses = {"actions": [p for t in range(0, 20000, 1000) for p in
+                          ({"at": t, "pos": 0}, {"at": t + 50, "pos": 75}, {"at": t + 500, "pos": 75}, {"at": t + 550, "pos": 0})],
+              "metadata": {"type": "vibration"}}
+    monkeypatch.setattr(studio, "_is_stroker", lambda hass, entity_id: True)
+    await hass.services.async_call(DOMAIN, "studio_play", {"entity_id": "button.toy_stop", "script": stroke}, blocking=True)
+    assert played[-1]["output"] == "linear"
+    assert [a["pos"] for a in played[-1]["script"]["actions"]] == [10, 90, 10]      # not turned into vibration
+    await hass.services.async_call(DOMAIN, "studio_play", {"entity_id": "button.toy_stop", "script": pulses}, blocking=True)
+    acts = played[-1]["script"]["actions"]
+    assert played[-1]["output"] == "linear" and len(acts) > 10
+    assert not any(abs(b["pos"] - a["pos"]) >= 30 and b["at"] - a["at"] <= 60 for a, b in zip(acts, acts[1:]))
+    # A vibrator still gets vibration.
+    monkeypatch.setattr(studio, "_is_stroker", lambda hass, entity_id: False)
+    await hass.services.async_call(DOMAIN, "studio_play", {"entity_id": "button.toy_stop", "script": stroke}, blocking=True)
+    assert played[-1]["output"] == "vibrate"
