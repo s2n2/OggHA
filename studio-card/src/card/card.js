@@ -34,6 +34,7 @@ export class OggStudioCard extends HTMLElement {
     this._claimAt = {};
     this._outLast = {};
     this._linLast = {};
+    this._linFollow = {};
     this.shadowRoot.addEventListener('pointerdown', () => { gpState.owner = this; }, true);
   }
 

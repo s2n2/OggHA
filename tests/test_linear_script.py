@@ -36,7 +36,7 @@ def make_hub(linear_count: int = 1):
     start = time.monotonic()
     real_linear = OggHub.async_linear
 
-    async def linear(key, position, duration, index=0, *, _script=False):
+    async def linear(key, position, duration, index=0, *, _script=False, _deadline=None, _run=None):
         if not _script:
             hub._cancel_linear(key)
         sent.append((round((time.monotonic() - start) * 1000), round(position), round(duration)))
@@ -51,22 +51,23 @@ def script(*points):
 
 async def test_heads_for_each_point_over_the_time_between_them():
     hub, _, sent, _ = make_hub()
-    await hub.async_play_linear("k", script((0, 10), (100, 90), (200, 10)))
+    await hub.async_play_linear("k", script((0, 10), (300, 90), (600, 10)))
     await asyncio.wait_for(asyncio.shield(hub._linear_runs["k"]), 2)
+    await asyncio.sleep(0)
     assert [p for _, p, _ in sent] == [10, 90, 10]
-    # The first move takes its time (from wherever it is); then 100 ms each.
-    assert [d for _, _, d in sent] == [400, 100, 100]
-    assert sent[1][0] == pytest.approx(0, abs=40) and sent[2][0] == pytest.approx(100, abs=40)
+    # The first move takes its time (from wherever it is); then 300 ms each.
+    assert [d for _, _, d in sent] == [400, 300, 300]
+    assert sent[1][0] == pytest.approx(0, abs=40) and sent[2][0] == pytest.approx(300, abs=40)
     assert "k" not in hub._linear_runs
 
 
 async def test_loop_ends_at_the_time_limit():
     hub, _, sent, _ = make_hub()
-    await hub.async_play_linear("k", script((0, 0), (50, 100), (100, 0)), loop=True, max_seconds=0.35)
+    await hub.async_play_linear("k", script((0, 0), (150, 100), (300, 0)), loop=True, max_seconds=1.0)
     task = hub._linear_runs["k"]
-    await asyncio.wait_for(asyncio.shield(task), 2)
+    await asyncio.wait_for(asyncio.shield(task), 3)
     assert len(sent) >= 6           # went round several times
-    assert sent[-1][0] < 450
+    assert sent[-1][0] < 1100
 
 
 async def test_a_live_command_stop_or_all_off_takes_over():
@@ -113,19 +114,20 @@ def test_looped_vibration_script_ends_at_its_time_limit():
 async def test_starts_part_way_then_loops_the_whole_script():
     hub, _, sent, _ = make_hub()
     await hub.async_play_linear(
-        "k", script((0, 0), (100, 50), (200, 100)), loop=True, max_seconds=0.45, start_ms=150
+        "k", script((0, 0), (200, 80), (400, 100)), loop=True, max_seconds=0.9, start_ms=300
     )
-    await asyncio.wait_for(asyncio.shield(hub._linear_runs["k"]), 2)
+    await asyncio.wait_for(asyncio.shield(hub._linear_runs["k"]), 3)
     positions = [p for _, p, _ in sent]
-    # First pass from 150 ms: only the 200 ms point; then round from 0.
-    assert positions[:4] == [100, 0, 50, 100]
-    assert sent[1][0] == pytest.approx(50, abs=40)
+    # First pass from 300 ms: only the 400 ms point; then round from 0.
+    assert positions[:4] == [100, 0, 80, 100]
+    assert sent[1][0] == pytest.approx(100, abs=40)
 
 
 async def test_start_past_the_end_plays_from_the_beginning():
     hub, _, sent, _ = make_hub()
-    await hub.async_play_linear("k", script((0, 10), (100, 90)), start_ms=5000)
+    await hub.async_play_linear("k", script((0, 10), (300, 90)), start_ms=5000)
     await asyncio.wait_for(asyncio.shield(hub._linear_runs["k"]), 2)
+    await asyncio.sleep(0)
     assert [p for _, p, _ in sent] == [10, 90]
 
 
@@ -152,7 +154,78 @@ async def test_plays_when_home_assistant_starts_the_task_eagerly():
             return asyncio.get_running_loop().create_task(coro, name=name, eager_start=True)
 
     hub.entry = EagerEntry()
-    await hub.async_play_linear("k", script((0, 10), (100, 90), (200, 10)))
+    await hub.async_play_linear("k", script((0, 10), (300, 90), (600, 10)))
     await asyncio.wait_for(asyncio.shield(hub._linear_runs["k"]), 2)
+    await asyncio.sleep(0)
     assert [p for _, p, _ in sent] == [10, 90, 10]
 
+
+
+def real_hub():
+    """The real async_linear and lock, with a fake Buttplug client whose
+    acknowledgement can stall (the IntiHA engine sometimes holds it for over
+    a second while a slow Bluetooth write finishes)."""
+    hub, device, _, real_linear = make_hub()
+    del hub.async_linear                     # use the real method again
+    device.index = 0
+    device.aux_values = {}
+    hub._locks = {}
+    hub._notify = lambda: None
+    start = time.monotonic()
+    sent: list[tuple[int, int, int]] = []
+    stalls: dict[int, float] = {}
+
+    class Client:
+        async def request(self, name, payload):
+            vector = payload["Vectors"][0]
+            sent.append((round((time.monotonic() - start) * 1000), round(vector["Position"] * 100), vector["Duration"]))
+            await asyncio.sleep(stalls.get(len(sent), 0.002))
+            return {"Ok": {}}
+
+    client = Client()
+    hub._require_online = lambda dev: client
+    return hub, sent, stalls
+
+
+async def test_a_stalled_acknowledgement_does_not_hold_back_or_burst_the_timeline():
+    hub, sent, stalls = real_hub()
+    stalls[2] = 1.0                      # the second move's acknowledgement takes a second
+    points = [(i * 300, 10 if i % 2 == 0 else 90) for i in range(9)]   # 300 ms strokes for 2.4 s
+    await hub.async_play_linear("k", script(*points))
+    await asyncio.wait_for(asyncio.shield(hub._linear_runs["k"]), 4)
+    await asyncio.sleep(0.05)
+    times = [at for at, _, _ in sent]
+    # No catch-up burst: after the stall, moves are still a stroke apart.
+    assert all(b - a >= 150 for a, b in zip(times[2:], times[3:])), sent
+    # The stalled stretch was skipped, not queued: the last move still goes
+    # out on time (for the 2.4 s point, a stroke before it).
+    assert times[-1] == pytest.approx(2100, abs=80)
+    # Each move after the stall lands on its own point's time (a multiple of 300 ms).
+    for at, _pos, duration in sent[2:]:
+        landing = (at + duration) % 300
+        assert min(landing, 300 - landing) <= 50, sent
+
+
+async def test_a_move_sent_late_aims_at_its_point_but_never_lurches():
+    hub, sent, _ = real_hub()
+    deadline = time.monotonic() + 0.1    # its point is 100 ms away
+    await hub.async_linear("k", 50, 400, _script=True, _deadline=deadline)
+    assert sent[-1][2] == 240            # 60% of its 400 ms, not a 100 ms lurch
+    deadline = time.monotonic() + 0.35
+    await hub.async_linear("k", 60, 400, _script=True, _deadline=deadline)
+    assert sent[-1][2] == pytest.approx(350, abs=15)
+
+
+async def test_a_dense_recording_is_cleaned_before_it_plays():
+    hub, sent, _ = real_hub()
+    import math
+    # A finger recording: a slow stroke sampled every 50 ms with a little tremor.
+    points = [(i, round(50 + 40 * math.sin(2 * math.pi * i / 1600) + (2 if (i // 50) % 2 else -2))) for i in range(0, 1600, 50)]
+    await hub.async_play_linear("k", script(*points))
+    await asyncio.wait_for(asyncio.shield(hub._linear_runs["k"]), 4)
+    await asyncio.sleep(0.05)
+    assert len(sent) < len(points) / 2
+    times = [at for at, _, _ in sent]
+    assert all(b - a >= 120 for a, b in zip(times[1:], times[2:])), sent
+    positions = [p for _, p, _ in sent]
+    assert max(positions) >= 86 and min(positions) <= 14      # the full stroke is kept

@@ -890,13 +890,13 @@
       if (move) out.push({ at: Math.round(t * 1e3 + move.dur), pos: Math.round(move.goal) });
       else if (due) out.push({ at: Math.round(eng.nextAt * 1e3), pos: Math.round(before) });
     }
-    const clean = [];
+    const clean2 = [];
     for (const x of out) {
-      const l = clean[clean.length - 1];
+      const l = clean2[clean2.length - 1];
       if (l && x.at <= l.at) l.pos = x.pos;
-      else clean.push(x);
+      else clean2.push(x);
     }
-    return { actions: clean, moods };
+    return { actions: clean2, moods };
   }
   var moodAt = (moods, ms) => {
     let m = null;
@@ -1882,6 +1882,7 @@ ha-card.simple .ctltabs button.on{background:linear-gradient(110deg,#31c6b8,#54d
       this._claimAt = {};
       this._outLast = {};
       this._linLast = {};
+      this._linFollow = {};
       this.shadowRoot.addEventListener("pointerdown", () => {
         gpState.owner = this;
       }, true);
@@ -2304,6 +2305,178 @@ ${VIEWERS_STYLE}
     }
   };
 
+  // studio-card/src/lib/smooth.js
+  var SMOOTH_TOLERANCE = 2.5;
+  var SMOOTH_MIN_TRAVEL = 4;
+  var SMOOTH_FLAT = 1;
+  var SMOOTH_HOLD_MS = 250;
+  var SMOOTH_MIN_SEGMENT_MS = 150;
+  var sign = (x) => (x > 0) - (x < 0);
+  var isTurn = (a, b, c) => sign(b[1] - a[1]) * sign(c[1] - b[1]) < 0;
+  function clean(points) {
+    const out = [];
+    for (const [at, p] of points.map((x) => [Number(x[0]), Number(x[1])]).sort((a, b) => a[0] - b[0])) {
+      const pos = Math.min(100, Math.max(0, p));
+      if (out.length && at <= out[out.length - 1][0]) out[out.length - 1] = [out[out.length - 1][0], pos];
+      else out.push([at, pos]);
+    }
+    return out;
+  }
+  function extremes(pts, minTravel) {
+    const out = [0];
+    let dir = 0, best = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const p = pts[i][1];
+      if (dir === 0) {
+        if (Math.abs(p - pts[0][1]) >= minTravel) {
+          dir = p > pts[0][1] ? 1 : -1;
+          best = i;
+        }
+        continue;
+      }
+      if ((p - pts[best][1]) * dir > 0) best = i;
+      else if (Math.abs(p - pts[best][1]) >= minTravel) {
+        out.push(best);
+        dir = -dir;
+        best = i;
+      }
+    }
+    if (best && best !== out[out.length - 1]) out.push(best);
+    if (out[out.length - 1] !== pts.length - 1) out.push(pts.length - 1);
+    return out;
+  }
+  function shape(pts, tolerance, minTravel) {
+    const keep = new Array(pts.length).fill(false);
+    const stack = [];
+    const marks = extremes(pts, minTravel);
+    for (let m = 0; m + 1 < marks.length; m++) {
+      keep[marks[m]] = keep[marks[m + 1]] = true;
+      stack.push([marks[m], marks[m + 1]]);
+    }
+    while (stack.length) {
+      const [lo, hi] = stack.pop();
+      if (hi - lo < 2) continue;
+      const [t0, p0] = pts[lo], [t1, p1] = pts[hi];
+      const span = t1 - t0;
+      let worst = -1, at = -1;
+      for (let k = lo + 1; k < hi; k++) {
+        const [t, p] = pts[k];
+        const err = Math.abs(p - (p0 + (p1 - p0) * (span ? (t - t0) / span : 0)));
+        if (err > worst) {
+          worst = err;
+          at = k;
+        }
+      }
+      if (worst > tolerance) {
+        keep[at] = true;
+        stack.push([lo, at], [at, hi]);
+      }
+    }
+    return pts.filter((_, i) => keep[i]);
+  }
+  function dropWobble(pts, minTravel) {
+    let changed = true;
+    while (changed && pts.length > 2) {
+      changed = false;
+      const out = [];
+      const n = pts.length;
+      let i = 0;
+      while (i < n) {
+        if (i + 1 < n) {
+          const [ta, a] = pts[i], [tb, b] = pts[i + 1];
+          const travel = Math.abs(b - a);
+          const hold = travel < SMOOTH_FLAT && tb - ta >= SMOOTH_HOLD_MS;
+          const prev = out.length ? out[out.length - 1][1] : null;
+          const nxt = i + 2 < n ? pts[i + 2][1] : null;
+          if (travel < minTravel && !hold && prev !== null && nxt !== null) {
+            const lo = Math.min(a, b), hi = Math.max(a, b);
+            if (prev < lo - 1e-9 && nxt < lo - 1e-9) {
+              out.push(a >= b ? pts[i] : pts[i + 1]);
+              i += 2;
+              changed = true;
+              continue;
+            }
+            if (prev > hi + 1e-9 && nxt > hi + 1e-9) {
+              out.push(a <= b ? pts[i] : pts[i + 1]);
+              i += 2;
+              changed = true;
+              continue;
+            }
+            if (sign(a - prev) !== sign(b - a) && sign(b - a) !== sign(nxt - b)) {
+              i += 2;
+              changed = true;
+              continue;
+            }
+          }
+        }
+        out.push(pts[i]);
+        i += 1;
+      }
+      if (out[out.length - 1] !== pts[n - 1]) out.push(pts[n - 1]);
+      pts = out;
+    }
+    return pts;
+  }
+  function minSegments(pts, minMs) {
+    if (minMs <= 0) return pts;
+    let changed = true;
+    while (changed && pts.length > 2) {
+      changed = false;
+      const out = [pts[0]];
+      const n = pts.length;
+      let i = 1;
+      while (i < n - 1) {
+        const here = pts[i];
+        const last = out[out.length - 1];
+        if (here[0] - last[0] < minMs) {
+          const turn = isTurn(last, here, pts[i + 1]);
+          if (turn && out.length > 1 && !isTurn(out[out.length - 2], last, here)) {
+            out.pop();
+            changed = true;
+            continue;
+          }
+          const later = out[out.length - 1][0] + minMs;
+          if (turn && pts[i + 1][0] - later >= minMs) {
+            out.push([later, here[1]]);
+            i += 1;
+          } else if (turn && i + 1 < n - 1 && isTurn(here, pts[i + 1], pts[i + 2])) i += 2;
+          else i += 1;
+          changed = true;
+          continue;
+        }
+        out.push(here);
+        i += 1;
+      }
+      const end = pts[n - 1];
+      if (out.length > 1 && end[0] - out[out.length - 1][0] < minMs) {
+        out.pop();
+        changed = true;
+      }
+      out.push(end);
+      pts = out;
+    }
+    return pts;
+  }
+  function smoothPoints(points, { tolerance = SMOOTH_TOLERANCE, minTravel = SMOOTH_MIN_TRAVEL, minSegmentMs = SMOOTH_MIN_SEGMENT_MS } = {}) {
+    let pts = clean(points || []);
+    if (pts.length <= 2) return pts;
+    pts = shape(pts, tolerance, minTravel);
+    pts = dropWobble(pts, minTravel);
+    return minSegments(pts, minSegmentMs);
+  }
+  function smoothActions(actions, opts) {
+    return smoothPoints((actions || []).map((a) => [a.at, a.pos]), opts).map(([at, pos]) => ({ at: Math.round(at), pos: Math.round(pos) }));
+  }
+  var CACHE = /* @__PURE__ */ new WeakMap();
+  function smoothedFor(actions, rate = 1) {
+    if (!Array.isArray(actions) || actions.length < 3) return actions;
+    let byRate = CACHE.get(actions);
+    if (!byRate) CACHE.set(actions, byRate = /* @__PURE__ */ new Map());
+    const key = Math.round((rate || 1) * 100);
+    if (!byRate.has(key)) byRate.set(key, smoothActions(actions, { minSegmentMs: SMOOTH_MIN_SEGMENT_MS * (rate || 1) }));
+    return byRate.get(key);
+  }
+
   // studio-card/src/card/stroke.js
   var StrokePart = class {
     // ---------------------------------------------------------- stroke recorder
@@ -2557,9 +2730,9 @@ ${VIEWERS_STYLE}
         if (p.motor === "l" || o.m === FOLLOW_STROKER) {
           if (p.motor !== "l") return Math.round(st.pos);
           if (fromScript) return this._goalFrom(i, this._rp.raw, this._rp.t, this._rpSpeed(), this._rp.convs || (this._rp.convs = {})) || { goal: st.pos, dur: 120 };
-          if (speed === null) return { goal: st.pos, dur: 120 };
+          if (speed === null) return st.drag !== null ? { goal: st.pos, dur: 120 } : { goal: st.pos, settle: true };
           const goal = st.dir > 0 ? st.upper : st.lower;
-          return { goal, dur: Math.abs(goal - st.pos) / strokeVel(this._stPcts[speed]) };
+          return { goal, dur: Math.abs(goal - st.pos) / strokeVel(this._stPcts[speed]), target: true };
         }
         return Math.min(100, Math.max(0, liveIntensity(o.m, st.pos, st.vel)));
       });
@@ -2594,7 +2767,7 @@ ${VIEWERS_STYLE}
         this._stShow();
         return;
       }
-      this._take = { version: "1.0", inverted: false, range: 100, actions: acts, metadata: { creator: "OggStudio", type: "stroke" } };
+      this._take = { version: "1.0", inverted: false, range: 100, actions: smoothActions(acts), metadata: { creator: "OggStudio", type: "stroke" } };
       const m = this._outAt(0).m;
       this._el("takemode").value = RUN_MODES[m] ? m : RUN_MODE_DEFAULT;
       this._toast(`Recorded ${fmt(duration(this._take))} of strokes. Save it below, or download the .funscript for a Handy.`);
@@ -4719,11 +4892,12 @@ ${VIEWERS_STYLE}
     }
     _goalFrom(i, raw, ms, rate, cache) {
       const g = this._goalFromRaw(i, raw, ms, rate, cache);
-      return g && this._simple && this._strokeKind ? { ...g, goal: this._lim(g.goal) } : g;
+      if (!g) return g;
+      return { ...g, goal: this._simple && this._strokeKind ? this._lim(g.goal) : g.goal, target: true };
     }
     _goalFromRaw(i, raw, ms, rate, cache) {
       if (raw.mood) {
-        const next2 = nextAction(raw.actions, ms);
+        const next2 = nextAction(smoothedFor(raw.actions, rate), ms);
         return next2 ? { goal: moodSoften(next2.pos, this._moodStrength(), next2.at), dur: (next2.at - ms) / (rate || 1) } : null;
       }
       const v1 = i % 2 && raw.channels && raw.channels.V1 && raw.channels.V1.actions;
@@ -4735,7 +4909,7 @@ ${VIEWERS_STYLE}
         src = cache[key].actions;
         this._aiLabel(i, moodAt(cache[key].moods, ms));
       }
-      const next = nextAction(src, ms);
+      const next = nextAction(smoothedFor(src, rate), ms);
       return next ? { goal: next.pos, dur: (next.at - ms) / (rate || 1) } : null;
     }
     // Live AI feel per output (one engine each, restarted when stopped).
@@ -5160,6 +5334,12 @@ ${VIEWERS_STYLE}
 
   // studio-card/src/card/outputs.js
   var MAX_OUTS = 4;
+  var FOLLOW_SEND_MS = 140;
+  var FOLLOW_OVERLAP_MS = 90;
+  var FOLLOW_SMOOTH_MS = 60;
+  var FOLLOW_DEADBAND = 2;
+  var FOLLOW_SETTLE_MS = 260;
+  var LINEAR_TARGET_GAP_MS = 60;
   var OUT_FOLD_KEY = "oggstudio_outputs_folded";
   var NO_OUT = Object.freeze({ t: "none", m: "position", on: true });
   var OutputsPart = class {
@@ -5468,13 +5648,46 @@ ${VIEWERS_STYLE}
     // Strokers take "go to this position over this long" moves. Ogg's
     // ogg.linear does that live; without it, Ogg's Position control is used
     // (coarse: it moves over a fixed second).
+    //
+    // Three kinds of move:
+    // - target (a script's next point, a held speed's next limit): sent as it is.
+    // - follow (a finger, a pad, a level): each Bluetooth move takes 100-300 ms
+    //   to land, so following every wiggle made the stroker stop, start and
+    //   jump. The finger is smoothed, sent at a pace the link carries, and each
+    //   move lasts a little past the next one so the stroker never stops
+    //   between them; small changes (a finger at rest or lifting) are not sent.
+    //   It trails the finger by a fraction of a second.
+    // - settle (the finger let go): one gentle move to where it ended.
     _outLinear(dev, asked, now) {
       const last = this._linLast[dev.id];
-      const move = limitMove(this._limits(dev), asked, last ? last.goal : null);
-      const goal = Math.round(Math.min(100, Math.max(0, move.goal)));
-      if (last && last.goal === goal && now - last.at < 1e3) return;
       const live = Boolean(this._hass.services && this._hass.services.ogg && this._hass.services.ogg.linear);
-      if (last && now - last.at < (live ? 80 : 400)) return;
+      const lim = this._limits(dev);
+      const clamp3 = (x) => Math.round(Math.min(100, Math.max(0, x)));
+      this._linFollow = this._linFollow || {};
+      let move;
+      if (asked.target) {
+        this._linFollow[dev.id] = null;
+        move = limitMove(lim, asked, last ? last.goal : null);
+        const goal2 = clamp3(move.goal);
+        if (last && last.goal === goal2 && now - last.at < 1e3) return;
+        if (last && now - last.at < (live ? LINEAR_TARGET_GAP_MS : 400)) return;
+      } else if (asked.settle) {
+        this._linFollow[dev.id] = null;
+        move = limitMove(lim, { goal: asked.goal, dur: FOLLOW_SETTLE_MS }, last ? last.goal : null);
+        if (!last || Math.abs(clamp3(move.goal) - last.goal) < FOLLOW_DEADBAND) return;
+      } else {
+        const raw = limitMove(lim, { goal: asked.goal, dur: 0 }, null).goal;
+        let f = this._linFollow[dev.id];
+        if (!f) f = this._linFollow[dev.id] = { pos: last ? last.goal : raw, at: now };
+        f.pos += (raw - f.pos) * (1 - Math.exp(-Math.max(0, now - f.at) / FOLLOW_SMOOTH_MS));
+        f.at = now;
+        if (!last) f.pos = raw;
+        if (last && now - last.at < (live ? FOLLOW_SEND_MS : 400)) return;
+        if (last && Math.abs(f.pos - last.goal) < FOLLOW_DEADBAND) return;
+        move = { goal: f.pos, dur: FOLLOW_SEND_MS + FOLLOW_OVERLAP_MS };
+        if (lim.speed < 100 && last) move.dur = Math.max(move.dur, Math.abs(f.pos - last.goal) / (LIMIT_FULL_SPEED * lim.speed / 100) * 1e3);
+      }
+      const goal = clamp3(move.goal);
       this._linLast[dev.id] = { goal, at: now };
       if (live) this._hass.callService("ogg", "linear", { entity_id: dev.stop, position: goal, duration: Math.max(50, Math.round(move.dur)) }, void 0, false).catch(() => {
       });
@@ -5495,6 +5708,7 @@ ${VIEWERS_STYLE}
       this._claimAt = {};
       this._outLast = {};
       this._linLast = {};
+      this._linFollow = {};
       this._aiLive = [];
     }
     _outRender() {
@@ -8695,8 +8909,8 @@ ${VIEWERS_STYLE}
       const p0 = out[cut2 - 1], p1 = out[cut2];
       out.splice(cut2, out.length - cut2, { at: Math.round(end), pos: p0.pos + (p1.pos - p0.pos) * (end - p0.at) / (p1.at - p0.at) });
     } else if (cut2 === 0) out.splice(1);
-    const clean = out.filter((p, i) => i === 0 || p.at > out[i - 1].at);
-    return simplify(clean, 1).map((p) => ({ at: p.at, pos: Math.round(clamp(p.pos)) }));
+    const clean2 = out.filter((p, i) => i === 0 || p.at > out[i - 1].at);
+    return simplify(clean2, 1).map((p) => ({ at: p.at, pos: Math.round(clamp(p.pos)) }));
   }
   var ScreenOffPart = class {
     _soBind() {
@@ -8756,6 +8970,7 @@ ${VIEWERS_STYLE}
       const at = so.loop ? gone % so.len : gone;
       this._outLast = {};
       this._linLast = {};
+      this._linFollow = {};
       if (so.kind === "rp" && this._rp) {
         if (!so.loop && at >= so.len) {
           if (this._pl && this._pl.on) {

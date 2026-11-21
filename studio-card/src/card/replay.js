@@ -5,6 +5,7 @@ import { SPEEDS, capture, decodeText, duration, esc, fmt } from '../lib/core.js'
 import { GP_POLL_MS } from '../lib/gamepad.js';
 import { MOODS, buildMood, moodSoften } from '../lib/moods.js';
 import { FOLLOW_STROKER, nextAction, parseTarget, sampleAt } from '../lib/outputs.js';
+import { smoothedFor } from '../lib/smooth.js';
 
 // Methods mixed into OggStudioCard.
 export class ReplayPart {
@@ -226,12 +227,15 @@ export class ReplayPart {
 
   _goalFrom(i, raw, ms, rate, cache) {
     const g = this._goalFromRaw(i, raw, ms, rate, cache);
-    return g && this._simple && this._strokeKind ? { ...g, goal: this._lim(g.goal) } : g;
+    if (!g) return g;
+    return { ...g, goal: this._simple && this._strokeKind ? this._lim(g.goal) : g.goal, target: true };
   }
 
   _goalFromRaw(i, raw, ms, rate, cache) {
+    // A stroker plays the cleaned timeline (lib/smooth.js): wobble and moves
+    // too quick for Bluetooth would make it lurch.
     if (raw.mood) {
-      const next = nextAction(raw.actions, ms);
+      const next = nextAction(smoothedFor(raw.actions, rate), ms);
       return next ? { goal: moodSoften(next.pos, this._moodStrength(), next.at), dur: (next.at - ms) / (rate || 1) } : null;
     }
     const v1 = (i % 2) && raw.channels && raw.channels.V1 && raw.channels.V1.actions;
@@ -243,7 +247,7 @@ export class ReplayPart {
       src = cache[key].actions;
       this._aiLabel(i, moodAt(cache[key].moods, ms));
     }
-    const next = nextAction(src, ms);
+    const next = nextAction(smoothedFor(src, rate), ms);
     return next ? { goal: next.pos, dur: (next.at - ms) / (rate || 1) } : null;
   }
 

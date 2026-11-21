@@ -143,6 +143,7 @@ export class ScreenOffPart {
     const at = so.loop ? gone % so.len : gone;
     this._outLast = {};
     this._linLast = {};
+    this._linFollow = {};
     if (so.kind === 'rp' && this._rp) {
       if (!so.loop && at >= so.len) {
         // It finished while the screen was off.

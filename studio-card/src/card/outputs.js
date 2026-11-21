@@ -2,11 +2,18 @@
 import { FOLLOW_AI } from '../lib/ai.js';
 import { RUN_MODES, RUN_MODE_DEFAULT, fileKind, fileTitle, isStroke, normalise } from '../lib/convert.js';
 import { SAMPLE_MS, SPEEDS, TAKE_SRC, VIDEO_QUEUE, decodeText, duration, encodeCode, esc, fmt } from '../lib/core.js';
-import { limitLevels, limitMove } from '../lib/limits.js';
+import { LIMIT_FULL_SPEED, limitLevels, limitMove } from '../lib/limits.js';
 import { FOLLOW_STROKER, OUT_KEY, outLevels, parseTarget } from '../lib/outputs.js';
 import { gearHtml, openDeviceSettings } from '../lib/devsettings.js';
 
 const MAX_OUTS = 4;
+// Live stroker following (see _outLinear).
+const FOLLOW_SEND_MS = 140;      // about the pace a Bluetooth proxy carries moves
+const FOLLOW_OVERLAP_MS = 90;    // each move outlasts the gap, so the stroker keeps moving
+const FOLLOW_SMOOTH_MS = 60;     // finger smoothing (time constant)
+const FOLLOW_DEADBAND = 2;       // % : smaller changes are not sent
+const FOLLOW_SETTLE_MS = 260;    // the last move after letting go
+const LINEAR_TARGET_GAP_MS = 60; // the shortest gap between script moves
 const OUT_FOLD_KEY = 'oggstudio_outputs_folded';
 const NO_OUT = Object.freeze({ t: 'none', m: 'position', on: true });
 
@@ -287,13 +294,46 @@ export class OutputsPart {
   // Strokers take "go to this position over this long" moves. Ogg's
   // ogg.linear does that live; without it, Ogg's Position control is used
   // (coarse: it moves over a fixed second).
+  //
+  // Three kinds of move:
+  // - target (a script's next point, a held speed's next limit): sent as it is.
+  // - follow (a finger, a pad, a level): each Bluetooth move takes 100-300 ms
+  //   to land, so following every wiggle made the stroker stop, start and
+  //   jump. The finger is smoothed, sent at a pace the link carries, and each
+  //   move lasts a little past the next one so the stroker never stops
+  //   between them; small changes (a finger at rest or lifting) are not sent.
+  //   It trails the finger by a fraction of a second.
+  // - settle (the finger let go): one gentle move to where it ended.
   _outLinear(dev, asked, now) {
     const last = this._linLast[dev.id];
-    const move = limitMove(this._limits(dev), asked, last ? last.goal : null);
-    const goal = Math.round(Math.min(100, Math.max(0, move.goal)));
-    if (last && last.goal === goal && now - last.at < 1000) return;
     const live = Boolean(this._hass.services && this._hass.services.ogg && this._hass.services.ogg.linear);
-    if (last && now - last.at < (live ? 80 : 400)) return;
+    const lim = this._limits(dev);
+    const clamp = (x) => Math.round(Math.min(100, Math.max(0, x)));
+    this._linFollow = this._linFollow || {};
+    let move;
+    if (asked.target) {
+      this._linFollow[dev.id] = null;
+      move = limitMove(lim, asked, last ? last.goal : null);
+      const goal = clamp(move.goal);
+      if (last && last.goal === goal && now - last.at < 1000) return;
+      if (last && now - last.at < (live ? LINEAR_TARGET_GAP_MS : 400)) return;
+    } else if (asked.settle) {
+      this._linFollow[dev.id] = null;
+      move = limitMove(lim, { goal: asked.goal, dur: FOLLOW_SETTLE_MS }, last ? last.goal : null);
+      if (!last || Math.abs(clamp(move.goal) - last.goal) < FOLLOW_DEADBAND) return;
+    } else {
+      const raw = limitMove(lim, { goal: asked.goal, dur: 0 }, null).goal;
+      let f = this._linFollow[dev.id];
+      if (!f) f = this._linFollow[dev.id] = { pos: last ? last.goal : raw, at: now };
+      f.pos += (raw - f.pos) * (1 - Math.exp(-Math.max(0, now - f.at) / FOLLOW_SMOOTH_MS));
+      f.at = now;
+      if (!last) f.pos = raw;                       // the first move: straight there
+      if (last && now - last.at < (live ? FOLLOW_SEND_MS : 400)) return;
+      if (last && Math.abs(f.pos - last.goal) < FOLLOW_DEADBAND) return;
+      move = { goal: f.pos, dur: FOLLOW_SEND_MS + FOLLOW_OVERLAP_MS };
+      if (lim.speed < 100 && last) move.dur = Math.max(move.dur, Math.abs(f.pos - last.goal) / (LIMIT_FULL_SPEED * lim.speed / 100) * 1000);
+    }
+    const goal = clamp(move.goal);
     this._linLast[dev.id] = { goal, at: now };
     if (live) this._hass.callService('ogg', 'linear', { entity_id: dev.stop, position: goal, duration: Math.max(50, Math.round(move.dur)) }, undefined, false).catch(() => {});
     else if (dev.linear) this._hass.callService('number', 'set_value', { entity_id: dev.linear, value: goal }, undefined, false).catch(() => {});
@@ -312,6 +352,7 @@ export class OutputsPart {
     this._claimAt = {};
     this._outLast = {};
     this._linLast = {};
+    this._linFollow = {};
     this._aiLive = [];
   }
 

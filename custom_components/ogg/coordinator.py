@@ -32,6 +32,7 @@ from .migration import async_migrate_device_registry
 from .models import OggDevice, physical_address, useful_label
 from .multi import SLOT_STRIDE, MultiServerConnection
 from .patterns import parse_script
+from .smoothing import MIN_SEGMENT_MS, smooth_stroke
 from .patterns import (
     DUAL_PATTERNS,
     MOTOR_MODES,
@@ -50,6 +51,9 @@ _LOGGER = logging.getLogger(__name__)
 # Live linear (stroker) move duration bounds, in milliseconds.
 LINEAR_MIN_MS = 20
 LINEAR_MAX_MS = 10000
+# A timeline move sent late still takes at least this share of its time
+# (it would otherwise lurch to catch up).
+SCRIPT_MOVE_MIN_SHARE = 0.6
 _PATTERNS = set(SOFTWARE_PATTERNS) | set(NATIVE_PATTERNS) | set(DUAL_PATTERNS) | {RANDOM_PATTERN}
 
 
@@ -1737,7 +1741,15 @@ class OggHub:
             self._notify()
 
     async def async_linear(
-        self, key: str, position: float, duration: float, index: int = 0, *, _script: bool = False
+        self,
+        key: str,
+        position: float,
+        duration: float,
+        index: int = 0,
+        *,
+        _script: bool = False,
+        _deadline: float | None = None,
+        _run: asyncio.Task | None = None,
     ) -> None:
         """Live stroker following: one LinearCmd, no stop-first.
 
@@ -1759,6 +1771,13 @@ class OggHub:
         async with self._lock(key):
             if serial != self._linear_serials.get(key) or epoch != self._operation_epoch:
                 return  # Superseded by a newer target or an all-off.
+            if _run is not None and self._linear_runs.get(key) is not _run:
+                return  # Its timeline was stopped or replaced while it waited.
+            if _deadline is not None:
+                # A timeline move aims at its point's time, however long it
+                # waited: what is left, but never a lurch.
+                left = (_deadline - time.monotonic()) * 1000
+                duration = int(min(LINEAR_MAX_MS, max(LINEAR_MIN_MS, duration * SCRIPT_MOVE_MIN_SHARE, left)))
             client = self._require_online(device)
             payload = {
                 "DeviceIndex": device.index,
@@ -1814,6 +1833,14 @@ class OggHub:
         self._require_online(device)
         self._cancel_linear(key)
         speed = min(4.0, max(0.25, float(speed)))
+        # Clean the timeline for a Bluetooth stroker: real turns, pauses and
+        # changes of speed stay; wobble and moves too quick to carry go.
+        actions = [
+            (int(round(at)), pos / 100)
+            for at, pos in smooth_stroke(
+                [(at, level * 100) for at, level in actions], min_segment_ms=MIN_SEGMENT_MS * speed
+            )
+        ]
         task = self.entry.async_create_background_task(
             self.hass,
             self._run_linear(
@@ -1874,15 +1901,19 @@ class OggHub:
                     ):
                         return
                     duration = (at - prev_at) / speed
+                    deadline = start + at / speed / 1000
                     if first:
                         duration = max(duration, 400)  # from wherever it is now
+                        deadline = max(deadline, time.monotonic() + 0.4)
                         first = False
-                    try:
-                        await self.async_linear(
-                            key, level * 100, max(LINEAR_MIN_MS, duration), index, _script=True
-                        )
-                    except HomeAssistantError as err:
-                        _LOGGER.debug("Stroker timeline step was not sent: %s", err)
+                    # Sent alongside, never awaited: a slow acknowledgement
+                    # must not hold the timeline back (it would then catch up
+                    # in a burst). A newer move replaces one still waiting.
+                    self.entry.async_create_background_task(
+                        self.hass,
+                        self._script_move(key, level * 100, duration, index, deadline, asyncio.current_task()),
+                        "ogg_linear_move",
+                    )
                     prev_at = at
                 # Let the last move finish (then end, or go round again).
                 rest = start + prev_at / speed / 1000 - time.monotonic()
@@ -1894,6 +1925,16 @@ class OggHub:
         finally:
             if self._linear_runs.get(key) is asyncio.current_task():
                 self._linear_runs.pop(key, None)
+
+    async def _script_move(
+        self, key: str, position: float, duration: float, index: int, deadline: float, run: asyncio.Task | None
+    ) -> None:
+        try:
+            await self.async_linear(
+                key, position, max(LINEAR_MIN_MS, duration), index, _script=True, _deadline=deadline, _run=run
+            )
+        except HomeAssistantError as err:
+            _LOGGER.debug("Stroker timeline step was not sent: %s", err)
 
     @staticmethod
     def _number(value: Any, minimum: float, maximum: float) -> float:

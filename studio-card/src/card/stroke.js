@@ -4,6 +4,7 @@ import { RUN_MODES, RUN_MODE_DEFAULT, liveIntensity } from '../lib/convert.js';
 import { capture, duration, fmt } from '../lib/core.js';
 import { GP_POLL_MS } from '../lib/gamepad.js';
 import { FOLLOW_STROKER, approachStep, parseTarget, railDrag, railGrab } from '../lib/outputs.js';
+import { smoothActions } from '../lib/smooth.js';
 import { STROKE_LIMITS_RESET, STROKE_LIMIT_KEY, STROKE_SPEEDS, STROKE_SPEED_KEY, okPct, strokeSetLimit, strokeStep, strokeVel } from '../lib/stroke.js';
 
 // Methods mixed into OggStudioCard.
@@ -194,9 +195,9 @@ export class StrokePart {
       if (p.motor === 'l' || o.m === FOLLOW_STROKER) {
         if (p.motor !== 'l') return Math.round(st.pos);   // stroker mode on a vibrator: position
         if (fromScript) return this._goalFrom(i, this._rp.raw, this._rp.t, this._rpSpeed(), this._rp.convs || (this._rp.convs = {})) || { goal: st.pos, dur: 120 };
-        if (speed === null) return { goal: st.pos, dur: 120 };
+        if (speed === null) return st.drag !== null ? { goal: st.pos, dur: 120 } : { goal: st.pos, settle: true };
         const goal = st.dir > 0 ? st.upper : st.lower;
-        return { goal, dur: Math.abs(goal - st.pos) / strokeVel(this._stPcts[speed]) };
+        return { goal, dur: Math.abs(goal - st.pos) / strokeVel(this._stPcts[speed]), target: true };
       }
       return Math.min(100, Math.max(0, liveIntensity(o.m, st.pos, st.vel)));
     });
@@ -229,7 +230,9 @@ export class StrokePart {
     const acts = this._stActs;
     this._stActs = [];
     if (acts.length < 2 || acts[acts.length - 1].at < 200) { this._toast('Nothing recorded.'); this._stShow(); return; }
-    this._take = { version: '1.0', inverted: false, range: 100, actions: acts, metadata: { creator: 'OggStudio', type: 'stroke' } };
+    // Saved clean: every turn and pause, without the finger's wobble or
+    // moves too quick for a Bluetooth stroker (lib/smooth.js).
+    this._take = { version: '1.0', inverted: false, range: 100, actions: smoothActions(acts), metadata: { creator: 'OggStudio', type: 'stroke' } };
     const m = this._outAt(0).m;
     this._el('takemode').value = RUN_MODES[m] ? m : RUN_MODE_DEFAULT;
     this._toast(`Recorded ${fmt(duration(this._take))} of strokes. Save it below, or download the .funscript for a Handy.`);
