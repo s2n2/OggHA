@@ -139,7 +139,8 @@ async def test_lead_follows_the_round_trip(stream):
     assert 1.0 <= stream.lead_s <= 1.2
     stream._rtts = [1100, 1300, 1250, 2600, 1200]   # requests that reach the Handy (measured over Wi-Fi)
     reach = handy_wifi.REACH_SHARE * 2600 / 1000
-    assert stream.lead_s == pytest.approx(handy_wifi.FLUSH_S + reach + 0.15, abs=0.01)
+    interval = 1250 / 1000 / handy_wifi.MAX_IN_FLIGHT       # no faster than it answers
+    assert stream.lead_s == pytest.approx(interval + reach + 0.15, abs=0.01)
     stream._rtts = [100, 120, 110]
     assert stream.lead_s == handy_wifi.LEAD_MIN_S
 
@@ -283,7 +284,7 @@ async def test_a_script_played_by_the_card_lands_on_time(stream, monkeypatch):
     # same point is asked again each second while far off. Every stroke lands
     # at its own time, the last as surely as the first.
     monkeypatch.setattr(handy_wifi, "FLUSH_S", 0.05)
-    actions = [(1500 + i * 700, 15 if i % 2 else 90) for i in range(8)] + [(1500 + 7 * 700 + 2500, 50)]
+    actions = [(2500 + i * 700, 15 if i % 2 else 90) for i in range(8)] + [(2500 + 7 * 700 + 2500, 50)]
     stream._rtts = [1300.0] * 5                  # a steady Wi-Fi round trip (the fake answers at once)
     monkeypatch.setattr(stream, "_post", _no_rtt(stream._post))
     t0 = time.monotonic()
@@ -351,19 +352,31 @@ class SlowApi(FakeApi):
 
 
 async def test_batches_go_without_waiting_for_the_last_answer():
+    # Two on their way at once, paced to how fast the Handy answers: a finger's
+    # moves neither wait for each answer nor pile up in a queue (4 a second
+    # made round trips grow past 4 s, measured).
     api = SlowApi()
     s = HandyStream(api, lambda: None)
     api.stream = s
     s.start()
     await s.prepare()                            # done ahead when the Handy comes online
+    most = 0
     try:
-        for i in range(8):                       # a finger: a move every 0.2 s
-            s.move(85 if i % 2 else 15, 200)
+        xs = []
+        for i in range(16):                      # a finger: a move every 0.2 s
+            xs.append(85 if i % 2 else 15)
+            s.move(xs[-1], 200)
+            most = max(most, len(s._inflight))
             await asyncio.sleep(0.2)
+        for _ in range(40):
+            most = max(most, len(s._inflight))
+            await asyncio.sleep(0.1)
         sent = [path for _, path, _ in api.calls if path in ("/hsp/add", "/hsp/play")]
-        # Not one every 1.2 s: about one per move, while earlier ones are still unanswered.
-        assert len(sent) >= 6
-        assert len(s._inflight) >= 2
+        assert most <= handy_wifi.MAX_IN_FLIGHT
+        assert len(sent) >= 4                     # waiting for each answer would be 2-3
+        got = [x for _, x in api.points()]
+        turns = [x for i, x in enumerate(got) if i == 0 or x != got[i - 1]]   # a hold repeats a point
+        assert turns == xs                        # every move, in order
     finally:
         await s.shutdown()
 

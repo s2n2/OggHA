@@ -1,3 +1,9 @@
+## 3.21.0b6 - The Handy over Wi-Fi (beta)
+
+- **Paced to the Handy:** beta 5 sent finger moves four times a second with up to ten requests on their way. The Handy takes about one a second over Wi-Fi, so they queued: round trips grew from 1.3 s to over 4 s, the delay grew with them (2 to 2.9 s) and requests timed out. Now at most two are on their way, sent no faster than the Handy answers, so the delay stays steady.
+
+Bluetooth is unchanged.
+
 ## 3.21.0b5 - The Handy over Wi-Fi (beta)
 
 Finger control over Wi-Fi did not work in beta 4 (scripts did). From its log:

@@ -62,7 +62,7 @@ CHAIN_MS = 250            # a move meant to start this close to the last point c
 SYNC_SAMPLES = 6
 RESYNC_S = 600.0
 MODE_HSP = 4
-MAX_IN_FLIGHT = 10        # batches on their way at once
+MAX_IN_FLIGHT = 2         # batches on their way at once (the Handy takes about one a second over Wi-Fi)
 RTT_SAMPLES = 20
 REACH_SHARE = 0.6         # of a round trip that reaches the Handy, the way there
 BEHIND_MS = 300           # its clock this far behind ours: it paused, so re-sync
@@ -210,9 +210,18 @@ class HandyStream:
         return 2.5 * (self.api.rtt_ms or 400) / 1000
 
     @property
+    def _interval_s(self) -> float:
+        """How often a batch goes: no faster than the Handy answers (half a round trip,
+        with two on their way). Sending 4 a second queued them up (measured: round
+        trips grew from 1.3 to over 4 s and the delay with them)."""
+        if len(self._rtts) >= 3:
+            return max(FLUSH_S, sorted(self._rtts)[len(self._rtts) // 2] / 1000 / MAX_IN_FLIGHT)
+        return FLUSH_S
+
+    @property
     def lead_s(self) -> float:
         """How far ahead a live move is placed: the way to the Handy, a send interval and room."""
-        return min(LEAD_MAX_S, max(LEAD_MIN_S, FLUSH_S + self._reach_s + 0.15))
+        return min(LEAD_MAX_S, max(LEAD_MIN_S, self._interval_s + self._reach_s + 0.15))
 
     def _ms(self, at: float) -> int:
         return int(round((at - self._t0) * 1000))
@@ -381,7 +390,7 @@ class HandyStream:
             except HandyApiError as err:
                 self._failed(err)
                 await asyncio.sleep(2.0 if err.name == "RateLimited" else 0.5)
-            await asyncio.sleep(max(0.0, FLUSH_S - (time.monotonic() - began)))
+            await asyncio.sleep(max(0.0, self._interval_s - (time.monotonic() - began)))
 
     async def _send_due(self) -> None:
         horizon = self._ms(time.monotonic() + HORIZON_S)
