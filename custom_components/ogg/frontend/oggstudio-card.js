@@ -2680,7 +2680,7 @@ ${VIEWERS_STYLE}
       } else if (st.drag !== null) {
         if (st.caught) st.pos = st.drag;
         else {
-          const r = approachStep(st.pos, st.drag, strokeVel(this._stPcts[st.lastSpeed ?? 0]), dt);
+          const r = approachStep(st.pos, st.drag, strokeVel(Math.max(60, this._stPcts[st.lastSpeed ?? 0])), dt);
           st.pos = r.pos;
           st.caught = r.caught;
         }
@@ -5937,11 +5937,15 @@ ${VIEWERS_STYLE}
 
   // studio-card/src/card/outputs.js
   var MAX_OUTS = 4;
-  var FOLLOW_SEND_MS = 140;
-  var FOLLOW_OVERLAP_MS = 90;
-  var FOLLOW_SMOOTH_MS = 60;
-  var FOLLOW_DEADBAND = 2;
-  var FOLLOW_SETTLE_MS = 260;
+  var FOLLOW_SEND_MS = 80;
+  var FOLLOW_OVERLAP_MS = 30;
+  var FOLLOW_SMOOTH_MS = 20;
+  var FOLLOW_LEAD_MS = 120;
+  var FOLLOW_LEAD_MAX = 10;
+  var FOLLOW_VEL_MS = 100;
+  var FOLLOW_VEL_MIN = 0.06;
+  var FOLLOW_DEADBAND = 1.5;
+  var FOLLOW_SETTLE_MS = 180;
   var LINEAR_TARGET_GAP_MS = 60;
   var OUT_FOLD_KEY = "oggstudio_outputs_folded";
   var NO_OUT = Object.freeze({ t: "none", m: "position", on: true });
@@ -6254,12 +6258,13 @@ ${VIEWERS_STYLE}
     //
     // Three kinds of move:
     // - target (a script's next point, a held speed's next limit): sent as it is.
-    // - follow (a finger, a pad, a level): each Bluetooth move takes 100-300 ms
-    //   to land, so following every wiggle made the stroker stop, start and
-    //   jump. The finger is smoothed, sent at a pace the link carries, and each
-    //   move lasts a little past the next one so the stroker never stops
-    //   between them; small changes (a finger at rest or lifting) are not sent.
-    //   It trails the finger by a fraction of a second.
+    // - follow (a finger, a pad, a level): a move every 80 ms, aimed where
+    //   the finger is heading (its speed times the time a move takes to land,
+    //   capped so a turn is not overshot), lasting just past the next move. So
+    //   the stroker moves at the finger's speed, never stops between moves,
+    //   and stops a moment after the finger does; following every wiggle
+    //   instead made it stop, start and jump. Small changes (a finger at rest
+    //   or lifting) are not sent.
     // - settle (the finger let go): one gentle move to where it ended.
     _outLinear(dev, asked, now) {
       const last = this._linLast[dev.id];
@@ -6281,14 +6286,22 @@ ${VIEWERS_STYLE}
       } else {
         const raw = limitMove(lim, { goal: asked.goal, dur: 0 }, null).goal;
         let f = this._linFollow[dev.id];
-        if (!f) f = this._linFollow[dev.id] = { pos: last ? last.goal : raw, at: now };
-        f.pos += (raw - f.pos) * (1 - Math.exp(-Math.max(0, now - f.at) / FOLLOW_SMOOTH_MS));
+        if (!f) f = this._linFollow[dev.id] = { pos: last ? last.goal : raw, at: now, hist: [] };
+        const dt = Math.max(0, now - f.at);
+        f.pos += (raw - f.pos) * (1 - Math.exp(-dt / FOLLOW_SMOOTH_MS));
         f.at = now;
         if (!last) f.pos = raw;
+        f.hist.push([now, f.pos]);
+        while (f.hist.length > 2 && f.hist[1][0] <= now - FOLLOW_VEL_MS) f.hist.shift();
+        const [t0, p0] = f.hist[0];
+        let vel = now - t0 >= FOLLOW_VEL_MS * 0.6 ? (f.pos - p0) / (now - t0) : 0;
+        if (Math.abs(vel) < FOLLOW_VEL_MIN) vel = 0;
         if (last && now - last.at < (live ? FOLLOW_SEND_MS : 400)) return;
-        if (last && Math.abs(f.pos - last.goal) < FOLLOW_DEADBAND) return;
-        move = { goal: f.pos, dur: FOLLOW_SEND_MS + FOLLOW_OVERLAP_MS };
-        if (lim.speed < 100 && last) move.dur = Math.max(move.dur, Math.abs(f.pos - last.goal) / (LIMIT_FULL_SPEED * lim.speed / 100) * 1e3);
+        const lead = Math.max(-FOLLOW_LEAD_MAX, Math.min(FOLLOW_LEAD_MAX, vel * FOLLOW_LEAD_MS));
+        const aim = Math.min(lim.hi, Math.max(lim.lo, f.pos + lead));
+        if (last && Math.abs(aim - last.goal) < FOLLOW_DEADBAND) return;
+        move = { goal: aim, dur: FOLLOW_SEND_MS + FOLLOW_OVERLAP_MS };
+        if (lim.speed < 100 && last) move.dur = Math.max(move.dur, Math.abs(aim - last.goal) / (LIMIT_FULL_SPEED * lim.speed / 100) * 1e3);
       }
       const goal = clamp3(move.goal);
       this._linLast[dev.id] = { goal, at: now };

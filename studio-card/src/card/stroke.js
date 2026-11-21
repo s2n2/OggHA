@@ -141,7 +141,7 @@ export class StrokePart {
     } else if (st.drag !== null) {
       if (st.caught) st.pos = st.drag;
       else {
-        const r = approachStep(st.pos, st.drag, strokeVel(this._stPcts[st.lastSpeed ?? 0]), dt);
+        const r = approachStep(st.pos, st.drag, strokeVel(Math.max(60, this._stPcts[st.lastSpeed ?? 0])), dt);   // gentle, never sluggish
         st.pos = r.pos; st.caught = r.caught;
       }
       if (Math.abs(st.pos - before) > 0.5 && now - (this._stDragMark || 0) >= 50) { this._stDragMark = now; this._stMark(now); }

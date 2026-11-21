@@ -1,3 +1,7 @@
+## 3.19.1 - Live stroker control keeps up
+- **Faster, truer live control of a stroker** (dragging the stroke bar, the line on a video, pads): measured on The Handy, Bluetooth now carries a move in about 60 ms, so the card's cautious pacing was the bottleneck - every move lasted 230 ms (a fast stroke came out at under half its depth) and the stroker carried on for about half a second after the finger stopped. Now a move goes every 80 ms, aimed where the finger is heading (its speed over the last 0.1 s, capped so a turn is barely overshot): the stroker moves at the finger's speed, lags it by about a tenth of a second, and stops a moment after it does. A trembling finger at rest is still not chased.
+- Touching the stroke bar away from where the stroker is: it glides there at a brisker pace (at least 60%).
+
 ## 3.19.0 - Record with a video, the easy way
 - **● and 💾 on the video** (Play card and the Easy card's Video): ● starts the video and records together, so it is in sync from the first frame; move the line on the video with the action (a stroker's position, a vibrator's strength) and your toys follow live. ■ stops both; 💾 saves it to your scripts (named after the video) and it plays with that video straight away; ✕ discards it. Recording again over part of it replaces that part.
 - The icons sit in the top right corner and fade with the video's own controls (back on a tap or when paused); the lines on the video are thicker and easier to catch.
