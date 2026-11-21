@@ -80,6 +80,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         await async_setup_studio(hass)
     except Exception:  # noqa: BLE001
         _LOGGER.exception("Could not set up Ogg Studio; Ogg will remain available")
+    # The Handy over Wi-Fi (the Connect Handy card's commands).
+    try:
+        from .handy_wifi_ws import async_setup_handy_wifi_ws
+
+        async_setup_handy_wifi_ws(hass)
+    except Exception:  # noqa: BLE001
+        _LOGGER.exception("Could not set up the Handy's Wi-Fi commands; Ogg will remain available")
     # Private mode (the Privacy card): toys stop showing their status to others.
     try:
         await async_setup_private(hass)

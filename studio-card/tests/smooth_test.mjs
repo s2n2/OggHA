@@ -166,3 +166,23 @@ console.log('slow finger following passed');
   assert.strictEqual(unlim(50), 0);
   console.log('video slider range mapping passed');
 }
+
+// The Handy over Wi-Fi plays each move a lead behind (its connected sensor's
+// lead_ms): a script is read that far ahead, so the strokes land on time.
+{
+  const { ReplayPart } = await import('../src/card/replay.js');
+  const actions = [{ at: 0, pos: 0 }, { at: 1000, pos: 100 }, { at: 2000, pos: 0 }];
+  const card = {
+    _simple: false, _strokeKind: true, _lim: (v) => v,
+    _outTargetValue: () => 'dev1|l', _outAt: () => ({ m: 'position' }),
+    _devices: [{ id: 'dev1', connected: 'binary_sensor.h_connected' }],
+    _hass: { states: { 'binary_sensor.h_connected': { state: 'on', attributes: {} } } },
+  };
+  for (const k of ['_goalFrom', '_goalFromRaw', '_outLead']) card[k] = ReplayPart.prototype[k];
+  const bt = card._goalFrom(0, { actions }, 500, 1, {});
+  assert.deepStrictEqual([bt.goal, Math.round(bt.dur)], [100, 500], 'Bluetooth: the next point as it is');
+  card._hass.states['binary_sensor.h_connected'].attributes = { transport: 'wifi', lead_ms: 800 };
+  const wifi = card._goalFrom(0, { actions }, 500, 1, {});
+  assert.deepStrictEqual([wifi.goal, Math.round(wifi.dur)], [0, 700], 'Wi-Fi: read 0.8 s ahead');
+  console.log('Wi-Fi lead passed');
+}

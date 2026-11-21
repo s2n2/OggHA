@@ -27,6 +27,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import DEFAULT_PULSE_DURATION, DOMAIN, STORAGE_VERSION
 from .endpoints import Candidate, resolve_candidates, validate_config
+from .handy_wifi import HandyApiError, HandyWifi
 from .identity import load_devices, match_device, new_device_key
 from .migration import async_migrate_device_registry
 from .models import OggDevice, physical_address, useful_label
@@ -173,6 +174,8 @@ class OggHub:
         self.connect_feedback = "silent"
         self._unsubscribe_ips: Callable[[], None] | None = None
         self._shutdown_task: asyncio.Task | None = None
+        # The Handy over Wi-Fi (Connect Handy card): the same device, another route.
+        self.wifi = HandyWifi(hass, self)
 
     @property
     def connected(self) -> bool:
@@ -228,6 +231,9 @@ class OggHub:
             # cleanup is idempotent if HA stops part way through an upgrade.
             await self._store.async_save(self._saved_data())
         await async_migrate_device_registry(self.hass, self.entry, self._identity_aliases)
+        wifi = saved.get("handy_wifi")
+        self.wifi.load(wifi if isinstance(wifi, dict) else {})
+        await self.wifi.async_load_keys()
         self.status = "searching" if self.enabled else "disabled"
 
     @callback
@@ -240,6 +246,7 @@ class OggHub:
             )
         if self.enabled:
             self._ensure_monitor()
+            self.wifi.start()
 
     @callback
     def _ip_changed(self, _event: Any) -> None:
@@ -274,7 +281,34 @@ class OggHub:
             "last_source": self._last_source,
             "identity_aliases": dict(self._identity_aliases),
             "devices": [device.stored() for device in self.devices.values()],
+            "handy_wifi": self.wifi.stored(),
         }
+
+    def save_later(self) -> None:
+        self._save_later()
+
+    @callback
+    def wifi_changed(self) -> None:
+        """The Wi-Fi route changed (on/off, reachable, streaming): refresh entities."""
+        self._notify()
+
+    def device_online(self, device: OggDevice) -> bool:
+        """Whether a command can reach this device now, over Bluetooth or Wi-Fi."""
+        if self.wifi.routes(device.key):
+            return self.enabled and not self._shutting_down and self.wifi.online
+        return self.enabled and self.connected and device.connected and not device.recovering
+
+    def _require_wifi(self, device: OggDevice) -> None:
+        if self._shutting_down or not self.enabled or not self.wifi.online:
+            raise HomeAssistantError("The Handy is not reachable over Wi-Fi")
+        self._require_output_enabled(device)
+
+    async def async_stop_route(self, key: str) -> None:
+        """Before the route changes: stop whatever was moving the device."""
+        try:
+            await self.async_stop(key)
+        except HomeAssistantError as err:
+            _LOGGER.debug("Stop before a route change failed: %s", err)
 
     def _save_later(self) -> None:
         if not self._shutting_down:
@@ -289,10 +323,13 @@ class OggHub:
                 self.status = "connected" if self.connected else "searching"
                 self._ensure_monitor()
                 self._wake.set()
+                self.wifi.start()
             else:
                 self._operation_epoch += 1
                 await self.async_all_stop()
                 await self._cancel_monitor()
+                await self.wifi.async_stop_polling()
+                self.wifi.online = False
                 self.status = "disabled"
                 self.server_ip = None
                 self.server_url = None
@@ -1338,6 +1375,8 @@ class OggHub:
         if task is not None and task is not asyncio.current_task():
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+        if send_stop and self.wifi.routes(device.key):
+            await self.wifi.stop()
         if send_stop and self._client is not None and self._client.connected and device.connected:
             await self._send_stop(device, self._client, generation=generation)
         device.running = False
@@ -1697,6 +1736,9 @@ class OggHub:
         count = device.rotation_count if kind == "rotate" else device.linear_count
         if kind not in {"rotate", "linear"} or not 0 <= index < count:
             raise HomeAssistantError("This device does not support that control")
+        if kind == "linear" and self.wifi.routes(key):
+            await self.async_linear(key, value, 1000, index)
+            return
         async with self._lock(key):
             client = self._require_online(device)
             if epoch != self._operation_epoch:
@@ -1766,6 +1808,16 @@ class OggHub:
             raise HomeAssistantError("This device does not support that control")
         position = min(100.0, max(0.0, float(position)))
         duration = int(min(LINEAR_MAX_MS, max(LINEAR_MIN_MS, float(duration))))
+        if self.wifi.routes(key):
+            # Over Wi-Fi: a timed point in the Handy's stream (never waits on the network).
+            self._require_wifi(device)
+            try:
+                self.wifi.linear(position, duration, deadline=_deadline)
+            except HandyApiError as err:
+                raise HomeAssistantError(str(err)) from err
+            device.aux_values[f"linear_{index}"] = position
+            self._notify()
+            return
         serial = self._linear_serials.get(key, 0) + 1
         self._linear_serials[key] = serial
         async with self._lock(key):
@@ -1830,9 +1882,24 @@ class OggHub:
             raise HomeAssistantError(str(err)) from err
         if not actions:
             raise HomeAssistantError("The script has no actions")
+        speed = min(4.0, max(0.25, float(speed)))
+        if self.wifi.routes(key):
+            # Over Wi-Fi the whole timeline goes ahead into the Handy's buffer,
+            # as it is (no Bluetooth write limit to clean it for).
+            self._require_wifi(device)
+            self._cancel_linear(key)
+            task = self.entry.async_create_background_task(
+                self.hass,
+                self.wifi.play_timeline(
+                    [(float(at), float(level)) for at, level in actions], speed, bool(loop),
+                    max_seconds, start_ms,
+                ),
+                "ogg_linear_script_wifi",
+            )
+            self._linear_runs[key] = task
+            return
         self._require_online(device)
         self._cancel_linear(key)
-        speed = min(4.0, max(0.25, float(speed)))
         # Clean the timeline for a Bluetooth stroker: real turns, pauses and
         # changes of speed stay; wobble and moves too quick to carry go.
         actions = [
@@ -1992,6 +2059,7 @@ class OggHub:
             self._unsubscribe_ips = None
         await self.async_all_stop()
         await self._cancel_monitor()
+        await self.wifi.async_shutdown()
         if self._client is not None:
             await self._disconnect(self._client)
         for task in tuple(self._event_tasks):

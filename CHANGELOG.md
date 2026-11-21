@@ -1,3 +1,16 @@
+## 3.21.0b1 - The Handy over Wi-Fi (beta)
+
+A beta on the `feat/handy-wifi` branch. Bluetooth is unchanged.
+
+- **Connect Handy card** (`type: custom:ogg-connect-handy-card`): use The Handy over Wi-Fi instead of Bluetooth, switched by hand. Put the Handy on Wi-Fi (its app or button), then switch the card on; switch it off to go back to Bluetooth.
+- **The same device either way:** the Handy stays one Ogg device with the same entities, and every card works as before. Only the route underneath changes.
+- **Smooth over the internet:** on Wi-Fi the Handy is reached through Ohdoki's Handy API (there is no local Wi-Fi control). Moves go as timed points in the Handy's own buffer (HSP), played by its clock in step with the server's, so a slow request changes nothing:
+  - live moves (a finger, held speeds) run a short delay behind, shown on the card (about 0.8 s from here);
+  - scripts and recordings Ogg plays are sent up to 20 s ahead;
+  - scripts and videos the Play card plays are read that delay ahead, so they stay in time.
+- **Keys in secrets.yaml:** the card saves the Handy's connection key and an Application ID (from the handyfeeling.com developer portal) as `ogg_handy_connection_key` and `ogg_handy_app_id`. Only administrators can set them, and they are never shown in full or stored anywhere else.
+- **Test** on the card: whether the Handy is on Wi-Fi, its firmware, the round trip and the live delay.
+
 ## 3.20.3 - Smooth slow control, no runaway jumps
 
 - **Slow finger control is smooth:** moving the stroke bar (or the slider on a video) slowly, the card held back changes under 1.5% and then sent them as one quick hop, so the stroker stood still most of the time and jumped a little every few hundred ms (measured: still 72% of the time at 5%/s, hops five times the finger's speed). Now every step of about 1% goes, at the finger's own pace, so the steps join up. A finger resting with a little shake still sends nothing.

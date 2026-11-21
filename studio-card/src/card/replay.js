@@ -226,9 +226,21 @@ export class ReplayPart {
   _moodStrength() { return Number(this._el('moodstr').value || 100) / 100; }
 
   _goalFrom(i, raw, ms, rate, cache) {
-    const g = this._goalFromRaw(i, raw, ms, rate, cache);
+    // Over Wi-Fi the Handy plays each move a little later (its connected
+    // sensor says how much): the script is read that far ahead, so it stays in time.
+    const lead = this._outLead ? this._outLead(i) : 0;
+    const g = this._goalFromRaw(i, raw, ms + lead * (rate || 1), rate, cache);
     if (!g) return g;
     return { ...g, goal: this._simple && this._strokeKind ? this._lim(g.goal) : g.goal, target: true };
+  }
+
+  // How far behind an output's device plays a move (the Handy over Wi-Fi), ms.
+  _outLead(i) {
+    const p = parseTarget(this._outTargetValue(i));
+    const dev = p && p.motor === 'l' && (this._devices || []).find((d) => d.id === p.id);
+    const st = dev && dev.connected && this._hass && this._hass.states && this._hass.states[dev.connected];
+    const lead = Number(st && st.attributes && st.attributes.lead_ms);
+    return Number.isFinite(lead) && lead > 0 ? Math.min(lead, 5000) : 0;
   }
 
   _goalFromRaw(i, raw, ms, rate, cache) {
