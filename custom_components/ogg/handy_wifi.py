@@ -36,6 +36,8 @@ import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+from .models import physical_address
+
 if TYPE_CHECKING:
     from .coordinator import OggHub
 
@@ -55,6 +57,7 @@ MAX_ADD = 100             # points per request (the API's limit)
 LEAD_MIN_S = 0.5
 LEAD_MAX_S = 3.0
 HOLD_GAP_MS = 20          # a move starting later than this after the last point first holds
+TAIL_HOLD_MS = 300        # each move ends with a hold this long after it (see HandyStream)
 SYNC_SAMPLES = 6
 RESYNC_S = 600.0
 MODE_HSP = 4
@@ -87,6 +90,7 @@ class HandyApi:
             "Accept": "application/json",
         }
         self.rtt_ms: float | None = None   # smoothed round trip to the API
+        self._calls = 0
         self.offset_ms = 0.0               # server clock - local clock (time.monotonic, ms)
 
     async def call(self, method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -104,7 +108,11 @@ class HandyApi:
         except (aiohttp.ClientError, TimeoutError) as err:
             raise HandyApiError(f"Could not reach the Handy servers ({type(err).__name__})") from err
         rtt = (time.monotonic() - sent) * 1000
-        self.rtt_ms = rtt if self.rtt_ms is None else self.rtt_ms * 0.8 + rtt * 0.2
+        # A new connection's first request also sets up TLS (~3x): it says little.
+        # Only the server's own answers count; calls to the Handy are measured as reach.
+        self._calls += 1
+        if self._calls > 1 and path in ("/connected", "/servertime"):
+            self.rtt_ms = rtt if self.rtt_ms is None else self.rtt_ms * 0.8 + rtt * 0.2
         if status == 401:
             raise HandyApiError("The Application ID was not accepted", name="Unauthenticated")
         if status == 429:
@@ -142,12 +150,14 @@ class HandyApi:
         offsets.sort()
         best = offsets[: max(1, len(offsets) // 2)]
         self.offset_ms = sum(offset for _, offset in best) / len(best)
+        self.rtt_ms = sum(rtt for rtt, _ in best) / len(best)
 
 
 @dataclass
 class _Point:
     t: int        # ms of stream time
     x: int        # 0-100
+    hold: bool = False   # the end hold after the last move (replaced if another move comes)
 
 
 class HandyStream:
@@ -156,6 +166,13 @@ class HandyStream:
     Times are local (time.monotonic seconds); stream time 0 is local time
     t0. Moves and timelines become points; a background task sends them in
     batches (at most every FLUSH_S) once they are within HORIZON_S.
+
+    After its last point the Handy carries on in the same direction to the
+    end of the stroke (measured: a stream ending at 80 ran on to 100), so the
+    last move always ends with a hold point TAIL_HOLD_MS later (measured: it
+    stays). That hold is sent only just in time to reach the Handy before the
+    move ends: a move that follows (a finger moving on) replaces it, so it
+    never delays the next move.
     """
 
     def __init__(self, api: HandyApi, on_change: Callable[[], None]) -> None:
@@ -169,14 +186,24 @@ class HandyStream:
         self._wake = asyncio.Event()
         self._task: asyncio.Task | None = None
         self._lead_extra = 0.0
+        self._reach_ms: list[float] = []      # recent times for points to reach the Handy
         self.last_error: str | None = None
 
     # ------------------------------------------------------------- timing
     @property
     def lead_s(self) -> float:
-        """How far ahead a live move is placed: the time to reach the Handy, with room."""
-        rtt = (self.api.rtt_ms or 400) / 1000
-        return min(LEAD_MAX_S, max(LEAD_MIN_S, FLUSH_S + 1.5 * rtt + 0.15 + self._lead_extra))
+        """How far ahead a live move is placed: how long points take to reach the Handy, with room.
+
+        Measured on every send: the Handy's own stream time when it took the
+        points, less ours when they were sent (Ohdoki's server and the
+        Handy's Wi-Fi both on the way). Before any is measured: from the
+        round trip to the server.
+        """
+        if self._reach_ms:
+            reach = max(self._reach_ms) / 1000
+        else:
+            reach = 1.5 * (self.api.rtt_ms or 400) / 1000
+        return min(LEAD_MAX_S, max(LEAD_MIN_S, FLUSH_S + reach + 0.15 + self._lead_extra))
 
     def _ms(self, at: float) -> int:
         return int(round((at - self._t0) * 1000))
@@ -224,22 +251,36 @@ class HandyStream:
         self._add(start, x)
         return start
 
+    def _drop_hold(self) -> None:
+        if self._pending and self._pending[-1].hold:
+            self._pending.pop()
+
+    def _end_with_hold(self) -> None:
+        last = self._last
+        if last is not None and not last.hold:
+            self._pending.append(_Point(last.t + TAIL_HOLD_MS, last.x, hold=True))
+
     def move(self, x: float, duration_ms: float, *, start: float | None = None) -> None:
         """Go to x over duration_ms from local time start (default: now + lead)."""
+        self._drop_hold()
         begin = self._make_room(self._ms(start if start is not None else time.monotonic() + self.lead_s))
         last = self._last
         if last is not None and begin - last.t > HOLD_GAP_MS:
             self._add(begin, last.x)      # stays where it is until the move starts
         # With nothing before it, the Handy goes there from wherever it is.
         self._add(begin + max(1, int(duration_ms)), x)
+        self._end_with_hold()
         self._wake.set()
 
     def timeline(self, points: list[tuple[float, float]]) -> None:
         """Points at local times (a timeline played here), after what is there."""
+        if not points:
+            return
+        self._drop_hold()
         for at, x in points:
             self._add(self._ms(at), x)
-        if points:
-            self._wake.set()
+        self._end_with_hold()
+        self._wake.set()
 
     # ------------------------------------------------------------- control
     async def clear(self) -> None:
@@ -276,11 +317,18 @@ class HandyStream:
         await self.stop()
 
     # ------------------------------------------------------------- sending
+    def _hold_send_by(self, point: _Point) -> int:
+        """Stream time by which an end hold must go to reach the Handy before its move ends."""
+        return point.t - TAIL_HOLD_MS - int((self.lead_s - FLUSH_S) * 1000)
+
     def _due_in(self) -> float | None:
-        """Seconds until the first waiting point is within the horizon (None: nothing waits)."""
+        """Seconds until the next waiting point should go (None: nothing waits)."""
         if not self._pending:
             return None
-        return max(0.0, (self._pending[0].t - self._ms(time.monotonic() + HORIZON_S)) / 1000)
+        first = self._pending[0]
+        if first.hold:
+            return max(0.0, (self._hold_send_by(first) - self._ms(time.monotonic())) / 1000)
+        return max(0.0, (first.t - self._ms(time.monotonic() + HORIZON_S)) / 1000)
 
     async def _run(self) -> None:
         while True:
@@ -311,6 +359,8 @@ class HandyStream:
     async def _send_due(self) -> None:
         horizon = self._ms(time.monotonic() + HORIZON_S)
         batch = [p for p in self._pending[:MAX_ADD] if p.t <= horizon]
+        if batch and batch[-1].hold and self._ms(time.monotonic()) < self._hold_send_by(batch[-1]):
+            batch.pop()           # not yet: another move may still replace it
         if not batch:
             return
         add: dict[str, Any] = {"points": [{"t": p.t, "x": p.x} for p in batch]}
@@ -318,9 +368,10 @@ class HandyStream:
             await self._begin(add)
         else:
             add["tail_point_stream_index"] = self._tail + len(batch)
+            sent = self._ms(time.monotonic())
             state = await self.api.call("PUT", "/hsp/add", add)
             self._tail += len(batch)
-            self._check_late(state, batch[0].t)
+            self._check_late(state, batch[0].t, sent)
         # Only what was sent goes (a newer move may have replaced the rest meanwhile).
         if self._pending[: len(batch)] == batch:
             del self._pending[: len(batch)]
@@ -335,6 +386,7 @@ class HandyStream:
         self._tail = len(add["points"])
         add["tail_point_stream_index"] = self._tail
         now = time.monotonic()
+        sent = self._ms(now)
         state = await self.api.call("PUT", "/hsp/play", {
             "start_time": max(0, self._ms(now)),
             "server_time": int(now * 1000 + self.api.offset_ms),
@@ -342,13 +394,18 @@ class HandyStream:
             "add": add,
         })
         self.playing = True
-        self._check_late(state, add["points"][0]["t"])
+        self._check_late(state, add["points"][0]["t"], sent)
         self._on_change()
 
-    def _check_late(self, state: dict[str, Any], first_t: int) -> None:
-        """Points that reached the Handy after their time: place live moves further ahead."""
+    def _check_late(self, state: dict[str, Any], first_t: int, sent: int) -> None:
+        """How long the points took to reach the Handy; late ones place live moves further ahead."""
         now_t = state.get("current_time")
-        if isinstance(now_t, (int, float)) and now_t > first_t:
+        if not isinstance(now_t, (int, float)):
+            return
+        reach = now_t - sent
+        if 0 <= reach < LEAD_MAX_S * 1000:
+            self._reach_ms = [*self._reach_ms[-9:], reach]
+        if now_t > first_t:
             self._lead_extra = min(1.5, self._lead_extra + 0.1)
         else:
             self._lead_extra = max(0.0, self._lead_extra - 0.01)
@@ -373,15 +430,17 @@ class HandyWifi:
         self._poll: asyncio.Task | None = None
         self._synced_at = 0.0
         self._listeners: set[Callable[[], None]] = set()
+        self._bt_held = False      # IntiHA's "connect to this device" turned off by Ogg
 
     # ------------------------------------------------------------- settings
     def load(self, saved: dict[str, Any]) -> None:
         self.on = saved.get("on") is True
         key = saved.get("device_key")
         self.device_key = key if isinstance(key, str) else None
+        self._bt_held = saved.get("bt_held") is True
 
     def stored(self) -> dict[str, Any]:
-        return {"on": self.on, "device_key": self.device_key}
+        return {"on": self.on, "device_key": self.device_key, "bt_held": self._bt_held}
 
     @property
     def has_keys(self) -> bool:
@@ -467,14 +526,69 @@ class HandyWifi:
                 await self.hub.async_stop_route(key)   # whatever was moving it stops first
             self.on = bool(on)
             if self.on:
+                await self._hold_bluetooth(True)
                 self.start()
             else:
                 await self.async_stop_polling()
                 if self.stream is not None:
                     await self.stream.stop()
                 self.online = False
+                await self._hold_bluetooth(False)
         self.hub.save_later()
         self._changed()
+
+    # ------------------------------------------------------------- Bluetooth
+    def _bluetooth_switch(self) -> str | None:
+        """IntiHA's "connect to this device" switch for the Handy, if IntiHA has it."""
+        from homeassistant.helpers import device_registry as dr, entity_registry as er
+
+        key = self.bound_key
+        device = self.hub.devices.get(key) if key else None
+        if device is None:
+            return None
+        address = physical_address(device.raw)
+        registry = er.async_get(self.hass)
+        switches = [
+            entry for entry in registry.entities.values()
+            if entry.platform == "intiha" and entry.domain == "switch"
+            and entry.unique_id.endswith("_connect_enabled")
+        ]
+        if address:
+            for entry in switches:
+                if entry.unique_id.upper().endswith(f"_{address}_CONNECT_ENABLED"):
+                    return entry.entity_id
+        devices = dr.async_get(self.hass)
+        for entry in switches:
+            found = devices.async_get(entry.device_id) if entry.device_id else None
+            if found is not None and "handy" in f"{found.name_by_user or ''} {found.name or ''}".lower():
+                return entry.entity_id
+        return None
+
+    async def _hold_bluetooth(self, hold: bool) -> None:
+        """Keep IntiHA from connecting the Handy by Bluetooth while it is on Wi-Fi.
+
+        The Handy is on one or the other: a Bluetooth connection takes it off
+        Wi-Fi (measured: IntiHA reconnected it 4 s after it went to Wi-Fi).
+        Only a switch Ogg turned off is turned back on.
+        """
+        if not hold and not self._bt_held:
+            return
+        entity_id = self._bluetooth_switch()
+        if entity_id is None:
+            return
+        state = self.hass.states.get(entity_id)
+        try:
+            if hold and state is not None and state.state == "on":
+                await self.hass.services.async_call("switch", "turn_off", {"entity_id": entity_id}, blocking=True)
+                self._bt_held = True
+                _LOGGER.info("The Handy is on Wi-Fi: IntiHA leaves it alone (%s off)", entity_id)
+            elif not hold:
+                await self.hass.services.async_call("switch", "turn_on", {"entity_id": entity_id}, blocking=True)
+                self._bt_held = False
+                _LOGGER.info("The Handy is back on Bluetooth (%s on)", entity_id)
+        except Exception as err:  # noqa: BLE001 - IntiHA missing or busy: Wi-Fi still works
+            _LOGGER.warning("Could not change %s: %s", entity_id, err)
+        self.hub.save_later()
 
     def start(self) -> None:
         if not self.on or not self.hub.enabled or self.api is None:
@@ -498,6 +612,7 @@ class HandyWifi:
 
     async def _poll_loop(self) -> None:
         while self.on and self.api is not None:
+            await self._hold_bluetooth(True)     # also after a restart, or turned back on by hand
             await self.async_check()
             await asyncio.sleep(POLL_S)
 
@@ -525,6 +640,8 @@ class HandyWifi:
         if was != self.online:
             if not self.online and self.stream is not None:
                 self.stream.playing = False
+            if self.online and self.stream is not None:
+                self.stream.last_error = None
             _LOGGER.info("The Handy is %s over Wi-Fi", "reachable" if self.online else "not reachable")
         self._changed()
         return self.status()

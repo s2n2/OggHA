@@ -21,7 +21,7 @@ from custom_components.ogg.handy_wifi import (
 
 
 class FakeApi:
-    """Records calls; answers like the Handy API (HSP state with the device's time)."""
+    """Records calls; answers like the Handy API."""
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, dict | None]] = []
@@ -33,7 +33,7 @@ class FakeApi:
         if self.fail is not None:
             raise self.fail
         self.calls.append((method, path, body))
-        return {"current_time": 0}
+        return {}       # no current_time: the lead stays from the round trip
 
     def points(self) -> list[tuple[int, int]]:
         out = []
@@ -139,8 +139,10 @@ async def test_lead_follows_the_round_trip(stream):
     assert 0.8 <= stream.lead_s <= 0.95
     stream.api.rtt_ms = 20
     assert stream.lead_s == handy_wifi.LEAD_MIN_S
-    stream._check_late({"current_time": 5000}, 4000)       # a point arrived late
+    stream._check_late({"current_time": 5000}, 4000, 4300)   # a point arrived late, 700 ms on the way
     assert stream._lead_extra > 0
+    # Once measured, the lead is how long points take to reach the Handy (plus room).
+    assert stream.lead_s == pytest.approx(handy_wifi.FLUSH_S + 0.7 + 0.15 + stream._lead_extra, abs=0.01)
 
 
 def test_keys_are_written_to_secrets_without_touching_other_lines(tmp_path):
@@ -223,3 +225,27 @@ async def test_no_move_while_the_handy_is_off_wifi():
     with pytest.raises(HomeAssistantError):
         await hub.async_linear("h", 75, 200)
     assert moves == []
+
+
+async def test_the_last_move_ends_with_a_hold_sent_just_in_time(stream):
+    # After its last point the Handy runs on to the end of the stroke: a hold stops it.
+    stream.move(60, 300)
+    await settle(stream, 0.3)
+    assert [x for _, x in stream.api.points()] == [60]          # the hold waits
+    await settle(stream, 1.2)
+    points = stream.api.points()
+    assert [x for _, x in points] == [60, 60]
+    assert points[1][0] - points[0][0] == handy_wifi.TAIL_HOLD_MS
+    # ... and it got there before the move ended (a lead's worth of travel time in hand).
+    hold_sent = next(i for i, (_, path, _) in enumerate(stream.api.calls) if path == "/hsp/add")
+    assert hold_sent
+
+
+async def test_a_following_move_replaces_the_waiting_hold(stream):
+    stream.move(60, 300)
+    await settle(stream, 0.3)
+    stream.move(20, 300)            # a finger moving on: no hold in between
+    await settle(stream, 0.3)
+    xs = [x for _, x in stream.api.points()]
+    assert xs in ([60], [60, 20])          # straight on from 60 to 20: the end hold at 60 never went
+    assert stream._pending and stream._pending[-1].hold and stream._pending[-1].x == 20

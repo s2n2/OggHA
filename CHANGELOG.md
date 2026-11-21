@@ -1,3 +1,12 @@
+## 3.21.0b2 - The Handy over Wi-Fi (beta)
+
+Fixes from testing beta 1 on the Handy (firmware 4.3):
+
+- **No run-on at the end of a move:** when the Handy's stream runs out of points it carries on in the same direction to the end of the stroke (measured: a stream ending at 80 ran to 100). Every last move now ends with a hold point, sent just in time to reach the Handy before the move ends; a move that follows replaces it, so live control gets no extra delay.
+- **Bluetooth leaves it alone while Wi-Fi is on:** IntiHA reconnected the Handy over Bluetooth 4 s after it went on Wi-Fi, and that reconnect sends Ogg's usual safety stop, which ends a Wi-Fi stream (and with both links on, the Handy's buffer is ~300 points instead of thousands). While Wi-Fi is on, Ogg turns IntiHA's "Connect to this device" off for the Handy, and back on when Wi-Fi is switched off (only if Ogg turned it off).
+- **The live delay is measured:** from when points actually reach the Handy (its own clock), not the round trip to the server alone (the Handy's link to the server is the slow part).
+- The first request after a restart (which also sets up the secure connection) no longer inflates the delay; a stale error clears when the Handy is back.
+
 ## 3.21.0b1 - The Handy over Wi-Fi (beta)
 
 A beta on the `feat/handy-wifi` branch. Bluetooth is unchanged.
