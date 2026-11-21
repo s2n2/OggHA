@@ -135,14 +135,13 @@ async def test_a_handy_off_wifi_stops_the_stream(stream):
 
 
 async def test_lead_follows_the_round_trip(stream):
-    stream.api.rtt_ms = 300
-    assert 0.8 <= stream.lead_s <= 0.95
-    stream.api.rtt_ms = 20
+    stream.api.rtt_ms = 300                      # nothing to the Handy yet: from the server's round trip
+    assert 1.0 <= stream.lead_s <= 1.2
+    stream._rtts = [1100, 1300, 1250, 2600, 1200]   # requests that reach the Handy (measured over Wi-Fi)
+    reach = handy_wifi.REACH_SHARE * 2600 / 1000
+    assert stream.lead_s == pytest.approx(handy_wifi.FLUSH_S + reach + 0.15, abs=0.01)
+    stream._rtts = [100, 120, 110]
     assert stream.lead_s == handy_wifi.LEAD_MIN_S
-    stream._check_late({"current_time": 5000}, 4000, 4300)   # a point arrived late, 700 ms on the way
-    assert stream._lead_extra > 0
-    # Once measured, the lead is how long points take to reach the Handy (plus room).
-    assert stream.lead_s == pytest.approx(handy_wifi.FLUSH_S + 0.7 + 0.15 + stream._lead_extra, abs=0.01)
 
 
 def test_keys_are_written_to_secrets_without_touching_other_lines(tmp_path):
@@ -285,11 +284,12 @@ async def test_a_script_played_by_the_card_lands_on_time(stream, monkeypatch):
     # at its own time, the last as surely as the first.
     monkeypatch.setattr(handy_wifi, "FLUSH_S", 0.05)
     actions = [(1500 + i * 700, 15 if i % 2 else 90) for i in range(8)] + [(1500 + 7 * 700 + 2500, 50)]
-    lead = stream.lead_s
-    card_lead = round(lead * 1000 / 50) * 50 / 1000
+    stream._rtts = [1300.0] * 5                  # a steady Wi-Fi round trip (the fake answers at once)
+    monkeypatch.setattr(stream, "_post", _no_rtt(stream._post))
     t0 = time.monotonic()
     asked = {}
     while (now := time.monotonic() - t0) < actions[-1][0] / 1000:
+        card_lead = round(stream.lead_s * 1000 / 50) * 50 / 1000     # its connected sensor's lead_ms
         ms = (now + card_lead) * 1000
         nxt = next(((at, x) for at, x in actions if at > ms), None)
         if nxt and (asked.get(nxt[0]) is None or now - asked[nxt[0]] >= 1.0):
@@ -324,3 +324,62 @@ async def test_a_finger_with_jittery_timing_moves_without_stops_or_cut_turns(str
     assert [x for _, x in points] == xs                 # every turn, nothing in between
     assert abs(points[-1][0] - stream._ms(meant)) <= 100
 
+
+
+def _no_rtt(post):
+    """The fake answers at once: keep the measured round trip as set."""
+    async def wrapped(path, body, sent, began):
+        await post(path, body, sent, time.monotonic())
+    return wrapped
+
+
+class SlowApi(FakeApi):
+    """Answers like a Handy over Wi-Fi: each request taken after 0.6 s, answered after 1.2 s."""
+
+    def __init__(self, behind: int | None = None) -> None:
+        super().__init__()
+        self.behind = behind
+        self.stream = None
+
+    async def call(self, method, path, body=None):
+        self.calls.append((method, path, body))
+        await asyncio.sleep(1.2)
+        if path in ("/hsp/add", "/hsp/play") and self.stream is not None:
+            now = self.stream._ms(time.monotonic())
+            return {"current_time": now - 1200 - (self.behind or 0) + 600}
+        return {}
+
+
+async def test_batches_go_without_waiting_for_the_last_answer():
+    api = SlowApi()
+    s = HandyStream(api, lambda: None)
+    api.stream = s
+    s.start()
+    await s.prepare()                            # done ahead when the Handy comes online
+    try:
+        for i in range(8):                       # a finger: a move every 0.2 s
+            s.move(85 if i % 2 else 15, 200)
+            await asyncio.sleep(0.2)
+        sent = [path for _, path, _ in api.calls if path in ("/hsp/add", "/hsp/play")]
+        # Not one every 1.2 s: about one per move, while earlier ones are still unanswered.
+        assert len(sent) >= 6
+        assert len(s._inflight) >= 2
+    finally:
+        await s.shutdown()
+
+
+async def test_a_handy_whose_clock_fell_behind_is_put_back_in_step():
+    api = SlowApi(behind=1500)                   # it paused out of points for a while
+    s = HandyStream(api, lambda: None)
+    api.stream = s
+    s.start()
+    await s.prepare()
+    try:
+        s.move(80, 300)
+        await asyncio.sleep(2.0)                 # the first answer says it is behind
+        assert s._resync
+        s.move(20, 300, start=time.monotonic() + 0.3)
+        await asyncio.sleep(0.4)
+        assert [path for _, path, _ in api.calls if path in ("/hsp/add", "/hsp/play")][-1] == "/hsp/play"
+    finally:
+        await s.shutdown()

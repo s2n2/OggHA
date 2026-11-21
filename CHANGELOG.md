@@ -1,3 +1,14 @@
+## 3.21.0b5 - The Handy over Wi-Fi (beta)
+
+Finger control over Wi-Fi did not work in beta 4 (scripts did). From its log:
+
+- **Batches no longer wait for the last answer:** a request that reaches the Handy is answered only once the Handy has taken it, 1-2.6 s over Wi-Fi, and Ogg sent the next batch only after that. A finger's moves queued up behind it and reached the Handy after their time (some 1.3 s late). Batches now go out in order as soon as they are due, several on their way at once.
+- **The delay comes from real round trips:** taken from round trips to the Handy itself (the way there is most of one), not the server alone. About 1.3-1.6 s from New Zealand: Ohdoki's servers are in Europe and the Handy's own link to them is the slow part.
+- **Back in step when it falls behind:** if the Handy reports its clock behind Ogg's (it paused out of points), the next batch re-syncs it. A bug kept this from happening after a pause.
+- **Ready ahead:** the Handy is put in streaming mode with a fresh session as soon as it is online over Wi-Fi (and again after a stop), so the first move does not wait 2-4 s for that.
+
+Bluetooth is unchanged.
+
 ## 3.21.0b4 - The Handy over Wi-Fi (beta)
 
 From trying beta 3 by hand (finger control felt awful, scripts unsure):

@@ -62,6 +62,10 @@ CHAIN_MS = 250            # a move meant to start this close to the last point c
 SYNC_SAMPLES = 6
 RESYNC_S = 600.0
 MODE_HSP = 4
+MAX_IN_FLIGHT = 10        # batches on their way at once
+RTT_SAMPLES = 20
+REACH_SHARE = 0.6         # of a round trip that reaches the Handy, the way there
+BEHIND_MS = 300           # its clock this far behind ours: it paused, so re-sync
 
 
 class HandyApiError(Exception):
@@ -185,25 +189,30 @@ class HandyStream:
         self._tail = 0
         self._wake = asyncio.Event()
         self._task: asyncio.Task | None = None
-        self._lead_extra = 0.0
-        self._reach_ms: list[float] = []      # recent times for points to reach the Handy
+        self._inflight: set[asyncio.Task] = set()
+        self._rtts: list[float] = []          # recent round trips of requests that reach the Handy
+        self._resync = False
+        self._ready = False          # in HSP mode with a fresh session, not yet playing
         self.last_error: str | None = None
 
     # ------------------------------------------------------------- timing
     @property
-    def lead_s(self) -> float:
-        """How far ahead a live move is placed: how long points take to reach the Handy, with room.
+    def _reach_s(self) -> float:
+        """How long points take to reach the Handy (most of the time), from round trips.
 
-        Measured on every send: the Handy's own stream time when it took the
-        points, less ours when they were sent (Ohdoki's server and the
-        Handy's Wi-Fi both on the way). Before any is measured: from the
-        round trip to the server.
+        A request that reaches the Handy is answered once it has taken it; the
+        way there is most of that (measured: answered in 1.1-2.6 s, taken
+        0.5-1.5 s after sending). Before any is measured: from the server's round trip.
         """
-        if self._reach_ms:
-            reach = max(self._reach_ms) / 1000
-        else:
-            reach = 1.5 * (self.api.rtt_ms or 400) / 1000
-        return min(LEAD_MAX_S, max(LEAD_MIN_S, FLUSH_S + reach + 0.15 + self._lead_extra))
+        if len(self._rtts) >= 3:
+            ranked = sorted(self._rtts)
+            return REACH_SHARE * ranked[min(len(ranked) - 1, int(len(ranked) * 0.8))] / 1000
+        return 2.5 * (self.api.rtt_ms or 400) / 1000
+
+    @property
+    def lead_s(self) -> float:
+        """How far ahead a live move is placed: the way to the Handy, a send interval and room."""
+        return min(LEAD_MAX_S, max(LEAD_MIN_S, FLUSH_S + self._reach_s + 0.15))
 
     def _ms(self, at: float) -> int:
         return int(round((at - self._t0) * 1000))
@@ -307,13 +316,22 @@ class HandyStream:
         """Stop moving now; the next move starts a new stream."""
         self._pending.clear()
         self._sent = None
+        for task in tuple(self._inflight):
+            task.cancel()          # points not yet answered: the stop comes after them
         was, self.playing = self.playing, False
+        self._ready = False
         if was:
             try:
                 await self.api.call("PUT", "/hsp/stop")
             except HandyApiError as err:
                 _LOGGER.debug("Handy Wi-Fi stop failed: %s", err)
             self._on_change()
+
+    async def prepare(self) -> None:
+        """HSP mode and a fresh session, ready for the first move (each takes 1-2 s over Wi-Fi)."""
+        await self.api.call("PUT", "/mode2", {"mode": MODE_HSP})
+        await self.api.call("PUT", "/hsp/setup", {})
+        self._ready = True
 
     def start(self) -> None:
         if self._task is None or self._task.done():
@@ -335,18 +353,24 @@ class HandyStream:
 
     def _starved_by_then(self) -> bool:
         """Will the Handy have run out of points (and paused) before these reach it?"""
-        if self._sent is None:
+        if self._sent is None or self._resync:
             return True
-        reach = (self.lead_s - FLUSH_S - 0.15) * 1000
-        return self._ms(time.monotonic()) + reach >= self._sent.t
+        return self._ms(time.monotonic()) + self._reach_s * 1000 >= self._sent.t
 
     async def _run(self) -> None:
+        """Send due points in batches, in order, at most every FLUSH_S.
+
+        A batch is not held back until the last one is answered: a request
+        that reaches the Handy is answered only once the Handy has taken it,
+        1-2 s over Wi-Fi, and waiting for that let a finger's moves queue up
+        and reach it after their time (measured).
+        """
         while True:
             due = self._due_in()
-            if due is None or due > 0:
+            if due is None or due > 0 or len(self._inflight) >= MAX_IN_FLIGHT:
                 self._wake.clear()
                 try:
-                    async with asyncio.timeout(due):
+                    async with asyncio.timeout(due if due else (0.05 if self._inflight else None)):
                         await self._wake.wait()
                 except TimeoutError:
                     pass
@@ -354,15 +378,8 @@ class HandyStream:
             began = time.monotonic()
             try:
                 await self._send_due()
-                self.last_error = None
             except HandyApiError as err:
-                self.last_error = str(err)
-                _LOGGER.debug("Handy Wi-Fi points not sent: %s", err)
-                if err.connected is False:
-                    self._pending.clear()
-                    self._sent = None
-                    self.playing = False
-                    self._on_change()
+                self._failed(err)
                 await asyncio.sleep(2.0 if err.name == "RateLimited" else 0.5)
             await asyncio.sleep(max(0.0, FLUSH_S - (time.monotonic() - began)))
 
@@ -371,62 +388,66 @@ class HandyStream:
         batch = [p for p in self._pending[:MAX_ADD] if p.t <= horizon]
         if not batch:
             return
+        # Decided against what the Handy had before this batch.
+        kind = "add" if self.playing and not self._starved_by_then() else "play"
+        del self._pending[: len(batch)]
+        self._sent = batch[-1]
         add: dict[str, Any] = {"points": [{"t": p.t, "x": p.x} for p in batch]}
         if not self.playing:
-            await self._begin(add)
-        elif self._starved_by_then():
-            await self._play(add)       # paused out of points: back in step with ours
-        else:
-            add["tail_point_stream_index"] = self._tail + len(batch)
-            sent = self._ms(time.monotonic())
-            state = await self.api.call("PUT", "/hsp/add", add)
-            self._tail += len(batch)
-            self._check_late(state, batch[0].t, sent)
-        _LOGGER.debug("Handy Wi-Fi sent %d points (%d..%d ms ahead), %s", len(batch),
-                      batch[0].t - self._ms(time.monotonic()), batch[-1].t - self._ms(time.monotonic()),
-                      "add" if self.playing else "play")
-        # Only what was sent goes (a newer move may have replaced the rest meanwhile).
-        if self._pending[: len(batch)] == batch:
-            del self._pending[: len(batch)]
-        else:
-            self._pending = [p for p in self._pending if p.t > batch[-1].t]
-        self._sent = batch[-1]
-
-    async def _begin(self, add: dict[str, Any]) -> None:
-        """A new stream: HSP mode and a fresh session, then play."""
-        await self.api.call("PUT", "/mode2", {"mode": MODE_HSP})
-        await self.api.call("PUT", "/hsp/setup", {})
-        self._tail = 0
-        await self._play(add)
-        self.playing = True
-        self._on_change()
-
-    async def _play(self, add: dict[str, Any]) -> None:
-        """Play from our stream time now (on the server's clock), with these points."""
-        self._tail += len(add["points"])
+            if not self._ready:
+                await self.prepare()
+            self._tail = 0
+            self.playing = True
+            self._on_change()
+        self._tail += len(batch)
         add["tail_point_stream_index"] = self._tail
+        self._resync = False
         now = time.monotonic()
         sent = self._ms(now)
-        state = await self.api.call("PUT", "/hsp/play", {
-            "start_time": max(0, sent),
-            "server_time": int(now * 1000 + self.api.offset_ms),
-            "pause_on_starving": True,
-            "add": add,
-        })
-        self._check_late(state, add["points"][0]["t"], sent)
-
-    def _check_late(self, state: dict[str, Any], first_t: int, sent: int) -> None:
-        """How long the points took to reach the Handy; late ones place live moves further ahead."""
-        now_t = state.get("current_time")
-        if not isinstance(now_t, (int, float)):
-            return
-        reach = now_t - sent
-        if 0 <= reach < LEAD_MAX_S * 1000:
-            self._reach_ms = [*self._reach_ms[-9:], reach]
-        if now_t > first_t:
-            self._lead_extra = min(1.5, self._lead_extra + 0.1)
+        if kind == "play":
+            # From our time now, on the server's clock: back in step after a pause.
+            path, body = "/hsp/play", {
+                "start_time": max(0, sent),
+                "server_time": int(now * 1000 + self.api.offset_ms),
+                "pause_on_starving": True,
+                "add": add,
+            }
         else:
-            self._lead_extra = max(0.0, self._lead_extra - 0.01)
+            path, body = "/hsp/add", add
+        _LOGGER.debug("Handy Wi-Fi sends %d points (%d..%d ms ahead) by %s, %d in flight",
+                      len(batch), batch[0].t - sent, batch[-1].t - sent, kind, len(self._inflight))
+        task = asyncio.get_running_loop().create_task(self._post(path, body, sent, now))
+        self._inflight.add(task)
+        task.add_done_callback(self._inflight.discard)
+
+    async def _post(self, path: str, body: dict[str, Any], sent: int, began: float) -> None:
+        try:
+            state = await self.api.call("PUT", path, body)
+        except HandyApiError as err:
+            self._failed(err)
+            return
+        except asyncio.CancelledError:
+            return
+        self.last_error = None
+        rtt = (time.monotonic() - began) * 1000
+        self._rtts = [*self._rtts[-(RTT_SAMPLES - 1):], rtt]
+        # Its clock should read about our send time plus the way there; well
+        # behind that, it paused out of points: the next batch puts it back in step.
+        now_t = state.get("current_time")
+        if isinstance(now_t, (int, float)) and now_t < sent - BEHIND_MS:
+            self._resync = True
+            _LOGGER.debug("Handy Wi-Fi: its clock is %d ms behind; next batch re-syncs", sent - now_t)
+
+    def _failed(self, err: HandyApiError) -> None:
+        self.last_error = str(err)
+        _LOGGER.debug("Handy Wi-Fi points not sent: %s", err)
+        self._resync = True          # what was lost leaves it out of step
+        if err.connected is False:
+            self._pending.clear()
+            self._sent = None
+            self.playing = False
+            self._ready = False
+            self._on_change()
 
 
 class HandyWifi:
@@ -658,9 +679,17 @@ class HandyWifi:
         if was != self.online:
             if not self.online and self.stream is not None:
                 self.stream.playing = False
+                self.stream._ready = False
             if self.online and self.stream is not None:
                 self.stream.last_error = None
             _LOGGER.info("The Handy is %s over Wi-Fi", "reachable" if self.online else "not reachable")
+        stream = self.stream
+        if self.online and stream is not None and not stream.playing and not stream._ready and not stream._pending:
+            # Ready ahead, so the first move only has to play (setting up takes 2-4 s).
+            try:
+                await stream.prepare()
+            except HandyApiError as err:
+                _LOGGER.debug("Handy Wi-Fi not prepared: %s", err)
         self._changed()
         return self.status()
 
