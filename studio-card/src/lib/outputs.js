@@ -49,8 +49,8 @@ export function railDrag(lim, grab, v) {
 }
 
 // Touching the position lane: until the stroker reaches the finger it moves
-// no faster than the last speed used (Slow if none), so a touch far from
-// where it is never makes it jump. After that it follows the finger.
+// at the speed given (the stroker's top speed), so a touch far from where it
+// is is caught smoothly rather than in one jump. After that it follows the finger.
 export function approachStep(pos, target, vel, dtMs) {
   const step = vel * Math.min(dtMs, 100);
   const d = target - pos;

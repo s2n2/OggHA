@@ -7,6 +7,8 @@ import { FOLLOW_STROKER, approachStep, parseTarget, railDrag, railGrab } from '.
 import { smoothActions } from '../lib/smooth.js';
 import { STROKE_LIMITS_RESET, STROKE_LIMIT_KEY, STROKE_SPEEDS, STROKE_SPEED_KEY, okPct, strokeSetLimit, strokeStep, strokeVel } from '../lib/stroke.js';
 
+const RAIL_HOLD_MS = 220;   // hold a range limit this long before it moves
+
 // Methods mixed into OggStudioCard.
 export class StrokePart {
   // ---------------------------------------------------------- stroke recorder
@@ -57,6 +59,9 @@ export class StrokePart {
       e.preventDefault();
       capture(lane, e);
       lane.classList.add('active');
+      // The finger takes over: a latched speed stops (it used to carry on
+      // the moment the finger lifted, sending the stroker back to a limit).
+      this._st.latch = null;
       this._st.caught = false;
       this._st.drag = level(lane, e);
       this._stRun();
@@ -72,21 +77,42 @@ export class StrokePart {
     // Range rail: drag a limit, or the band to move the whole range.
     const rail = $('strail');
     let grab = null;
+    // A limit moves only after a short hold: a quick swipe here (meant for
+    // the position lane beside it) used to drag a limit to wherever the
+    // finger stopped, squashing the range to a few %.
+    let armT = null, armed = false, start = 0, pending = null;
     rail.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       capture(rail, e);
-      rail.classList.add('active');
       const v = level(rail, e);
-      grab = railGrab(this._st, v, 22 / rail.getBoundingClientRect().height * 100);   // ~22 px either side of a limit
-      if (grab.mode !== 'move') Object.assign(this._st, railDrag(this._st, grab, v));
-      this._stShow();
+      start = v;
+      armed = false;
+      pending = railGrab(this._st, v, 22 / rail.getBoundingClientRect().height * 100);   // ~22 px either side of a limit
+      clearTimeout(armT);
+      armT = setTimeout(() => {
+        if (!pending) return;
+        armed = true;
+        grab = pending;
+        rail.classList.add('active');
+        if (grab.mode !== 'move') Object.assign(this._st, railDrag(this._st, grab, start));
+        this._stShow();
+      }, RAIL_HOLD_MS);
     });
     rail.addEventListener('pointermove', (e) => {
+      const v = level(rail, e);
+      if (!armed) {
+        if (pending && Math.abs(v - start) > 4) {
+          pending = null; clearTimeout(armT);
+          this._toast('That is the range: hold a limit a moment to move it. The position lane is beside it.');
+        }
+        return;
+      }
       if (!grab) return;
-      Object.assign(this._st, railDrag(this._st, grab, level(rail, e)));
+      Object.assign(this._st, railDrag(this._st, grab, v));
       this._stShow();
     });
     const railUp = () => {
+      clearTimeout(armT); pending = null; armed = false;
       if (!grab) return;
       // A limit dragged by hand counts as the last one set (for Set limit's pairing).
       if (grab.mode !== 'move') this._st.last = grab.mode;
@@ -141,7 +167,7 @@ export class StrokePart {
     } else if (st.drag !== null) {
       if (st.caught) st.pos = st.drag;
       else {
-        const r = approachStep(st.pos, st.drag, strokeVel(Math.max(60, this._stPcts[st.lastSpeed ?? 0])), dt);   // gentle, never sluggish
+        const r = approachStep(st.pos, st.drag, strokeVel(100), dt);   // catch the finger as fast as the stroker can go
         st.pos = r.pos; st.caught = r.caught;
       }
       if (Math.abs(st.pos - before) > 0.5 && now - (this._stDragMark || 0) >= 50) { this._stDragMark = now; this._stMark(now); }

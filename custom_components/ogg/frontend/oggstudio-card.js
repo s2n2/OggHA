@@ -2492,6 +2492,7 @@ ${VIEWERS_STYLE}
   }
 
   // studio-card/src/card/stroke.js
+  var RAIL_HOLD_MS = 220;
   var StrokePart = class {
     // ---------------------------------------------------------- stroke recorder
     _bindStroke() {
@@ -2583,6 +2584,7 @@ ${VIEWERS_STYLE}
         e.preventDefault();
         capture(lane, e);
         lane.classList.add("active");
+        this._st.latch = null;
         this._st.caught = false;
         this._st.drag = level(lane, e);
         this._stRun();
@@ -2610,21 +2612,42 @@ ${VIEWERS_STYLE}
       });
       const rail = $("strail");
       let grab = null;
+      let armT = null, armed = false, start = 0, pending = null;
       rail.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         capture(rail, e);
-        rail.classList.add("active");
         const v = level(rail, e);
-        grab = railGrab(this._st, v, 22 / rail.getBoundingClientRect().height * 100);
-        if (grab.mode !== "move") Object.assign(this._st, railDrag(this._st, grab, v));
-        this._stShow();
+        start = v;
+        armed = false;
+        pending = railGrab(this._st, v, 22 / rail.getBoundingClientRect().height * 100);
+        clearTimeout(armT);
+        armT = setTimeout(() => {
+          if (!pending) return;
+          armed = true;
+          grab = pending;
+          rail.classList.add("active");
+          if (grab.mode !== "move") Object.assign(this._st, railDrag(this._st, grab, start));
+          this._stShow();
+        }, RAIL_HOLD_MS);
       });
       rail.addEventListener("pointermove", (e) => {
+        const v = level(rail, e);
+        if (!armed) {
+          if (pending && Math.abs(v - start) > 4) {
+            pending = null;
+            clearTimeout(armT);
+            this._toast("That is the range: hold a limit a moment to move it. The position lane is beside it.");
+          }
+          return;
+        }
         if (!grab) return;
-        Object.assign(this._st, railDrag(this._st, grab, level(rail, e)));
+        Object.assign(this._st, railDrag(this._st, grab, v));
         this._stShow();
       });
       const railUp = () => {
+        clearTimeout(armT);
+        pending = null;
+        armed = false;
         if (!grab) return;
         if (grab.mode !== "move") this._st.last = grab.mode;
         grab = null;
@@ -2680,7 +2703,7 @@ ${VIEWERS_STYLE}
       } else if (st.drag !== null) {
         if (st.caught) st.pos = st.drag;
         else {
-          const r = approachStep(st.pos, st.drag, strokeVel(Math.max(60, this._stPcts[st.lastSpeed ?? 0])), dt);
+          const r = approachStep(st.pos, st.drag, strokeVel(100), dt);
           st.pos = r.pos;
           st.caught = r.caught;
         }

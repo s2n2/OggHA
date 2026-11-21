@@ -1,3 +1,8 @@
+## 3.20.1 - Manual stroking does what the finger does
+- **A swipe takes over:** with a speed latched, swiping the position lane only paused it - the moment the finger lifted, the latch carried on and sent the stroker back to a limit. A swipe now stops the latch; the stroker stays where you let go.
+- **The range is not moved by accident:** the range rail sits right beside the position lane, and a swipe that landed on it dragged a limit to wherever the finger stopped (strokes of a few % followed). A limit now moves only after a short hold (about 0.2 s); a quick swipe on the rail does nothing and says so.
+- **Catching the finger:** touching the lane away from the stroker, it now catches up at its full speed (it glided there more slowly, following the bar rather than your finger).
+
 ## 3.20.0 - Strokes at the stroker's real speed
 - **Real top speed:** the card took a full stroke in a quarter second as top speed, faster than The Handy can go (110 mm at about 350 mm/s: ~310 ms), so at Fast it turned back short of the ends and looked slower than the bar. Held speeds, moods, the AI stroke planner (card and Home Assistant) and live control now use the stroker's real top speed, so strokes keep their full depth.
 - **Live control copies the finger:** dragging the stroke bar, the line on a video or a pad replays your finger's own path about 0.2 s behind, in 60 ms moves that each take exactly as long as your finger did - its real speed, with a move ending at every turn, never faster than the stroker goes. No guessing ahead, no overshoot, nothing chased while you hold still.
