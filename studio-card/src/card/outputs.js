@@ -16,6 +16,7 @@ const FOLLOW_SMOOTH_MS = 15;     // light finger smoothing (time constant)
 const FOLLOW_DEADBAND = 1.5;     // % : smaller changes are not sent
 const FOLLOW_KEEP_MS = 1500;     // finger path kept for the replay
 const FOLLOW_SETTLE_MS = 150;    // the last move after letting go (at least)
+const FOLLOW_MAX_BEHIND_MS = 250; // the replay never falls further behind the finger than this
 const LINEAR_TARGET_GAP_MS = 60; // the shortest gap between script moves
 const OUT_FOLD_KEY = 'oggstudio_outputs_folded';
 const NO_OUT = Object.freeze({ t: 'none', m: 'position', on: true });
@@ -367,9 +368,15 @@ export class OutputsPart {
         f.tau = now;
         move = { goal: f.pos, dur: FOLLOW_SETTLE_MS };
       } else {
-        if (now - last.at < (live ? FOLLOW_SEND_MS : 400)) return;
+        // Each move lands before the next replaces it: the Handy starts a
+        // new move from wherever it is, so a stroke cut short by the next
+        // one (sent every 60-80 ms while it took 200) never reached its
+        // turn, and fast strokes came out shallow and wandering (measured).
+        if (now - last.at < Math.max(live ? FOLLOW_SEND_MS : 400, (last.dur || 0) - FOLLOW_OVERLAP_MS)) return;
         const until = now - FOLLOW_DELAY_MS;
-        const from = f.tau === null ? until - FOLLOW_SEND_MS : f.tau;
+        // Faster than it can go, it skips the finger's smaller wiggles
+        // (the biggest turn in the time it was busy wins) and stays close.
+        const from = Math.max(f.tau === null ? until - FOLLOW_SEND_MS : f.tau, until - FOLLOW_MAX_BEHIND_MS);
         if (until <= from) return;
         const pick = followStep(f.hist, from, until, last.goal);
         f.tau = pick.at;
@@ -379,7 +386,7 @@ export class OutputsPart {
       }
     }
     const goal = clamp(move.goal);
-    this._linLast[dev.id] = { goal, at: now };
+    this._linLast[dev.id] = { goal, at: now, dur: move.dur };
     if (live) this._hass.callService('ogg', 'linear', { entity_id: dev.stop, position: goal, duration: Math.max(50, Math.round(move.dur)) }, undefined, false).catch(() => {});
     else if (dev.linear) this._hass.callService('number', 'set_value', { entity_id: dev.linear, value: goal }, undefined, false).catch(() => {});
   }

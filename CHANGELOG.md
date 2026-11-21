@@ -1,3 +1,8 @@
+## 3.20.2 - Fast finger strokes keep their depth
+- **Each live move lands:** dragging the stroke bar (or the line on a video, or a pad), a move went every 60-80 ms even when it was planned to take 200 ms, so the next one cut it short. The Handy starts each move from wherever it is, so a cut-short stroke never reached its turn, and fast strokes came out shallow and wandering in the middle (measured on the Handy itself). Now a move is replaced only once it has landed. A finger faster than the stroker can go gets full strokes at the stroker's top speed, skipping wiggles it cannot do, and never more than a quarter second behind.
+- **Short strokes everywhere? Check The Handy's own stroke zone.** Every move is a share of the stroke zone set on the Handy (buttons or its app). A Handy here was set to 28 mm of its 100 mm, which made every stroke short and every speed look the same. IntiHA 2.8.0 shows and resets it (`intiha.handy`: `status`, `stroke_set`).
+- Test data uses made-up Bluetooth addresses only.
+
 ## 3.20.1 - Manual stroking does what the finger does
 - **A swipe takes over:** with a speed latched, swiping the position lane only paused it - the moment the finger lifted, the latch carried on and sent the stroker back to a limit. A swipe now stops the latch; the stroker stays where you let go.
 - **The range is not moved by accident:** the range rail sits right beside the position lane, and a swipe that landed on it dragged a limit to wherever the finger stopped (strokes of a few % followed). A limit now moves only after a short hold (about 0.2 s); a quick swipe on the rail does nothing and says so.

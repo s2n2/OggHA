@@ -5967,6 +5967,7 @@ ${VIEWERS_STYLE}
   var FOLLOW_DEADBAND = 1.5;
   var FOLLOW_KEEP_MS = 1500;
   var FOLLOW_SETTLE_MS = 150;
+  var FOLLOW_MAX_BEHIND_MS = 250;
   var LINEAR_TARGET_GAP_MS = 60;
   var OUT_FOLD_KEY = "oggstudio_outputs_folded";
   var NO_OUT = Object.freeze({ t: "none", m: "position", on: true });
@@ -6342,9 +6343,9 @@ ${VIEWERS_STYLE}
           f.tau = now;
           move = { goal: f.pos, dur: FOLLOW_SETTLE_MS };
         } else {
-          if (now - last.at < (live ? FOLLOW_SEND_MS : 400)) return;
+          if (now - last.at < Math.max(live ? FOLLOW_SEND_MS : 400, (last.dur || 0) - FOLLOW_OVERLAP_MS)) return;
           const until = now - FOLLOW_DELAY_MS;
-          const from = f.tau === null ? until - FOLLOW_SEND_MS : f.tau;
+          const from = Math.max(f.tau === null ? until - FOLLOW_SEND_MS : f.tau, until - FOLLOW_MAX_BEHIND_MS);
           if (until <= from) return;
           const pick = followStep(f.hist, from, until, last.goal);
           f.tau = pick.at;
@@ -6353,7 +6354,7 @@ ${VIEWERS_STYLE}
         }
       }
       const goal = clamp3(move.goal);
-      this._linLast[dev.id] = { goal, at: now };
+      this._linLast[dev.id] = { goal, at: now, dur: move.dur };
       if (live) this._hass.callService("ogg", "linear", { entity_id: dev.stop, position: goal, duration: Math.max(50, Math.round(move.dur)) }, void 0, false).catch(() => {
       });
       else if (dev.linear) this._hass.callService("number", "set_value", { entity_id: dev.linear, value: goal }, void 0, false).catch(() => {

@@ -48,14 +48,17 @@ const turns = (pts) => pts.filter((b, i) => i > 0 && i < pts.length - 1 && (b[1]
   const atRest = calls.length;
   send({ goal: 81, settle: true }, now);                                                              // let go
   send({ goal: 81, settle: true }, now + 20);                                                         // (next tick)
-  assert.ok(dragged >= 8 && dragged <= 12, `a move every ~60 ms while dragging (${dragged})`);
+  assert.ok(dragged >= 5 && dragged <= 12, `a steady run of moves while dragging (${dragged})`);
   assert.ok(calls.slice(0, dragged).every((c, i) => i === 0 || c.at - calls[i - 1].at >= 60), 'paced for Bluetooth');
+  // Each move lands before the next replaces it (the Handy starts a new
+  // move from wherever it is, so a move cut short never reaches its turn).
+  assert.ok(calls.slice(0, dragged).every((c, i) => i === 0 || c.at - calls[i - 1].at >= calls[i - 1].duration - 15), 'no move is cut short');
   if (process.env.SHOW) console.log(calls);
   assert.ok(calls.every((c) => c.duration >= 60), 'each follow move lasts as long as the finger took');
   // The finger's path, replayed: steady, in order.
   const drag = calls.slice(1, dragged);
   assert.ok(drag.every((c, i) => i === 0 || c.position >= drag[i - 1].position - 2), 'it replays the drag in order (no guessing ahead, no overshoot)');
-  assert.ok(atRest - dragged <= 2, `a still finger is not chased (${atRest - dragged} moves while held)`);
+  assert.ok(atRest - dragged <= 3, `a still finger is not chased (${atRest - dragged} moves while held: the replay's tail and at most one tremor)`);
   assert.ok(calls.length - atRest <= 1, 'letting go sends at most one gentle move');
   assert.ok(Math.abs(calls[calls.length - 1].position - 80) <= 3, 'it ends where the finger did');
 }
@@ -89,3 +92,20 @@ const turns = (pts) => pts.filter((b, i) => i > 0 && i < pts.length - 1 && (b[1]
   assert.deepStrictEqual(card._forDevice({ stop: 'button.h', linear: 'number.h', vibe: false }, stroke).script.actions, stroke.actions);
 }
 console.log('stroker smoothing passed');
+
+// Finger strokes faster than the stroker can go: it keeps full-depth strokes
+// at its own top speed (each move to a turn, none cut short), never shallow
+// wandering in the middle.
+{
+  const calls = [];
+  let now = 0;
+  const card = { _linLast: {}, _linFollow: {}, _limits: () => NO_LIMITS,
+    _hass: { services: { ogg: { linear: {} } }, callService: (d, s, data) => { calls.push({ ...data, at: now }); return Promise.resolve(); } } };
+  const dev = { id: 'h', stop: 'button.h' };
+  for (now = 0; now <= 4000; now += 20) OutputsPart.prototype._outLinear.call(card, dev, { goal: 50 + 42 * Math.sin(2 * Math.PI * now / 300), dur: 120 }, now);
+  const later = calls.filter((c) => c.at > 1000);
+  const depth = later.slice(1).map((c, i) => Math.abs(c.position - later[i].position));
+  depth.sort((a, b) => a - b);
+  assert.ok(depth[depth.length >> 1] >= 60, `fast finger strokes stay deep (${depth[depth.length >> 1]}%)`);
+  assert.ok(calls.every((c, i) => i === 0 || c.at - calls[i - 1].at >= calls[i - 1].duration - 15), 'no fast move is cut short');
+}
