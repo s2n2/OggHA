@@ -2,9 +2,9 @@
 
 // Stroke recorder. Holding (or latching) a speed strokes between the lower
 // and upper limits at that device speed, whatever the range: a speed is a
-// % of top speed, and 100% = a full 0-100 stroke in a quarter second
-// (400 units/s, the same scale as the Speed run mode).
-export const STROKE_TOP = 400;   // position units per second at 100%
+// % of top speed, and 100% = a full 0-100 stroke as fast as a stroker can
+// really go (~310 ms on The Handy; faster made it turn back short of the ends).
+export const STROKE_TOP = 320;   // position units per second at 100%: The Handy averages ~350 mm/s over its 110 mm stroke (firmware cap 400), so a full stroke takes ~310 ms
 export const STROKE_SPEEDS = [{ name: 'Slow', pct: 30 }, { name: 'Medium', pct: 55 }, { name: 'Fast', pct: 100 }];
 export const STROKE_PCT_MIN = 5;   // the Handy's slowest smooth speed is about 8% (32 mm/s)
 export const okPct = (v) => Number.isInteger(v) && v >= STROKE_PCT_MIN && v <= 100;

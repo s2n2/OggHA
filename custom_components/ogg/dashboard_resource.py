@@ -18,7 +18,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # Stable URL for HA dashboards; the query string is bumped on each Ogg release.
 CARD_PATH = "/ogg/control-deck/ogg-control-deck-card.js"
-CARD_VERSION = "3.19.1"
+CARD_VERSION = "3.20.0"
 CARD_URL = f"{CARD_PATH}?v={CARD_VERSION}"
 CARD_FILE = Path(__file__).parent / "frontend" / "ogg-control-deck-card.js"
 
@@ -26,9 +26,20 @@ CARD_FILE = Path(__file__).parent / "frontend" / "ogg-control-deck-card.js"
 # The Play card (was the OggStudio integration's card). Its old resource is
 # removed once that integration is gone, so dashboards load only this one.
 STUDIO_PATH = "/ogg/studio/oggstudio-card.js"
-STUDIO_VERSION = "3.19.1"
+STUDIO_VERSION = "3.20.0"
 STUDIO_FILE = Path(__file__).parent / "frontend" / "oggstudio-card.js"
 OLD_STUDIO_PATH = "/oggstudio/oggstudio-card.js"
+
+
+def studio_url() -> str:
+    """The Play card's address: its version and the file's own time, so a new
+    card (a HACS update, then reloading Ogg) is fetched fresh by phones that
+    kept the old one, without restarting Home Assistant."""
+    try:
+        stamp = int(STUDIO_FILE.stat().st_mtime)
+    except OSError:
+        stamp = 0
+    return f"{STUDIO_PATH}?v={STUDIO_VERSION}-{stamp}"
 
 
 async def async_register_control_deck(hass: HomeAssistant) -> None:
@@ -42,7 +53,7 @@ async def async_register_control_deck(hass: HomeAssistant) -> None:
     """
     cards = [(CARD_PATH, CARD_URL, CARD_FILE, "Ogg Control Deck")]
     if STUDIO_FILE.exists():
-        cards.append((STUDIO_PATH, f"{STUDIO_PATH}?v={STUDIO_VERSION}", STUDIO_FILE, "Ogg Play card"))
+        cards.append((STUDIO_PATH, studio_url(), STUDIO_FILE, "Ogg Play card"))
     for path, _url, file, label in cards:
         try:
             await hass.http.async_register_static_paths([StaticPathConfig(path, str(file), False)])

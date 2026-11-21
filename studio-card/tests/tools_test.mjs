@@ -19,12 +19,12 @@ assert.deepStrictEqual(limitLevels(none, [100, 37]), [100, 37]);
 for (const goal of [0, 25, 100, 300, -40]) {
   const m = limitMove(lim, { goal, dur: 10 }, 50);
   assert.ok(m.goal >= 20 && m.goal <= 80, `goal ${goal} -> ${m.goal}`);
-  // ...and never faster than the top speed (200 units/s at 50%).
-  assert.ok(Math.abs(m.goal - 50) / m.dur * 1000 <= 200.001 || m.goal === 50, `speed for ${goal}`);
+  // ...and never faster than the top speed (160 units/s at 50%).
+  assert.ok(Math.abs(m.goal - 50) / m.dur * 1000 <= 160.001 || m.goal === 50, `speed for ${goal}`);
 }
 assert.deepStrictEqual(limitMove(none, { goal: 70, dur: 120 }, 10), { goal: 70, dur: 120 });
 // Unknown start: assume the far end, so the first move is not a lunge.
-assert.strictEqual(limitMove(lim, { goal: 100, dur: 1 }, null).dur, 300);
+assert.strictEqual(limitMove(lim, { goal: 100, dur: 1 }, null).dur, 375);
 assert.strictEqual(limitsText(lim), 'top 60% · range 20-80% · speed 50%');
 
 // ---- script tools

@@ -48,13 +48,13 @@ const turns = (pts) => pts.filter((b, i) => i > 0 && i < pts.length - 1 && (b[1]
   const atRest = calls.length;
   send({ goal: 81, settle: true }, now);                                                              // let go
   send({ goal: 81, settle: true }, now + 20);                                                         // (next tick)
-  assert.ok(dragged >= 6 && dragged <= 9, `a move every ~80 ms while dragging (${dragged})`);
-  assert.ok(calls.slice(0, dragged).every((c, i) => i === 0 || c.at - calls[i - 1].at >= 80), 'paced for Bluetooth');
+  assert.ok(dragged >= 8 && dragged <= 12, `a move every ~60 ms while dragging (${dragged})`);
+  assert.ok(calls.slice(0, dragged).every((c, i) => i === 0 || c.at - calls[i - 1].at >= 60), 'paced for Bluetooth');
   if (process.env.SHOW) console.log(calls);
-  assert.ok(calls.every((c) => c.duration > 80), 'each follow move outlasts the gap, so it never stops between moves');
-  // Speed shows: mid-drag the move aims at (or ahead of) where the finger is, not behind it.
-  const mid = calls[3];
-  assert.ok(mid.position >= ((mid.at - 1000) / 600) * 80 - 3, `aims where the finger is heading (${mid.position} at ${mid.at})`);
+  assert.ok(calls.every((c) => c.duration >= 60), 'each follow move lasts as long as the finger took');
+  // The finger's path, replayed: steady, in order.
+  const drag = calls.slice(1, dragged);
+  assert.ok(drag.every((c, i) => i === 0 || c.position >= drag[i - 1].position - 2), 'it replays the drag in order (no guessing ahead, no overshoot)');
   assert.ok(atRest - dragged <= 2, `a still finger is not chased (${atRest - dragged} moves while held)`);
   assert.ok(calls.length - atRest <= 1, 'letting go sends at most one gentle move');
   assert.ok(Math.abs(calls[calls.length - 1].position - 80) <= 3, 'it ends where the finger did');

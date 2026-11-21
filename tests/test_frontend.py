@@ -18,9 +18,11 @@ from custom_components.ogg.dashboard_resource import (
     STUDIO_PATH,
     STUDIO_VERSION,
     async_register_control_deck,
+    studio_url,
 )
 
-STUDIO_URL = f"{STUDIO_PATH}?v={STUDIO_VERSION}"
+STUDIO_URL = studio_url()
+assert STUDIO_URL.startswith(f"{STUDIO_PATH}?v={STUDIO_VERSION}-")
 
 
 class Resources:

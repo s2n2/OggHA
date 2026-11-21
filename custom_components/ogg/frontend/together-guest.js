@@ -60,7 +60,7 @@
   }
 
   // studio-card/src/lib/stroke.js
-  var STROKE_TOP = 400;
+  var STROKE_TOP = 320;
   var strokeVel = (pct) => pct / 100 * STROKE_TOP / 1e3;
   function strokeStep(pos, dir, lower, upper, vel, dtMs) {
     const span = upper - lower;

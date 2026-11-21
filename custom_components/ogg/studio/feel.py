@@ -14,7 +14,7 @@ from typing import Any
 
 AI_STEP = 50          # ms between analysed samples
 AI_HALF = 30          # samples either side (3 s window)
-STROKE_TOP = 400      # position units per second at 100%
+STROKE_TOP = 320      # position units per second at 100% (as the card: a stroker's real top speed)
 
 
 def _round(x: float) -> int:
