@@ -239,12 +239,12 @@ def test_exact_mac_merges_records_even_with_different_names_and_indices():
     from custom_components.ogg.models import OggDevice, physical_address
 
     first = vibration_device(1, "We-Vibe")
-    first["BluetoothAddress"] = "d0:2e:ab:3a:d5:b4"
+    first["BluetoothAddress"] = "aa:bb:cc:00:00:05"
     first["DeviceDisplayName"] = "Toy A"
     second = vibration_device(8, "We-Vibe 8-bit")
-    second["BluetoothAddress"] = "D0:2E:AB:3A:D5:B4"
+    second["BluetoothAddress"] = "AA:BB:CC:00:00:05"
     second["DeviceDisplayName"] = "We-Vibe"
-    assert physical_address(first) == physical_address(second) == "D0:2E:AB:3A:D5:B4"
+    assert physical_address(first) == physical_address(second) == "AA:BB:CC:00:00:05"
 
     devices, aliases = load_devices([
         OggDevice("old-key", "Toy A", "sourceA", first).stored(),
