@@ -6,6 +6,7 @@ import { gpState } from '../lib/gamepad.js';
 import { MOODS } from '../lib/moods.js';
 import { PATTERNS, PATTERNS_DUAL, PATTERN_RANDOM } from '../lib/patterns.js';
 import { STROKE_PCT_MIN } from '../lib/stroke.js';
+import { parseTarget } from '../lib/outputs.js';
 import { STYLES } from './styles.js';
 
 // The card: shared state, the markup and the wiring. Each feature's methods
@@ -354,6 +355,7 @@ ${VIEWERS_STYLE}
             <div class="vstage">
               <button class="vempty" id="vempty" type="button" hidden>🎬 Choose a video<small>It plays from this phone or computer. Nothing is uploaded.</small></button>
               <video id="video" controls playsinline preload="metadata" disableremoteplayback hidden></video>
+              <div class="vrecbar" id="vrecbar" hidden><button type="button" class="vri rec" id="vrecgo" title="Record with the video: it starts playing; move the line with the action" aria-label="Record with the video">●</button><button type="button" class="vri" id="vrecsave" title="Save the recording" aria-label="Save the recording" hidden>💾</button><button type="button" class="vri" id="vrecdrop" title="Discard the recording" aria-label="Discard the recording" hidden>✕</button><span class="vrect" id="vrect"></span></div>
               <div class="vst" id="vst" hidden>
                 <div class="vstrail" id="vstrail" role="group" aria-label="Stroke range: drag the ends to set the limits, the middle to move it"><div class="trk"><div class="band"><span class="h hu"></span><span class="h hl"></span></div><div class="dot"></div></div></div>
                 <div class="vstspd"><b id="vstspdv"></b><div class="vstline" id="vstline" role="slider" aria-label="Stroke speed" aria-valuemin="0" aria-valuemax="100"><div class="dot"></div></div><button type="button" id="vstbeat" title="The sound drives it">♪</button></div>
@@ -428,6 +430,13 @@ ${VIEWERS_STYLE}
     this._bindVideo();
     this._bindPlay();
     this._bindGamepad();
+    // Made by the Easy card with its toys already picked: suit them (a
+    // stroker: stroke), not whatever kind was used last.
+    // (Decided from the picked target itself: the device list is not in yet.)
+    if (this._simple && this._config && (this._config.outputs || this._config.media_only) && this._outs && this._outs.length && !this._variant.kind) {
+      const first = parseTarget(this._outs[0].t);
+      if (first) this._setRecKind(first.motor === 'l' ? 'stroke' : 'vibrate');
+    }
     this._update();
   }
 }

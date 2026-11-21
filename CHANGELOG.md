@@ -1,3 +1,9 @@
+## 3.19.0 - Record with a video, the easy way
+- **● and 💾 on the video** (Play card and the Easy card's Video): ● starts the video and records together, so it is in sync from the first frame; move the line on the video with the action (a stroker's position, a vibrator's strength) and your toys follow live. ■ stops both; 💾 saves it to your scripts (named after the video) and it plays with that video straight away; ✕ discards it. Recording again over part of it replaces that part.
+- The icons sit in the top right corner and fade with the video's own controls (back on a tap or when paused); the lines on the video are thicker and easier to catch.
+- Stroke recordings are saved clean (every turn and pause, no finger wobble), and a hold is recorded as a hold (it used to creep slowly to the next move).
+- The Easy card's Video section records strokes when a stroker is picked (it could start in the kind used last).
+
 ## 3.18.2 - Saved scripts on a stroker from Home Assistant
 - **`ogg.studio_play` on a stroker** (automations, scripts, the saved-script entities): a stroke script was first turned into vibration levels meant for a vibrator, and those levels were then played as positions - the stroker jumped about instead of following the script. A stroker now plays a stroke script as it is, and a vibration script as strokes by feel (the same planner as the cards, now in Home Assistant too and checked against the card's), inside its stroke range.
 

@@ -588,6 +588,7 @@ export class PlayPart {
     const dt = now - (this._vsAt || now);
     this._vsAt = now;
     if (!r) return;
+    if (this._vrec) { this._vlimShow(); return; }       // recording: the line (or bar) drives it
     if (!this._strokeKind) { this._vvTick(); return; }
     const hand = this._vsHand;
     if (hand !== null && hand !== undefined) {
@@ -696,7 +697,14 @@ export class PlayPart {
     const line = $('vstline');
     let pct;
     let text;
-    if (stroke) {
+    line.classList.toggle('rec', Boolean(this._vrec));
+    if (this._vrec) {
+      // Recording: the line is the recorded position (or strength).
+      line.setAttribute('aria-label', stroke ? 'Recording: position' : 'Recording: strength');
+      line.classList.remove('dim');
+      pct = this._hvals ? this._hvals[0] : 0;
+      text = `● ${Math.round(pct)}%`;
+    } else if (stroke) {
       line.setAttribute('aria-label', 'Stroke speed');
       line.classList.toggle('dim', sound || script);
       pct = cfg.speed;
@@ -785,6 +793,7 @@ export class PlayPart {
     const setLine = (e) => {
       const r = line.getBoundingClientRect();
       const v = Math.min(100, Math.max(0, ((r.bottom - e.clientY) / r.height) * 100));
+      if (this._vrec) { this._vrecSet(v); return; }      // recording: the line is what is recorded
       if (this._strokeKind) {
         const cfg = this._vsLoad();
         cfg.speed = Math.round(v / 5) * 5;
@@ -799,6 +808,7 @@ export class PlayPart {
         if (!sliding) return;
         sliding = false;
         line.classList.remove('active');
+        if (this._vrec) { this._vrecLet(); this._vsWake(); return; }
         if (this._strokeKind) this._vsSave();
         else { this._vvHand = null; this._vvTick(); if (this._vraw) this._videoSend(true); }
         this._vsWake();

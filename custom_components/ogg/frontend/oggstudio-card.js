@@ -1722,16 +1722,25 @@ ha-card.simple #liverow,ha-card.simple #stliverow{display:none!important}
 .vstspd{position:absolute;left:max(4px,env(safe-area-inset-left));top:8%;bottom:24%;width:40px;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:auto}
 .vstspd b{font-size:9.5px;font-weight:700;color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(0,0,0,.9);white-space:nowrap}
 .vstline{position:relative;flex:1;width:40px;touch-action:none;cursor:ns-resize}
-.vstline::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.3);box-shadow:0 0 2px rgba(0,0,0,.6)}
-.vstline .dot{position:absolute;left:50%;width:12px;height:12px;margin:0 0 -6px -6px;border-radius:50%;background:rgba(255,255,255,.8);box-shadow:0 0 0 1px rgba(0,0,0,.45)}
-.vstline.active .dot{width:18px;height:18px;margin:0 0 -9px -9px;background:#fff}
+.vstline::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:4px;margin-left:-2px;border-radius:2px;background:rgba(255,255,255,.42);box-shadow:0 0 3px rgba(0,0,0,.7)}
+.vstline .dot{position:absolute;left:50%;width:16px;height:16px;margin:0 0 -8px -8px;border-radius:50%;background:rgba(255,255,255,.88);box-shadow:0 0 0 1px rgba(0,0,0,.45)}
+.vstline.active .dot{width:22px;height:22px;margin:0 0 -11px -11px;background:#fff}
+.vstline.rec::before{background:rgba(255,77,94,.75)}
+.vstline.rec .dot{background:#ff4d5e}
+.vrecbar{position:absolute;top:6px;right:max(46px,env(safe-area-inset-right));display:flex;flex-direction:row-reverse;align-items:center;gap:6px;z-index:3;pointer-events:auto;transition:opacity .35s}
+.vrecbar.idle{opacity:0;pointer-events:none}
+.vrecbar .vri{width:34px;height:34px;min-height:34px;padding:0;flex:0 0 34px;border-radius:50%;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.35)}
+.vrecbar .vri.rec{color:#ff4d5e;font-size:20px}
+.vrecbar .vri.rec.on{color:#fff;background:#e0263a;border-color:#ff8a96;font-size:13px;animation:vrecpulse 1.2s ease-in-out infinite}
+.vrecbar .vrect{font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 3px #000;font-variant-numeric:tabular-nums;white-space:nowrap}
+@keyframes vrecpulse{50%{box-shadow:0 0 0 7px rgba(224,38,58,.28)}}
 .vstline.dim .dot{background:rgba(255,255,255,.45)}
 .vstspd button{min-height:24px;width:30px;padding:0;font-size:12px;border-radius:9px;color:rgba(255,255,255,.85);background:rgba(0,0,0,.3);border-color:rgba(255,255,255,.25)}
 .vstspd button.on{background:rgba(255,255,255,.35);color:#fff;border-color:rgba(255,255,255,.5)}
 .vstrail{position:absolute;right:max(2px,env(safe-area-inset-right));top:calc(8% - 22px);bottom:calc(24% - 22px);width:40px;pointer-events:auto;touch-action:none;cursor:ns-resize}
 .vstrail .trk{position:absolute;left:0;right:0;top:22px;bottom:22px;pointer-events:none}
-.vstrail .trk::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.3);box-shadow:0 0 2px rgba(0,0,0,.6)}
-.vstrail .band{position:absolute;left:50%;width:6px;margin-left:-3px;border-radius:3px;background:rgba(255,255,255,.28);box-shadow:0 0 2px rgba(0,0,0,.5)}
+.vstrail .trk::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:4px;margin-left:-2px;border-radius:2px;background:rgba(255,255,255,.35);box-shadow:0 0 3px rgba(0,0,0,.7)}
+.vstrail .band{position:absolute;left:50%;width:10px;margin-left:-5px;border-radius:3px;background:rgba(255,255,255,.28);box-shadow:0 0 2px rgba(0,0,0,.5)}
 .vstrail .h{position:absolute;left:50%;width:14px;height:4px;margin-left:-7px;border-radius:2px;background:rgba(255,255,255,.7);color:transparent;font-size:0;box-shadow:0 0 2px rgba(0,0,0,.6)}
 .vstrail .hu{top:-2px}
 .vstrail .hl{bottom:-2px}
@@ -1739,7 +1748,7 @@ ha-card.simple #liverow,ha-card.simple #stliverow{display:none!important}
 .vstrail.active .h{width:26px;height:14px;margin-left:-13px;border-radius:4px;background:rgba(255,255,255,.85);color:#111;font-size:9px;font-weight:800;line-height:14px;text-align:center}
 .vstrail.active .hu{top:-7px}
 .vstrail.active .hl{bottom:-7px}
-.vstrail .dot{position:absolute;left:50%;width:10px;height:10px;margin:0 0 -5px -5px;border-radius:50%;background:rgba(255,255,255,.75);box-shadow:0 0 0 1px rgba(0,0,0,.45)}
+.vstrail .dot{position:absolute;left:50%;width:14px;height:14px;margin:0 0 -7px -7px;border-radius:50%;background:rgba(255,255,255,.75);box-shadow:0 0 0 1px rgba(0,0,0,.45)}
 .urechead{justify-content:space-between;align-items:center}
 .urechead .kind{flex:0 1 auto}
 .urechead .kind button{min-height:42px;padding:0 12px;font-size:12px}
@@ -2224,6 +2233,7 @@ ${VIEWERS_STYLE}
             <div class="vstage">
               <button class="vempty" id="vempty" type="button" hidden>🎬 Choose a video<small>It plays from this phone or computer. Nothing is uploaded.</small></button>
               <video id="video" controls playsinline preload="metadata" disableremoteplayback hidden></video>
+              <div class="vrecbar" id="vrecbar" hidden><button type="button" class="vri rec" id="vrecgo" title="Record with the video: it starts playing; move the line with the action" aria-label="Record with the video">●</button><button type="button" class="vri" id="vrecsave" title="Save the recording" aria-label="Save the recording" hidden>💾</button><button type="button" class="vri" id="vrecdrop" title="Discard the recording" aria-label="Discard the recording" hidden>✕</button><span class="vrect" id="vrect"></span></div>
               <div class="vst" id="vst" hidden>
                 <div class="vstrail" id="vstrail" role="group" aria-label="Stroke range: drag the ends to set the limits, the middle to move it"><div class="trk"><div class="band"><span class="h hu"></span><span class="h hl"></span></div><div class="dot"></div></div></div>
                 <div class="vstspd"><b id="vstspdv"></b><div class="vstline" id="vstline" role="slider" aria-label="Stroke speed" aria-valuemin="0" aria-valuemax="100"><div class="dot"></div></div><button type="button" id="vstbeat" title="The sound drives it">♪</button></div>
@@ -2301,6 +2311,10 @@ ${VIEWERS_STYLE}
       this._bindVideo();
       this._bindPlay();
       this._bindGamepad();
+      if (this._simple && this._config && (this._config.outputs || this._config.media_only) && this._outs && this._outs.length && !this._variant.kind) {
+        const first = parseTarget(this._outs[0].t);
+        if (first) this._setRecKind(first.motor === "l" ? "stroke" : "vibrate");
+      }
       this._update();
     }
   };
@@ -3355,6 +3369,521 @@ ${VIEWERS_STYLE}
     }
   };
 
+  // studio-card/src/lib/limits.js
+  var NO_LIMITS = { max: 100, lo: 0, hi: 100, speed: 100, delay: 0 };
+  var MAX_DELAY_MS = 2e3;
+  var LIMIT_FULL_SPEED = 400;
+  var limitsFor = (all, stop) => ({ ...NO_LIMITS, ...all && all[stop] || {} });
+  var isLimited = (lim) => lim.max < 100 || lim.lo > 0 || lim.hi < 100 || lim.speed < 100;
+  var limitLevels = (lim, levels) => levels.map((v) => Math.min(100, Math.max(0, v)) * lim.max / 100);
+  function limitMove(lim, move, from) {
+    const span = lim.hi - lim.lo;
+    const goal = lim.lo + Math.min(100, Math.max(0, move.goal)) * span / 100;
+    let dur = move.dur;
+    if (lim.speed < 100) {
+      const start = from === null || from === void 0 ? goal - lim.lo > span / 2 ? lim.lo : lim.hi : from;
+      dur = Math.max(dur, Math.abs(goal - start) / (LIMIT_FULL_SPEED * lim.speed / 100) * 1e3);
+    }
+    return { goal, dur };
+  }
+  function limitsText(lim) {
+    const bits = [];
+    if (lim.max < 100) bits.push(`top ${lim.max}%`);
+    if (lim.lo > 0 || lim.hi < 100) bits.push(`range ${lim.lo}-${lim.hi}%`);
+    if (lim.speed < 100) bits.push(`speed ${lim.speed}%`);
+    if (lim.delay) bits.push(`delay ${lim.delay > 0 ? "+" : ""}${lim.delay} ms`);
+    return bits.join(" · ");
+  }
+
+  // studio-card/src/card/screenoff.js
+  var SO_STEP_MS = 40;
+  var SO_AHEAD_MS = 10 * 60 * 1e3;
+  var SO_SCRIPT_MAX_MS = 60 * 60 * 1e3;
+  var SO_MAX_S = 60 * 60;
+  var clamp = (v) => Math.min(100, Math.max(0, v));
+  function simplify(points, tol = 1) {
+    if (points.length <= 2) return points.slice();
+    const keep = new Uint8Array(points.length);
+    keep[0] = 1;
+    keep[points.length - 1] = 1;
+    const stack = [[0, points.length - 1]];
+    while (stack.length) {
+      const [a, b] = stack.pop();
+      const pa = points[a], pb = points[b];
+      let worst = -1, at = -1;
+      for (let i = a + 1; i < b; i++) {
+        const p = points[i];
+        const f = pb.at === pa.at ? 0 : (p.at - pa.at) / (pb.at - pa.at);
+        const d = Math.abs(p.pos - (pa.pos + (pb.pos - pa.pos) * f));
+        if (d > worst) {
+          worst = d;
+          at = i;
+        }
+      }
+      if (worst > tol) {
+        keep[at] = 1;
+        stack.push([a, at], [at, b]);
+      }
+    }
+    return points.filter((p, i) => keep[i]);
+  }
+  function levelTrack(sends, motor, end) {
+    const out = [];
+    let last = null;
+    for (const s of sends) {
+      const pos = Math.round((s.lv[motor] ?? s.lv[0]) * 100);
+      if (last !== null && pos === last) continue;
+      const prev = out[out.length - 1];
+      if (prev && s.at - prev.at > 150) out.push({ at: Math.round(s.at) - 1, pos: last });
+      out.push({ at: Math.round(s.at), pos });
+      last = pos;
+    }
+    if (out.length && end > out[out.length - 1].at) out.push({ at: Math.round(end), pos: last });
+    return simplify(out, 1);
+  }
+  function moveTrack(moves, end) {
+    const out = [];
+    let pos = moves.length ? moves[0].goal : 0;
+    moves.forEach((m, k) => {
+      const next = moves[k + 1];
+      const arrive = m.at + Math.max(20, m.dur);
+      if (next && next.at < arrive) {
+        pos += (m.goal - pos) * (next.at - m.at) / (arrive - m.at);
+        out.push({ at: Math.round(next.at), pos: Math.round(pos * 10) / 10 });
+      } else {
+        out.push({ at: Math.round(arrive), pos: m.goal });
+        pos = m.goal;
+        if (next && next.at > arrive) out.push({ at: Math.round(next.at), pos });
+      }
+    });
+    if (out.length && end > out[out.length - 1].at) out.push({ at: Math.round(end), pos });
+    const cut2 = out.findIndex((p) => p.at > end);
+    if (cut2 > 0) {
+      const p0 = out[cut2 - 1], p1 = out[cut2];
+      out.splice(cut2, out.length - cut2, { at: Math.round(end), pos: p0.pos + (p1.pos - p0.pos) * (end - p0.at) / (p1.at - p0.at) });
+    } else if (cut2 === 0) out.splice(1);
+    const clean2 = out.filter((p, i) => i === 0 || p.at > out[i - 1].at);
+    return simplify(clean2, 1).map((p) => ({ at: p.at, pos: Math.round(clamp(p.pos)) }));
+  }
+  var ScreenOffPart = class {
+    _soBind() {
+      if (this._soVis) return;
+      this._soVis = () => {
+        if (document.visibilityState === "hidden") this._soHide();
+        else this._soBack();
+      };
+      document.addEventListener("visibilitychange", this._soVis);
+    }
+    // What is playing that Ogg can carry on by itself, if anything.
+    _soSource() {
+      if (!this._hass || !this._outs || !this._el || !this.isConnected) return null;
+      if (performance.now() < (this._holdUntil || 0)) return null;
+      const video = this._el("video");
+      if (video && !video.paused) return null;
+      if (this._auTimer) return null;
+      if (this._tg && this._tg.joined) return null;
+      if (this._pt) return "pt";
+      if (this._rp && this._rp.playing && this._rp.raw) return "rp";
+      return null;
+    }
+    _soHide() {
+      if (this._so) return;
+      const kind = this._soSource();
+      if (!kind) return;
+      let plan;
+      try {
+        plan = this._soRender(kind);
+      } catch (e) {
+        console.warn("Ogg Studio: screen-off playback could not be prepared", e);
+        return;
+      }
+      if (!plan.tracks.size) return;
+      this._so = { ...plan, kind, t0: performance.now(), devs: [...plan.tracks.values()].map((t) => t.dev) };
+      for (const tr of plan.tracks.values()) {
+        const common = { entity_id: tr.dev.stop, loop: plan.loop, ...plan.loop ? { max_seconds: SO_MAX_S } : {} };
+        const vibe = tr.vibe.length ? [0, 1].slice(0, tr.dev.dual ? 2 : 1).map((m) => levelTrack(tr.vibe, m, plan.len)) : null;
+        if (vibe && vibe[0].length) {
+          const script = { actions: vibe[0] };
+          if (vibe[1] && vibe[1].length) script.channels = { V1: { actions: vibe[1] } };
+          this._hass.callService("ogg", "play_script", { ...common, script, output: "vibrate" }, void 0, false).catch(() => {
+          });
+        }
+        const lin = tr.lin.length ? moveTrack(tr.lin, plan.len) : null;
+        if (lin && lin.length) this._hass.callService("ogg", "play_script", { ...common, script: { actions: lin }, output: "linear" }, void 0, false).catch(() => {
+        });
+      }
+      if (this._mediaShow) this._mediaShow();
+    }
+    // Shown again: carry on here from where Ogg is.
+    _soBack() {
+      const so = this._so;
+      if (!so) return;
+      this._so = null;
+      const gone = performance.now() - so.t0;
+      const at = so.loop ? gone % so.len : gone;
+      this._outLast = {};
+      this._linLast = {};
+      this._linFollow = {};
+      if (so.kind === "rp" && this._rp) {
+        if (!so.loop && at >= so.len) {
+          if (this._pl && this._pl.on) {
+            this._pl.on = false;
+            this._pl.i = -1;
+            if (this._plShow) this._plShow();
+          }
+          this._mood = null;
+          this._rpStop();
+          this._toast("Finished while the screen was off.");
+        } else {
+          const cp = [...so.cps].reverse().find((c) => c.at <= at) || so.cps[0];
+          if (cp) {
+            const rp = this._rp;
+            Object.assign(rp, { raw: cp.raw, name: cp.name, len: cp.len, lib: cp.lib, convs: cp.raw === rp.raw ? rp.convs : {} });
+            const t = cp.t + (at - cp.at) * cp.speed;
+            rp.t = t >= cp.len ? so.loop && cp.len > 0 ? t % cp.len : cp.len : t;
+            rp.last = performance.now();
+            this._mood = cp.mood ? { ...cp.mood } : null;
+            if (this._pl && cp.pl !== null) this._pl.i = cp.pl;
+            this._rpShow();
+            if (this._plShow) this._plShow();
+          }
+        }
+      }
+      setTimeout(() => {
+        if (this._so) return;
+        for (const dev of so.devs) {
+          if (!this._outLast[dev.id] && !this._linLast[dev.id]) this._quietStop(dev);
+        }
+      }, 600);
+      if (this._mediaShow) this._mediaShow();
+    }
+    // Stop Ogg's timelines (the page is closing, or Stop all).
+    _soEnd() {
+      const so = this._so;
+      if (!so) return;
+      this._so = null;
+      for (const dev of so.devs) this._quietStop(dev);
+    }
+    // Play what is playing ahead in time with the card's own ticks on a
+    // stand-in (the card itself is left as it is), catching what each device
+    // would be sent: levels for a vibrator, moves for a stroker.
+    _soRender(kind) {
+      const real = performance.now;
+      const t0 = real.call(performance);
+      let vt = t0;
+      const sim = Object.create(this);
+      const tracks = /* @__PURE__ */ new Map();
+      const track = (dev) => {
+        if (!tracks.has(dev.id)) tracks.set(dev.id, { dev, vibe: [], lin: [] });
+        return tracks.get(dev.id);
+      };
+      Object.assign(sim, {
+        _vals: [...this._vals || [0, 0]],
+        _padPrev: [null, null],
+        _padVel: [0, 0],
+        _padActive: [false, false],
+        _outLast: {},
+        _linLast: {},
+        _aiLive: [],
+        _aiLabels: [],
+        _claimed: /* @__PURE__ */ new Map(),
+        _claimAt: {},
+        _tg: null,
+        _holdUntil: 0,
+        _stLast: t0,
+        _stOutAt: 0,
+        _outBlocked: this._outBlocked,
+        _mood: this._mood ? { ...this._mood } : null,
+        _pl: this._pl ? { ...this._pl } : null
+      });
+      if (this._st) sim._st = { ...this._st, drag: null, touch: null };
+      if (this._pt) {
+        const prog = this._pt.prog;
+        sim._pt = { ...this._pt, last: t0, outAt: 0, prev: null, shownAt: 0, prog: prog ? new RandomProgram(prog.motors, prog.intensity) : null };
+      }
+      if (this._rp) sim._rp = { ...this._rp, last: t0, outAt: 0, shownAt: 0, convs: this._rp.convs || {} };
+      sim._sendLive = (dev, lv) => {
+        if (this._online(dev)) track(dev).vibe.push({ at: vt - t0, lv });
+      };
+      sim._outLinear = (dev, asked) => {
+        const tr = track(dev);
+        const last = tr.lin[tr.lin.length - 1];
+        const move = limitMove(this._limits(dev), asked, last ? last.goal : null);
+        const goal = Math.round(clamp(move.goal));
+        if (last && last.goal === goal && vt - t0 - last.at < 1e3) return;
+        tr.lin.push({ at: vt - t0, goal, dur: Math.max(50, Math.round(move.dur)) });
+      };
+      sim._outClaim = () => true;
+      for (const f of [
+        "_outRender",
+        "_toast",
+        "_toastOnce",
+        "_stShow",
+        "_ptShow",
+        "_rpShow",
+        "_aiLabel",
+        "_mediaShow",
+        "_heatShow",
+        "_plShow",
+        "_stRun",
+        "_stHalt",
+        "_outStop",
+        "_quietStop",
+        "_tgShow",
+        "_vlimShow",
+        "_stMark",
+        "_setMode",
+        "_outSave"
+      ]) sim[f] = () => {
+      };
+      sim._setPad = (i, v) => {
+        sim._vals[i] = Math.round(clamp(v));
+      };
+      let ended = false;
+      sim._rpStop = () => {
+        ended = true;
+        if (sim._rp) sim._rp.playing = false;
+      };
+      sim._plNext = () => {
+        const pl = sim._pl;
+        let i = pl.i + 1;
+        if (i >= pl.items.length) {
+          if (!pl.loop) {
+            ended = true;
+            return;
+          }
+          i = 0;
+        }
+        const it = pl.items[i];
+        pl.i = i;
+        if (it.mood) {
+          sim._mood = { key: it.mood, combo: -1 };
+          sim._moodNext(false);
+          return;
+        }
+        const script = this._plCache && this._plCache.get(it.script);
+        if (!script) {
+          ended = true;
+          return;
+        }
+        sim._mood = null;
+        Object.assign(sim._rp, { raw: script, name: it.script, lib: it.script, len: duration(script), t: 0, convs: {} });
+      };
+      const rp = sim._rp;
+      const speed = () => sim._rpSpeed();
+      let len = SO_AHEAD_MS;
+      let loop = true;
+      if (kind === "rp" && !this._mood && !(this._pl && this._pl.on)) {
+        const once = (rp.len - (this._el("rploop").checked ? 0 : rp.t)) / speed();
+        loop = this._el("rploop").checked;
+        len = Math.min(SO_SCRIPT_MAX_MS, Math.max(SO_STEP_MS, loop ? rp.len / speed() : once));
+      } else if (kind === "rp" && this._pl && this._pl.on && !this._pl.loop) {
+        len = SO_SCRIPT_MAX_MS;
+        loop = false;
+      }
+      const cps = [];
+      const mark = () => {
+        const last = cps[cps.length - 1];
+        if (last && last.raw === rp.raw) return;
+        cps.push({
+          at: vt - t0,
+          raw: rp.raw,
+          name: rp.name,
+          len: rp.len,
+          lib: rp.lib,
+          t: rp.t,
+          speed: speed(),
+          mood: sim._mood ? { ...sim._mood } : null,
+          pl: sim._pl ? sim._pl.i : null
+        });
+      };
+      if (kind === "rp") mark();
+      performance.now = () => vt;
+      try {
+        while (vt - t0 < len && !ended) {
+          vt += SO_STEP_MS;
+          if (kind === "pt") sim._ptTick();
+          else {
+            sim._rpTick();
+            if (this._strokeKind && rp.playing && !ended) sim._stTick();
+            mark();
+          }
+        }
+      } finally {
+        performance.now = real;
+      }
+      const end = Math.min(len, vt - t0);
+      if (ended) loop = false;
+      return { tracks, len: Math.max(SO_STEP_MS, end), loop, cps };
+    }
+  };
+
+  // studio-card/src/lib/compose.js
+  var STEP_MS = 50;
+  var MAX_STEP_MS = 60 * 60 * 1e3;
+  var MAX_TOTAL_MS = 6 * 60 * 60 * 1e3;
+  var DURATIONS = [5, 10, 15, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600];
+  var clamp2 = (v) => Math.min(100, Math.max(0, v));
+  var isDual = (key) => key in PATTERNS_DUAL;
+  function clock(ms) {
+    const s = Math.max(0, Math.round(ms / 1e3));
+    const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = s % 60;
+    const two = (n) => String(n).padStart(2, "0");
+    return h ? `${h}:${two(m)}:${two(r)}` : `${m}:${two(r)}`;
+  }
+  function parseTime(text) {
+    const s = String(text || "").trim().toLowerCase().replace(/\s+/g, "");
+    if (!s) return null;
+    if (/^\d+(:\d{1,2}){1,2}$/.test(s)) return s.split(":").reduce((n, x) => n * 60 + Number(x), 0);
+    if (/^\d+(\.\d+)?$/.test(s)) return Number(s);
+    const m = /^(?:(\d+(?:\.\d+)?)h(?:ours?|rs?)?)?(?:(\d+(?:\.\d+)?)m(?:in(?:ute)?s?)?)?(?:(\d+(?:\.\d+)?)s(?:ec(?:ond)?s?)?)?$/.exec(s);
+    if (!m || !m[1] && !m[2] && !m[3]) return null;
+    return Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0);
+  }
+  function defaultName(ms, now = /* @__PURE__ */ new Date()) {
+    const day = now.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+    const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return `${clock(ms)} · ${day} ${time}`;
+  }
+  function cut(track, end) {
+    const out = [];
+    for (let i = 0; i < track.length; i++) {
+      const p = track[i];
+      if (p.at <= end) {
+        out.push({ at: p.at, pos: p.pos });
+        continue;
+      }
+      const q = track[i - 1];
+      if (q && q.at < end) out.push({ at: end, pos: Math.round(q.pos + (p.pos - q.pos) * (end - q.at) / (p.at - q.at)) });
+      break;
+    }
+    const last = out[out.length - 1];
+    if (last && last.at < end) out.push({ at: end, pos: last.pos });
+    return out;
+  }
+  function fill(track, ms) {
+    const len = track.length ? track[track.length - 1].at : 0;
+    if (!len) return [{ at: 0, pos: track.length ? track[0].pos : 0 }, { at: ms, pos: track.length ? track[0].pos : 0 }];
+    const out = [];
+    for (let by = 0; by < ms; by += len) {
+      for (const p of track) {
+        const at = p.at + by, last = out[out.length - 1];
+        if (last && at <= last.at) {
+          if (p.pos !== last.pos) out.push({ at: last.at + 1, pos: p.pos });
+          continue;
+        }
+        out.push({ at, pos: p.pos });
+      }
+    }
+    return cut(out, ms);
+  }
+  function renderPattern(key, ms, { level = 70, speed = 50, seed = 1 } = {}) {
+    const top = clamp2(level), period = patternPeriod(speed) * 1e3;
+    const rnd = key === PATTERN_RANDOM ? new RandomProgram(2, Math.max(0.1, top / 100), aiRandom(seed)) : null;
+    const a = [], b = [];
+    for (let t = 0; t <= ms; t += STEP_MS) {
+      let va, vb;
+      if (rnd) [va, vb] = rnd.step(t ? STEP_MS : 0).map((v) => v * 100);
+      else if (isDual(key)) {
+        va = patternDual(key, t / period, 0) * top;
+        vb = patternDual(key, t / period, 1) * top;
+      } else va = vb = patternLevel(key, t / period) * top;
+      a.push({ at: t, pos: Math.round(clamp2(va)) });
+      b.push({ at: t, pos: Math.round(clamp2(vb)) });
+    }
+    const dual = Boolean(rnd) || isDual(key);
+    return { a: cut(simplify(a, 1.5), ms), b: dual ? cut(simplify(b, 1.5), ms) : null };
+  }
+  function renderMood(key, ms, { strength = 100, seed = 1 } = {}) {
+    const mood = MOODS[key];
+    if (!mood) throw new Error("Unknown mood");
+    const r = aiRandom(seed), k = clamp2(strength) / 100;
+    const stroke = [], a = [], b = [];
+    let at = 0, last = -1, two = false;
+    const add = (to, track, by) => {
+      for (const p of track) {
+        const t = p.at + by, prev = to[to.length - 1];
+        if (prev && t <= prev.at) {
+          if (prev.pos !== p.pos) to.push({ at: prev.at + 1, pos: p.pos });
+          continue;
+        }
+        to.push({ at: t, pos: p.pos });
+      }
+    };
+    for (let guard = 0; at < ms && guard < 1e3; guard++) {
+      let i = Math.floor(r() * mood.combos.length);
+      if (mood.combos.length > 1 && i === last) i = (i + 1) % mood.combos.length;
+      last = i;
+      const built = buildMood(mood.combos[i][1], r);
+      const len = Math.max(built.stroke[built.stroke.length - 1].at, ...built.vibe.map((v) => v[v.length - 1].at));
+      add(stroke, built.stroke, at);
+      add(a, built.vibe[0], at);
+      if (built.vibe[1]) two = true;
+      add(b, built.vibe[1] || built.vibe[0], at);
+      at += len;
+    }
+    const soft = (track, fn) => track.map((p) => ({ at: p.at, pos: Math.round(clamp2(fn(p))) }));
+    return {
+      stroke: cut(soft(stroke, (p) => k >= 1 ? p.pos : moodSoften(p.pos, k, p.at)), ms),
+      a: cut(soft(a, (p) => p.pos * k), ms),
+      b: two ? cut(soft(b, (p) => p.pos * k), ms) : null
+    };
+  }
+  function renderStep(step, stroke, scripts, last = 0) {
+    const ms = Math.min(MAX_STEP_MS, Math.max(1e3, Math.round(step.ms || 6e4)));
+    if (step.type === "pause") {
+      const hold = stroke ? last : 0;
+      return { a: [{ at: 0, pos: hold }, { at: ms, pos: hold }], b: null, ms };
+    }
+    if (step.type === "mood") {
+      const m = renderMood(step.key, ms, { strength: step.level ?? 100, seed: step.seed || 1 });
+      return stroke ? { a: m.stroke, b: null, ms } : { a: m.a, b: m.b, ms };
+    }
+    if (step.type === "script") {
+      const s = scripts && scripts.get(step.name);
+      if (!s) throw new Error(`"${step.name}" is not in the library`);
+      const src = !stroke && isStroke(s) ? runScript(s, "speed") : s;
+      const second = src.channels && src.channels.V1 && src.channels.V1.actions.length ? src.channels.V1.actions : null;
+      return { a: fill(src.actions, ms), b: !stroke && second ? fill(second, ms) : null, ms };
+    }
+    const p = renderPattern(step.key, ms, { level: step.level ?? 70, speed: step.speed ?? 50, seed: step.seed || 1 });
+    return { a: p.a, b: stroke ? null : p.b, ms };
+  }
+  function composeScript(steps, { stroke = false, title = "" } = {}, scripts = /* @__PURE__ */ new Map()) {
+    if (!steps.length) throw new Error("Add a step first");
+    const A = [], B = [];
+    let at = 0, two = false;
+    const join = (to, track, by) => {
+      for (const p of track) {
+        const t = p.at + by, prev = to[to.length - 1];
+        if (prev && t <= prev.at) {
+          if (prev.pos !== p.pos) to.push({ at: prev.at + 1, pos: p.pos });
+          continue;
+        }
+        to.push({ at: t, pos: p.pos });
+      }
+    };
+    for (const step of steps) {
+      const last = A.length ? A[A.length - 1].pos : 50;
+      const out = renderStep(step, stroke, scripts, last);
+      if (out.b) two = true;
+      join(A, out.a, at);
+      join(B, out.b || out.a, at);
+      at += out.ms;
+      if (at > MAX_TOTAL_MS) throw new Error("A script can be at most six hours long");
+    }
+    const script = {
+      version: "1.0",
+      inverted: false,
+      range: 100,
+      actions: A,
+      metadata: { type: stroke ? "stroke" : "vibration", creator: "Ogg Queue", title: title || defaultName(at), steps: steps.length }
+    };
+    if (two) script.channels = { V1: { actions: B } };
+    return script;
+  }
+  var stepsMs = (steps) => steps.reduce((n, s) => n + Math.min(MAX_STEP_MS, Math.max(1e3, Math.round(s.ms || 6e4))), 0);
+
   // studio-card/src/card/video.js
   var VideoPart = class {
     // ---------------------------------------------------------- video sync
@@ -3436,6 +3965,22 @@ ${VIEWERS_STYLE}
       $("vrecuse").addEventListener("click", () => this._vrecUse());
       $("vrecdl").addEventListener("click", () => this._vrecDownload());
       $("vrecclear").addEventListener("click", () => {
+        if (confirm("Discard this recording?")) this._vrecReset();
+      });
+      const icons = $("vrecbar");
+      let fade = null;
+      const wake = () => {
+        icons.classList.remove("idle");
+        clearTimeout(fade);
+        if (!video.paused) fade = setTimeout(() => {
+          if (!video.paused) icons.classList.add("idle");
+        }, 3e3);
+      };
+      for (const type of ["play", "pause", "ended", "seeked"]) video.addEventListener(type, wake);
+      for (const type of ["pointermove", "pointerdown"]) video.parentElement.addEventListener(type, wake);
+      $("vrecgo").addEventListener("click", () => this._vrecQuick());
+      $("vrecsave").addEventListener("click", () => this._vrecSave());
+      $("vrecdrop").addEventListener("click", () => {
         if (confirm("Discard this recording?")) this._vrecReset();
       });
       this._bindCast();
@@ -3529,7 +4074,7 @@ ${VIEWERS_STYLE}
       const video = this._el("video");
       const ms = video.currentTime * 1e3 + Number(this._el("voff").value || 0);
       const script = !this._vHeld && this._vraw && isStroke(this._vraw);
-      if (this._vsOn && (!this._vraw || this._vvHand !== null && this._vvHand !== void 0 && !this._strokeKind || this._vsHand !== null && this._vsHand !== void 0 && this._strokeKind)) return;
+      if (this._vsOn && !this._vrec && (!this._vraw || this._vvHand !== null && this._vvHand !== void 0 && !this._strokeKind || this._vsHand !== null && this._vsHand !== void 0 && this._strokeKind)) return;
       if (this._strokeKindRec) {
         const values = this._outs.map((o, i) => {
           const p = parseTarget(this._outTargetValue(i));
@@ -3647,6 +4192,10 @@ ${VIEWERS_STYLE}
           active = true;
           bar.classList.add("active");
           capture(bar, event);
+          if (this._vrec) {
+            this._vrecSet(pct(event));
+            return;
+          }
           this._vsHandSet(pct(event));
           this._showHBar(index, pct(event));
           if (this._vsWake) this._vsWake();
@@ -3672,7 +4221,8 @@ ${VIEWERS_STYLE}
       });
       bar.addEventListener("pointermove", (event) => {
         if (!active) return;
-        if (this._vsOn) {
+        if (this._vsOn && this._vrec) this._vrecSet(pct(event));
+        else if (this._vsOn) {
           this._vsHandSet(pct(event));
           this._showHBar(index, pct(event));
         } else fromEvent(event);
@@ -3681,6 +4231,10 @@ ${VIEWERS_STYLE}
         if (!active) return;
         active = false;
         bar.classList.remove("active");
+        if (this._vsOn && this._vrec) {
+          this._vrecLet();
+          return;
+        }
         if (this._vsOn) {
           this._vsHandSet(null);
           return;
@@ -3747,8 +4301,10 @@ ${VIEWERS_STYLE}
       $("vrec").textContent = this._vrec ? "■ Stop rec" : "● Rec";
       for (const id of ["hb1", "hb2"]) $(id).classList.toggle("rec", this._vrec);
       if (this._vrec) {
-        this._setHBar(0, 0);
-        this._setHBar(1, 0);
+        if (!this._strokeKindRec) {
+          this._setHBar(0, 0);
+          this._setHBar(1, 0);
+        } else if (this._st) this._hvals[0] = Math.round(this._st.pos);
         this._toast("Recording: play the video and drag the bars.");
         if (!$("video").paused) {
           this._videoHalt();
@@ -3775,8 +4331,10 @@ ${VIEWERS_STYLE}
         const pass = this._vcur[i];
         const pos = this._hvals[i];
         const last = pass[pass.length - 1];
-        if (!last || last.pos !== pos) pass.push({ at, pos });
-        else if (last.at > at) pass.push({ at, pos });
+        if (!last || last.pos !== pos) {
+          if (last && this._vcurEnd > last.at && this._vcurEnd < at) pass.push({ at: this._vcurEnd, pos: last.pos });
+          pass.push({ at, pos });
+        } else if (last.at > at) pass.push({ at, pos });
         this._vcurEnd = at;
       }
     }
@@ -3806,7 +4364,7 @@ ${VIEWERS_STYLE}
         version: "1.0",
         inverted: false,
         range: 100,
-        actions: main,
+        actions: stroke ? smoothActions(main) : main,
         metadata: { creator: "OggStudio", type: stroke ? "stroke" : "vibration", ...this._vname ? { title: this._vname } : {} }
       };
       const second = mergePasses(this._vpasses[1]);
@@ -3819,10 +4377,81 @@ ${VIEWERS_STYLE}
     _vrecInfo() {
       const $ = this._el;
       const has = this._vrecHas() || Boolean(this._vcur && this._vcur[0].length);
-      $("vrecdone").hidden = this._vrec || !has;
+      $("vrecdone").hidden = this._vrec || !has || this._simple;
+      $("vrecbar").hidden = !this._vurl;
+      $("vrecgo").classList.toggle("on", Boolean(this._vrec));
+      $("vrecgo").textContent = this._vrec ? "■" : "●";
+      $("vrecgo").setAttribute("aria-label", this._vrec ? "Stop recording" : "Record with the video");
+      $("vrecsave").hidden = this._vrec || !has;
+      $("vrecdrop").hidden = this._vrec || !has;
       const merged = has ? mergePasses([...this._vpasses[0], ...this._vcur ? [this._vcur[0]] : []]) : [];
       const passes = this._vpasses[0].filter((p) => p.length).length + (this._vcur && this._vcur[0].length ? 1 : 0);
       $("vrecinfo").textContent = has ? `${fmt(merged.length ? merged[merged.length - 1].at - merged[0].at : 0)} recorded${passes > 1 ? ` · ${passes} passes` : ""}` : this._vrec ? "Play the video to record" : "";
+      const len = merged.length ? merged[merged.length - 1].at - merged[0].at : 0;
+      $("vrect").textContent = this._vrec ? `REC ${fmt(len)}` : has ? fmt(len) : "";
+    }
+    // ● on the video: record, and play the video with it (in sync from the
+    // first frame); ■ stops both.
+    _vrecQuick() {
+      const video = this._el("video");
+      if (!this._vurl) {
+        this._toast("Choose a video first");
+        return;
+      }
+      if (this._vrec) {
+        this._vrecToggle();
+        video.pause();
+        this._toast(this._vrecHas() ? "Stopped. 💾 saves it; ● records more (a new pass replaces that part)." : "Nothing recorded.");
+        this._videoStatus();
+        return;
+      }
+      if (video.ended || video.duration && video.currentTime >= video.duration - 0.2) {
+        try {
+          video.currentTime = 0;
+        } catch (_) {
+        }
+      }
+      this._vrecToggle();
+      this._toast(this._strokeKindRec ? "Recording: move the line with the action. ■ stops." : "Recording: slide the line for how strong. ■ stops.");
+      const started = video.play();
+      if (started && started.catch) started.catch(() => this._toast("Press ▶ on the video to start it."));
+      this._videoStatus();
+    }
+    // 💾: save the recording to the library; it then plays with this video.
+    async _vrecSave() {
+      const script = this._vrecScript();
+      if (!script) {
+        this._toast("Nothing recorded yet: press ● first.");
+        return;
+      }
+      const base = this._vname ? `${this._vname} · ` : "";
+      const name = `${base}${defaultName(duration(script))}`.slice(0, 80);
+      try {
+        const res = await this._hass.callWS({ type: "call_service", domain: "ogg", service: "studio_save", service_data: { name, script }, return_response: true });
+        const saved = res && res.response && res.response.name || name;
+        this._take = script;
+        this._vraw = script;
+        this._vscript = script;
+        this._vconvs = {};
+        this._vrecReset();
+        this._toast(`Saved as “${saved}”. It plays with this video (and is in your scripts).`);
+        this._update();
+      } catch (e) {
+        this._toast("Could not save: " + (e.message || e));
+      }
+    }
+    // While recording, the line on the video (or the bar under it) is what is
+    // recorded: a stroker's position, a vibrator's strength. Let go: a
+    // vibrator drops to nothing (Drop to 0), a stroker stays where it is.
+    _vrecSet(v) {
+      this._setHBar(0, v);
+      if (this._vlimShow) this._vlimShow();
+      this._videoOut();
+    }
+    _vrecLet() {
+      if (!this._strokeKindRec && this._el("vspring").checked) this._setHBar(0, 0);
+      if (this._vlimShow) this._vlimShow();
+      this._videoOut();
     }
     _vrecUse() {
       const script = this._vrecScript();
@@ -5159,32 +5788,6 @@ ${VIEWERS_STYLE}
       $("rpplay").classList.toggle("stop", rp.playing);
     }
   };
-
-  // studio-card/src/lib/limits.js
-  var NO_LIMITS = { max: 100, lo: 0, hi: 100, speed: 100, delay: 0 };
-  var MAX_DELAY_MS = 2e3;
-  var LIMIT_FULL_SPEED = 400;
-  var limitsFor = (all, stop) => ({ ...NO_LIMITS, ...all && all[stop] || {} });
-  var isLimited = (lim) => lim.max < 100 || lim.lo > 0 || lim.hi < 100 || lim.speed < 100;
-  var limitLevels = (lim, levels) => levels.map((v) => Math.min(100, Math.max(0, v)) * lim.max / 100);
-  function limitMove(lim, move, from) {
-    const span = lim.hi - lim.lo;
-    const goal = lim.lo + Math.min(100, Math.max(0, move.goal)) * span / 100;
-    let dur = move.dur;
-    if (lim.speed < 100) {
-      const start = from === null || from === void 0 ? goal - lim.lo > span / 2 ? lim.lo : lim.hi : from;
-      dur = Math.max(dur, Math.abs(goal - start) / (LIMIT_FULL_SPEED * lim.speed / 100) * 1e3);
-    }
-    return { goal, dur };
-  }
-  function limitsText(lim) {
-    const bits = [];
-    if (lim.max < 100) bits.push(`top ${lim.max}%`);
-    if (lim.lo > 0 || lim.hi < 100) bits.push(`range ${lim.lo}-${lim.hi}%`);
-    if (lim.speed < 100) bits.push(`speed ${lim.speed}%`);
-    if (lim.delay) bits.push(`delay ${lim.delay > 0 ? "+" : ""}${lim.delay} ms`);
-    return bits.join(" · ");
-  }
 
   // studio-card/src/lib/devsettings.js
   var STYLE = `
@@ -8447,6 +9050,10 @@ ${VIEWERS_STYLE}
       const dt = now - (this._vsAt || now);
       this._vsAt = now;
       if (!r) return;
+      if (this._vrec) {
+        this._vlimShow();
+        return;
+      }
       if (!this._strokeKind) {
         this._vvTick();
         return;
@@ -8564,7 +9171,13 @@ ${VIEWERS_STYLE}
       const line = $("vstline");
       let pct;
       let text;
-      if (stroke) {
+      line.classList.toggle("rec", Boolean(this._vrec));
+      if (this._vrec) {
+        line.setAttribute("aria-label", stroke ? "Recording: position" : "Recording: strength");
+        line.classList.remove("dim");
+        pct = this._hvals ? this._hvals[0] : 0;
+        text = `● ${Math.round(pct)}%`;
+      } else if (stroke) {
         line.setAttribute("aria-label", "Stroke speed");
         line.classList.toggle("dim", sound || script);
         pct = cfg.speed;
@@ -8662,6 +9275,10 @@ ${VIEWERS_STYLE}
       const setLine = (e) => {
         const r = line.getBoundingClientRect();
         const v = Math.min(100, Math.max(0, (r.bottom - e.clientY) / r.height * 100));
+        if (this._vrec) {
+          this._vrecSet(v);
+          return;
+        }
         if (this._strokeKind) {
           const cfg = this._vsLoad();
           cfg.speed = Math.round(v / 5) * 5;
@@ -8692,6 +9309,11 @@ ${VIEWERS_STYLE}
           if (!sliding) return;
           sliding = false;
           line.classList.remove("active");
+          if (this._vrec) {
+            this._vrecLet();
+            this._vsWake();
+            return;
+          }
           if (this._strokeKind) this._vsSave();
           else {
             this._vvHand = null;
@@ -8842,329 +9464,6 @@ ${VIEWERS_STYLE}
     }
   };
 
-  // studio-card/src/card/screenoff.js
-  var SO_STEP_MS = 40;
-  var SO_AHEAD_MS = 10 * 60 * 1e3;
-  var SO_SCRIPT_MAX_MS = 60 * 60 * 1e3;
-  var SO_MAX_S = 60 * 60;
-  var clamp = (v) => Math.min(100, Math.max(0, v));
-  function simplify(points, tol = 1) {
-    if (points.length <= 2) return points.slice();
-    const keep = new Uint8Array(points.length);
-    keep[0] = 1;
-    keep[points.length - 1] = 1;
-    const stack = [[0, points.length - 1]];
-    while (stack.length) {
-      const [a, b] = stack.pop();
-      const pa = points[a], pb = points[b];
-      let worst = -1, at = -1;
-      for (let i = a + 1; i < b; i++) {
-        const p = points[i];
-        const f = pb.at === pa.at ? 0 : (p.at - pa.at) / (pb.at - pa.at);
-        const d = Math.abs(p.pos - (pa.pos + (pb.pos - pa.pos) * f));
-        if (d > worst) {
-          worst = d;
-          at = i;
-        }
-      }
-      if (worst > tol) {
-        keep[at] = 1;
-        stack.push([a, at], [at, b]);
-      }
-    }
-    return points.filter((p, i) => keep[i]);
-  }
-  function levelTrack(sends, motor, end) {
-    const out = [];
-    let last = null;
-    for (const s of sends) {
-      const pos = Math.round((s.lv[motor] ?? s.lv[0]) * 100);
-      if (last !== null && pos === last) continue;
-      const prev = out[out.length - 1];
-      if (prev && s.at - prev.at > 150) out.push({ at: Math.round(s.at) - 1, pos: last });
-      out.push({ at: Math.round(s.at), pos });
-      last = pos;
-    }
-    if (out.length && end > out[out.length - 1].at) out.push({ at: Math.round(end), pos: last });
-    return simplify(out, 1);
-  }
-  function moveTrack(moves, end) {
-    const out = [];
-    let pos = moves.length ? moves[0].goal : 0;
-    moves.forEach((m, k) => {
-      const next = moves[k + 1];
-      const arrive = m.at + Math.max(20, m.dur);
-      if (next && next.at < arrive) {
-        pos += (m.goal - pos) * (next.at - m.at) / (arrive - m.at);
-        out.push({ at: Math.round(next.at), pos: Math.round(pos * 10) / 10 });
-      } else {
-        out.push({ at: Math.round(arrive), pos: m.goal });
-        pos = m.goal;
-        if (next && next.at > arrive) out.push({ at: Math.round(next.at), pos });
-      }
-    });
-    if (out.length && end > out[out.length - 1].at) out.push({ at: Math.round(end), pos });
-    const cut2 = out.findIndex((p) => p.at > end);
-    if (cut2 > 0) {
-      const p0 = out[cut2 - 1], p1 = out[cut2];
-      out.splice(cut2, out.length - cut2, { at: Math.round(end), pos: p0.pos + (p1.pos - p0.pos) * (end - p0.at) / (p1.at - p0.at) });
-    } else if (cut2 === 0) out.splice(1);
-    const clean2 = out.filter((p, i) => i === 0 || p.at > out[i - 1].at);
-    return simplify(clean2, 1).map((p) => ({ at: p.at, pos: Math.round(clamp(p.pos)) }));
-  }
-  var ScreenOffPart = class {
-    _soBind() {
-      if (this._soVis) return;
-      this._soVis = () => {
-        if (document.visibilityState === "hidden") this._soHide();
-        else this._soBack();
-      };
-      document.addEventListener("visibilitychange", this._soVis);
-    }
-    // What is playing that Ogg can carry on by itself, if anything.
-    _soSource() {
-      if (!this._hass || !this._outs || !this._el || !this.isConnected) return null;
-      if (performance.now() < (this._holdUntil || 0)) return null;
-      const video = this._el("video");
-      if (video && !video.paused) return null;
-      if (this._auTimer) return null;
-      if (this._tg && this._tg.joined) return null;
-      if (this._pt) return "pt";
-      if (this._rp && this._rp.playing && this._rp.raw) return "rp";
-      return null;
-    }
-    _soHide() {
-      if (this._so) return;
-      const kind = this._soSource();
-      if (!kind) return;
-      let plan;
-      try {
-        plan = this._soRender(kind);
-      } catch (e) {
-        console.warn("Ogg Studio: screen-off playback could not be prepared", e);
-        return;
-      }
-      if (!plan.tracks.size) return;
-      this._so = { ...plan, kind, t0: performance.now(), devs: [...plan.tracks.values()].map((t) => t.dev) };
-      for (const tr of plan.tracks.values()) {
-        const common = { entity_id: tr.dev.stop, loop: plan.loop, ...plan.loop ? { max_seconds: SO_MAX_S } : {} };
-        const vibe = tr.vibe.length ? [0, 1].slice(0, tr.dev.dual ? 2 : 1).map((m) => levelTrack(tr.vibe, m, plan.len)) : null;
-        if (vibe && vibe[0].length) {
-          const script = { actions: vibe[0] };
-          if (vibe[1] && vibe[1].length) script.channels = { V1: { actions: vibe[1] } };
-          this._hass.callService("ogg", "play_script", { ...common, script, output: "vibrate" }, void 0, false).catch(() => {
-          });
-        }
-        const lin = tr.lin.length ? moveTrack(tr.lin, plan.len) : null;
-        if (lin && lin.length) this._hass.callService("ogg", "play_script", { ...common, script: { actions: lin }, output: "linear" }, void 0, false).catch(() => {
-        });
-      }
-      if (this._mediaShow) this._mediaShow();
-    }
-    // Shown again: carry on here from where Ogg is.
-    _soBack() {
-      const so = this._so;
-      if (!so) return;
-      this._so = null;
-      const gone = performance.now() - so.t0;
-      const at = so.loop ? gone % so.len : gone;
-      this._outLast = {};
-      this._linLast = {};
-      this._linFollow = {};
-      if (so.kind === "rp" && this._rp) {
-        if (!so.loop && at >= so.len) {
-          if (this._pl && this._pl.on) {
-            this._pl.on = false;
-            this._pl.i = -1;
-            if (this._plShow) this._plShow();
-          }
-          this._mood = null;
-          this._rpStop();
-          this._toast("Finished while the screen was off.");
-        } else {
-          const cp = [...so.cps].reverse().find((c) => c.at <= at) || so.cps[0];
-          if (cp) {
-            const rp = this._rp;
-            Object.assign(rp, { raw: cp.raw, name: cp.name, len: cp.len, lib: cp.lib, convs: cp.raw === rp.raw ? rp.convs : {} });
-            const t = cp.t + (at - cp.at) * cp.speed;
-            rp.t = t >= cp.len ? so.loop && cp.len > 0 ? t % cp.len : cp.len : t;
-            rp.last = performance.now();
-            this._mood = cp.mood ? { ...cp.mood } : null;
-            if (this._pl && cp.pl !== null) this._pl.i = cp.pl;
-            this._rpShow();
-            if (this._plShow) this._plShow();
-          }
-        }
-      }
-      setTimeout(() => {
-        if (this._so) return;
-        for (const dev of so.devs) {
-          if (!this._outLast[dev.id] && !this._linLast[dev.id]) this._quietStop(dev);
-        }
-      }, 600);
-      if (this._mediaShow) this._mediaShow();
-    }
-    // Stop Ogg's timelines (the page is closing, or Stop all).
-    _soEnd() {
-      const so = this._so;
-      if (!so) return;
-      this._so = null;
-      for (const dev of so.devs) this._quietStop(dev);
-    }
-    // Play what is playing ahead in time with the card's own ticks on a
-    // stand-in (the card itself is left as it is), catching what each device
-    // would be sent: levels for a vibrator, moves for a stroker.
-    _soRender(kind) {
-      const real = performance.now;
-      const t0 = real.call(performance);
-      let vt = t0;
-      const sim = Object.create(this);
-      const tracks = /* @__PURE__ */ new Map();
-      const track = (dev) => {
-        if (!tracks.has(dev.id)) tracks.set(dev.id, { dev, vibe: [], lin: [] });
-        return tracks.get(dev.id);
-      };
-      Object.assign(sim, {
-        _vals: [...this._vals || [0, 0]],
-        _padPrev: [null, null],
-        _padVel: [0, 0],
-        _padActive: [false, false],
-        _outLast: {},
-        _linLast: {},
-        _aiLive: [],
-        _aiLabels: [],
-        _claimed: /* @__PURE__ */ new Map(),
-        _claimAt: {},
-        _tg: null,
-        _holdUntil: 0,
-        _stLast: t0,
-        _stOutAt: 0,
-        _outBlocked: this._outBlocked,
-        _mood: this._mood ? { ...this._mood } : null,
-        _pl: this._pl ? { ...this._pl } : null
-      });
-      if (this._st) sim._st = { ...this._st, drag: null, touch: null };
-      if (this._pt) {
-        const prog = this._pt.prog;
-        sim._pt = { ...this._pt, last: t0, outAt: 0, prev: null, shownAt: 0, prog: prog ? new RandomProgram(prog.motors, prog.intensity) : null };
-      }
-      if (this._rp) sim._rp = { ...this._rp, last: t0, outAt: 0, shownAt: 0, convs: this._rp.convs || {} };
-      sim._sendLive = (dev, lv) => {
-        if (this._online(dev)) track(dev).vibe.push({ at: vt - t0, lv });
-      };
-      sim._outLinear = (dev, asked) => {
-        const tr = track(dev);
-        const last = tr.lin[tr.lin.length - 1];
-        const move = limitMove(this._limits(dev), asked, last ? last.goal : null);
-        const goal = Math.round(clamp(move.goal));
-        if (last && last.goal === goal && vt - t0 - last.at < 1e3) return;
-        tr.lin.push({ at: vt - t0, goal, dur: Math.max(50, Math.round(move.dur)) });
-      };
-      sim._outClaim = () => true;
-      for (const f of [
-        "_outRender",
-        "_toast",
-        "_toastOnce",
-        "_stShow",
-        "_ptShow",
-        "_rpShow",
-        "_aiLabel",
-        "_mediaShow",
-        "_heatShow",
-        "_plShow",
-        "_stRun",
-        "_stHalt",
-        "_outStop",
-        "_quietStop",
-        "_tgShow",
-        "_vlimShow",
-        "_stMark",
-        "_setMode",
-        "_outSave"
-      ]) sim[f] = () => {
-      };
-      sim._setPad = (i, v) => {
-        sim._vals[i] = Math.round(clamp(v));
-      };
-      let ended = false;
-      sim._rpStop = () => {
-        ended = true;
-        if (sim._rp) sim._rp.playing = false;
-      };
-      sim._plNext = () => {
-        const pl = sim._pl;
-        let i = pl.i + 1;
-        if (i >= pl.items.length) {
-          if (!pl.loop) {
-            ended = true;
-            return;
-          }
-          i = 0;
-        }
-        const it = pl.items[i];
-        pl.i = i;
-        if (it.mood) {
-          sim._mood = { key: it.mood, combo: -1 };
-          sim._moodNext(false);
-          return;
-        }
-        const script = this._plCache && this._plCache.get(it.script);
-        if (!script) {
-          ended = true;
-          return;
-        }
-        sim._mood = null;
-        Object.assign(sim._rp, { raw: script, name: it.script, lib: it.script, len: duration(script), t: 0, convs: {} });
-      };
-      const rp = sim._rp;
-      const speed = () => sim._rpSpeed();
-      let len = SO_AHEAD_MS;
-      let loop = true;
-      if (kind === "rp" && !this._mood && !(this._pl && this._pl.on)) {
-        const once = (rp.len - (this._el("rploop").checked ? 0 : rp.t)) / speed();
-        loop = this._el("rploop").checked;
-        len = Math.min(SO_SCRIPT_MAX_MS, Math.max(SO_STEP_MS, loop ? rp.len / speed() : once));
-      } else if (kind === "rp" && this._pl && this._pl.on && !this._pl.loop) {
-        len = SO_SCRIPT_MAX_MS;
-        loop = false;
-      }
-      const cps = [];
-      const mark = () => {
-        const last = cps[cps.length - 1];
-        if (last && last.raw === rp.raw) return;
-        cps.push({
-          at: vt - t0,
-          raw: rp.raw,
-          name: rp.name,
-          len: rp.len,
-          lib: rp.lib,
-          t: rp.t,
-          speed: speed(),
-          mood: sim._mood ? { ...sim._mood } : null,
-          pl: sim._pl ? sim._pl.i : null
-        });
-      };
-      if (kind === "rp") mark();
-      performance.now = () => vt;
-      try {
-        while (vt - t0 < len && !ended) {
-          vt += SO_STEP_MS;
-          if (kind === "pt") sim._ptTick();
-          else {
-            sim._rpTick();
-            if (this._strokeKind && rp.playing && !ended) sim._stTick();
-            mark();
-          }
-        }
-      } finally {
-        performance.now = real;
-      }
-      const end = Math.min(len, vt - t0);
-      if (ended) loop = false;
-      return { tracks, len: Math.max(SO_STEP_MS, end), loop, cps };
-    }
-  };
-
   // studio-card/src/card/privacy.js
   var PRIVACY_TAG = "ogg-privacy-card";
   var STYLE3 = `
@@ -9256,172 +9555,6 @@ h2{margin:0;font-size:19px;letter-spacing:-.03em;font-weight:780}
       this._render();
     }
   };
-
-  // studio-card/src/lib/compose.js
-  var STEP_MS = 50;
-  var MAX_STEP_MS = 60 * 60 * 1e3;
-  var MAX_TOTAL_MS = 6 * 60 * 60 * 1e3;
-  var DURATIONS = [5, 10, 15, 30, 45, 60, 90, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600];
-  var clamp2 = (v) => Math.min(100, Math.max(0, v));
-  var isDual = (key) => key in PATTERNS_DUAL;
-  function clock(ms) {
-    const s = Math.max(0, Math.round(ms / 1e3));
-    const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = s % 60;
-    const two = (n) => String(n).padStart(2, "0");
-    return h ? `${h}:${two(m)}:${two(r)}` : `${m}:${two(r)}`;
-  }
-  function parseTime(text) {
-    const s = String(text || "").trim().toLowerCase().replace(/\s+/g, "");
-    if (!s) return null;
-    if (/^\d+(:\d{1,2}){1,2}$/.test(s)) return s.split(":").reduce((n, x) => n * 60 + Number(x), 0);
-    if (/^\d+(\.\d+)?$/.test(s)) return Number(s);
-    const m = /^(?:(\d+(?:\.\d+)?)h(?:ours?|rs?)?)?(?:(\d+(?:\.\d+)?)m(?:in(?:ute)?s?)?)?(?:(\d+(?:\.\d+)?)s(?:ec(?:ond)?s?)?)?$/.exec(s);
-    if (!m || !m[1] && !m[2] && !m[3]) return null;
-    return Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0);
-  }
-  function defaultName(ms, now = /* @__PURE__ */ new Date()) {
-    const day = now.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
-    const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    return `${clock(ms)} · ${day} ${time}`;
-  }
-  function cut(track, end) {
-    const out = [];
-    for (let i = 0; i < track.length; i++) {
-      const p = track[i];
-      if (p.at <= end) {
-        out.push({ at: p.at, pos: p.pos });
-        continue;
-      }
-      const q = track[i - 1];
-      if (q && q.at < end) out.push({ at: end, pos: Math.round(q.pos + (p.pos - q.pos) * (end - q.at) / (p.at - q.at)) });
-      break;
-    }
-    const last = out[out.length - 1];
-    if (last && last.at < end) out.push({ at: end, pos: last.pos });
-    return out;
-  }
-  function fill(track, ms) {
-    const len = track.length ? track[track.length - 1].at : 0;
-    if (!len) return [{ at: 0, pos: track.length ? track[0].pos : 0 }, { at: ms, pos: track.length ? track[0].pos : 0 }];
-    const out = [];
-    for (let by = 0; by < ms; by += len) {
-      for (const p of track) {
-        const at = p.at + by, last = out[out.length - 1];
-        if (last && at <= last.at) {
-          if (p.pos !== last.pos) out.push({ at: last.at + 1, pos: p.pos });
-          continue;
-        }
-        out.push({ at, pos: p.pos });
-      }
-    }
-    return cut(out, ms);
-  }
-  function renderPattern(key, ms, { level = 70, speed = 50, seed = 1 } = {}) {
-    const top = clamp2(level), period = patternPeriod(speed) * 1e3;
-    const rnd = key === PATTERN_RANDOM ? new RandomProgram(2, Math.max(0.1, top / 100), aiRandom(seed)) : null;
-    const a = [], b = [];
-    for (let t = 0; t <= ms; t += STEP_MS) {
-      let va, vb;
-      if (rnd) [va, vb] = rnd.step(t ? STEP_MS : 0).map((v) => v * 100);
-      else if (isDual(key)) {
-        va = patternDual(key, t / period, 0) * top;
-        vb = patternDual(key, t / period, 1) * top;
-      } else va = vb = patternLevel(key, t / period) * top;
-      a.push({ at: t, pos: Math.round(clamp2(va)) });
-      b.push({ at: t, pos: Math.round(clamp2(vb)) });
-    }
-    const dual = Boolean(rnd) || isDual(key);
-    return { a: cut(simplify(a, 1.5), ms), b: dual ? cut(simplify(b, 1.5), ms) : null };
-  }
-  function renderMood(key, ms, { strength = 100, seed = 1 } = {}) {
-    const mood = MOODS[key];
-    if (!mood) throw new Error("Unknown mood");
-    const r = aiRandom(seed), k = clamp2(strength) / 100;
-    const stroke = [], a = [], b = [];
-    let at = 0, last = -1, two = false;
-    const add = (to, track, by) => {
-      for (const p of track) {
-        const t = p.at + by, prev = to[to.length - 1];
-        if (prev && t <= prev.at) {
-          if (prev.pos !== p.pos) to.push({ at: prev.at + 1, pos: p.pos });
-          continue;
-        }
-        to.push({ at: t, pos: p.pos });
-      }
-    };
-    for (let guard = 0; at < ms && guard < 1e3; guard++) {
-      let i = Math.floor(r() * mood.combos.length);
-      if (mood.combos.length > 1 && i === last) i = (i + 1) % mood.combos.length;
-      last = i;
-      const built = buildMood(mood.combos[i][1], r);
-      const len = Math.max(built.stroke[built.stroke.length - 1].at, ...built.vibe.map((v) => v[v.length - 1].at));
-      add(stroke, built.stroke, at);
-      add(a, built.vibe[0], at);
-      if (built.vibe[1]) two = true;
-      add(b, built.vibe[1] || built.vibe[0], at);
-      at += len;
-    }
-    const soft = (track, fn) => track.map((p) => ({ at: p.at, pos: Math.round(clamp2(fn(p))) }));
-    return {
-      stroke: cut(soft(stroke, (p) => k >= 1 ? p.pos : moodSoften(p.pos, k, p.at)), ms),
-      a: cut(soft(a, (p) => p.pos * k), ms),
-      b: two ? cut(soft(b, (p) => p.pos * k), ms) : null
-    };
-  }
-  function renderStep(step, stroke, scripts, last = 0) {
-    const ms = Math.min(MAX_STEP_MS, Math.max(1e3, Math.round(step.ms || 6e4)));
-    if (step.type === "pause") {
-      const hold = stroke ? last : 0;
-      return { a: [{ at: 0, pos: hold }, { at: ms, pos: hold }], b: null, ms };
-    }
-    if (step.type === "mood") {
-      const m = renderMood(step.key, ms, { strength: step.level ?? 100, seed: step.seed || 1 });
-      return stroke ? { a: m.stroke, b: null, ms } : { a: m.a, b: m.b, ms };
-    }
-    if (step.type === "script") {
-      const s = scripts && scripts.get(step.name);
-      if (!s) throw new Error(`"${step.name}" is not in the library`);
-      const src = !stroke && isStroke(s) ? runScript(s, "speed") : s;
-      const second = src.channels && src.channels.V1 && src.channels.V1.actions.length ? src.channels.V1.actions : null;
-      return { a: fill(src.actions, ms), b: !stroke && second ? fill(second, ms) : null, ms };
-    }
-    const p = renderPattern(step.key, ms, { level: step.level ?? 70, speed: step.speed ?? 50, seed: step.seed || 1 });
-    return { a: p.a, b: stroke ? null : p.b, ms };
-  }
-  function composeScript(steps, { stroke = false, title = "" } = {}, scripts = /* @__PURE__ */ new Map()) {
-    if (!steps.length) throw new Error("Add a step first");
-    const A = [], B = [];
-    let at = 0, two = false;
-    const join = (to, track, by) => {
-      for (const p of track) {
-        const t = p.at + by, prev = to[to.length - 1];
-        if (prev && t <= prev.at) {
-          if (prev.pos !== p.pos) to.push({ at: prev.at + 1, pos: p.pos });
-          continue;
-        }
-        to.push({ at: t, pos: p.pos });
-      }
-    };
-    for (const step of steps) {
-      const last = A.length ? A[A.length - 1].pos : 50;
-      const out = renderStep(step, stroke, scripts, last);
-      if (out.b) two = true;
-      join(A, out.a, at);
-      join(B, out.b || out.a, at);
-      at += out.ms;
-      if (at > MAX_TOTAL_MS) throw new Error("A script can be at most six hours long");
-    }
-    const script = {
-      version: "1.0",
-      inverted: false,
-      range: 100,
-      actions: A,
-      metadata: { type: stroke ? "stroke" : "vibration", creator: "Ogg Queue", title: title || defaultName(at), steps: steps.length }
-    };
-    if (two) script.channels = { V1: { actions: B } };
-    return script;
-  }
-  var stepsMs = (steps) => steps.reduce((n, s) => n + Math.min(MAX_STEP_MS, Math.max(1e3, Math.round(s.ms || 6e4))), 0);
 
   // studio-card/src/card/queuecard.js
   var QUEUE_TAG = "ogg-queue-card";

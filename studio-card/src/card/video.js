@@ -3,6 +3,8 @@ import { FOLLOW_AI } from '../lib/ai.js';
 import { RUN_MODE_DEFAULT, fileKind, isStroke, liveIntensity, normalise } from '../lib/convert.js';
 import { DEVICE_KEY, LIB_FILE, LIB_LOADED, LIB_TAKE, LIVE_MS, NO_DEVICE, SPEEDS, TAKE_SRC, VIDEO_QUEUE, VIDEO_OFFSET_KEY, VIDEO_TICK_MS, capture, decodeText, duration, fmt } from '../lib/core.js';
 import { FOLLOW_STROKER, mergePasses, parseTarget, sampleAt } from '../lib/outputs.js';
+import { defaultName } from '../lib/compose.js';
+import { smoothActions } from '../lib/smooth.js';
 
 // Methods mixed into OggStudioCard.
 export class VideoPart {
@@ -65,6 +67,21 @@ export class VideoPart {
     $('vrecuse').addEventListener('click', () => this._vrecUse());
     $('vrecdl').addEventListener('click', () => this._vrecDownload());
     $('vrecclear').addEventListener('click', () => { if (confirm('Discard this recording?')) this._vrecReset(); });
+    // The quick way: ● on the video records (and plays it), 💾 saves.
+    // Like the video's own controls, the icons fade while it plays untouched
+    // and come back on a tap or move over the video (or when it pauses).
+    const icons = $('vrecbar');
+    let fade = null;
+    const wake = () => {
+      icons.classList.remove('idle');
+      clearTimeout(fade);
+      if (!video.paused) fade = setTimeout(() => { if (!video.paused) icons.classList.add('idle'); }, 3000);
+    };
+    for (const type of ['play', 'pause', 'ended', 'seeked']) video.addEventListener(type, wake);
+    for (const type of ['pointermove', 'pointerdown']) video.parentElement.addEventListener(type, wake);
+    $('vrecgo').addEventListener('click', () => this._vrecQuick());
+    $('vrecsave').addEventListener('click', () => this._vrecSave());
+    $('vrecdrop').addEventListener('click', () => { if (confirm('Discard this recording?')) this._vrecReset(); });
     this._bindCast();
   }
 
@@ -149,7 +166,7 @@ export class VideoPart {
     const video = this._el('video');
     const ms = video.currentTime * 1000 + Number(this._el('voff').value || 0);
     const script = !this._vHeld && this._vraw && isStroke(this._vraw);
-    if (this._vsOn && (!this._vraw || (this._vvHand !== null && this._vvHand !== undefined && !this._strokeKind) || (this._vsHand !== null && this._vsHand !== undefined && this._strokeKind))) return;    // the range and speed (or a finger) drive it
+    if (this._vsOn && !this._vrec && (!this._vraw || (this._vvHand !== null && this._vvHand !== undefined && !this._strokeKind) || (this._vsHand !== null && this._vsHand !== undefined && this._strokeKind))) return;    // the range and speed (or a finger) drive it
     if (this._strokeKindRec) {
       const values = this._outs.map((o, i) => {
         const p = parseTarget(this._outTargetValue(i));
@@ -259,6 +276,7 @@ export class VideoPart {
         active = true;
         bar.classList.add('active');
         capture(bar, event);
+        if (this._vrec) { this._vrecSet(pct(event)); return; }
         this._vsHandSet(pct(event));
         this._showHBar(index, pct(event));
         if (this._vsWake) this._vsWake();
@@ -280,12 +298,14 @@ export class VideoPart {
     });
     bar.addEventListener('pointermove', (event) => {
       if (!active) return;
-      if (this._vsOn) { this._vsHandSet(pct(event)); this._showHBar(index, pct(event)); } else fromEvent(event);
+      if (this._vsOn && this._vrec) this._vrecSet(pct(event));
+      else if (this._vsOn) { this._vsHandSet(pct(event)); this._showHBar(index, pct(event)); } else fromEvent(event);
     });
     const release = () => {
       if (!active) return;
       active = false;
       bar.classList.remove('active');
+      if (this._vsOn && this._vrec) { this._vrecLet(); return; }
       if (this._vsOn) { this._vsHandSet(null); return; }
       this._hbKeep(true);
       if (this._hbActive) {
@@ -332,7 +352,8 @@ export class VideoPart {
     $('vrec').textContent = this._vrec ? '■ Stop rec' : '● Rec';
     for (const id of ['hb1', 'hb2']) $(id).classList.toggle('rec', this._vrec);
     if (this._vrec) {
-      this._setHBar(0, 0); this._setHBar(1, 0);
+      // A vibrator starts from nothing; a stroker from where it is.
+      if (!this._strokeKindRec) { this._setHBar(0, 0); this._setHBar(1, 0); } else if (this._st) this._hvals[0] = Math.round(this._st.pos);
       this._toast('Recording: play the video and drag the bars.');
       if (!$('video').paused) { this._videoHalt(); this._videoRun(); }
     } else {
@@ -353,8 +374,11 @@ export class VideoPart {
       const pass = this._vcur[i];
       const pos = this._hvals[i];
       const last = pass[pass.length - 1];
-      if (!last || last.pos !== pos) pass.push({ at, pos });
-      else if (last.at > at) pass.push({ at, pos });
+      if (!last || last.pos !== pos) {
+        // Held still, then moved: it stayed put until just now (not a slow creep).
+        if (last && this._vcurEnd > last.at && this._vcurEnd < at) pass.push({ at: this._vcurEnd, pos: last.pos });
+        pass.push({ at, pos });
+      } else if (last.at > at) pass.push({ at, pos });
       this._vcurEnd = at;
     }
   }
@@ -381,7 +405,8 @@ export class VideoPart {
     const end = main[main.length - 1].at;
     const stroke = this._strokeKindRec;       // the slider recorded position (stroke) or intensity
     if (!stroke && main[main.length - 1].pos !== 0) main.push({ at: end + 1, pos: 0 });
-    const script = { version: '1.0', inverted: false, range: 100, actions: main,
+    // Strokes are kept clean (every turn and pause, no finger wobble).
+    const script = { version: '1.0', inverted: false, range: 100, actions: stroke ? smoothActions(main) : main,
       metadata: { creator: 'OggStudio', type: stroke ? 'stroke' : 'vibration', ...(this._vname ? { title: this._vname } : {}) } };
     const second = mergePasses(this._vpasses[1]);
     if (second.length) {
@@ -394,12 +419,77 @@ export class VideoPart {
   _vrecInfo() {
     const $ = this._el;
     const has = this._vrecHas() || Boolean(this._vcur && this._vcur[0].length);
-    $('vrecdone').hidden = this._vrec || !has;
+    $('vrecdone').hidden = this._vrec || !has || this._simple;   // the Play card: 💾 on the video
+    // The icons on the video: ● (■ while recording), then 💾 and ✕ for what is not saved yet.
+    $('vrecbar').hidden = !this._vurl;
+    $('vrecgo').classList.toggle('on', Boolean(this._vrec));
+    $('vrecgo').textContent = this._vrec ? '■' : '●';
+    $('vrecgo').setAttribute('aria-label', this._vrec ? 'Stop recording' : 'Record with the video');
+    $('vrecsave').hidden = this._vrec || !has;
+    $('vrecdrop').hidden = this._vrec || !has;
     const merged = has ? mergePasses([...this._vpasses[0], ...(this._vcur ? [this._vcur[0]] : [])]) : [];
     const passes = this._vpasses[0].filter((p) => p.length).length + (this._vcur && this._vcur[0].length ? 1 : 0);
     $('vrecinfo').textContent = has
       ? `${fmt(merged.length ? merged[merged.length - 1].at - merged[0].at : 0)} recorded${passes > 1 ? ` · ${passes} passes` : ''}`
       : (this._vrec ? 'Play the video to record' : '');
+    const len = merged.length ? merged[merged.length - 1].at - merged[0].at : 0;
+    $('vrect').textContent = this._vrec ? `REC ${fmt(len)}` : has ? fmt(len) : '';
+  }
+
+  // ● on the video: record, and play the video with it (in sync from the
+  // first frame); ■ stops both.
+  _vrecQuick() {
+    const video = this._el('video');
+    if (!this._vurl) { this._toast('Choose a video first'); return; }
+    if (this._vrec) {
+      this._vrecToggle();
+      video.pause();
+      this._toast(this._vrecHas() ? 'Stopped. 💾 saves it; ● records more (a new pass replaces that part).' : 'Nothing recorded.');
+      this._videoStatus();
+      return;
+    }
+    if (video.ended || (video.duration && video.currentTime >= video.duration - 0.2)) { try { video.currentTime = 0; } catch (_) { /* not loaded */ } }
+    this._vrecToggle();
+    this._toast(this._strokeKindRec ? 'Recording: move the line with the action. ■ stops.' : 'Recording: slide the line for how strong. ■ stops.');
+    const started = video.play();
+    if (started && started.catch) started.catch(() => this._toast('Press ▶ on the video to start it.'));
+    this._videoStatus();
+  }
+
+  // 💾: save the recording to the library; it then plays with this video.
+  async _vrecSave() {
+    const script = this._vrecScript();
+    if (!script) { this._toast('Nothing recorded yet: press ● first.'); return; }
+    const base = this._vname ? `${this._vname} · ` : '';
+    const name = `${base}${defaultName(duration(script))}`.slice(0, 80);
+    try {
+      const res = await this._hass.callWS({ type: 'call_service', domain: 'ogg', service: 'studio_save', service_data: { name, script }, return_response: true });
+      const saved = (res && res.response && res.response.name) || name;
+      this._take = script;
+      this._vraw = script;
+      this._vscript = script;          // plays with this video now
+      this._vconvs = {};
+      this._vrecReset();
+      this._toast(`Saved as “${saved}”. It plays with this video (and is in your scripts).`);
+      this._update();
+    } catch (e) {
+      this._toast('Could not save: ' + (e.message || e));
+    }
+  }
+
+  // While recording, the line on the video (or the bar under it) is what is
+  // recorded: a stroker's position, a vibrator's strength. Let go: a
+  // vibrator drops to nothing (Drop to 0), a stroker stays where it is.
+  _vrecSet(v) {
+    this._setHBar(0, v);
+    if (this._vlimShow) this._vlimShow();
+    this._videoOut();
+  }
+
+  _vrecLet() {
+    if (!this._strokeKindRec && this._el('vspring').checked) this._setHBar(0, 0);
+    if (this._vlimShow) this._vlimShow();
+    this._videoOut();
   }
 
   _vrecUse() {

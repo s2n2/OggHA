@@ -257,16 +257,25 @@ ha-card.simple #liverow,ha-card.simple #stliverow{display:none!important}
 .vstspd{position:absolute;left:max(4px,env(safe-area-inset-left));top:8%;bottom:24%;width:40px;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:auto}
 .vstspd b{font-size:9.5px;font-weight:700;color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(0,0,0,.9);white-space:nowrap}
 .vstline{position:relative;flex:1;width:40px;touch-action:none;cursor:ns-resize}
-.vstline::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.3);box-shadow:0 0 2px rgba(0,0,0,.6)}
-.vstline .dot{position:absolute;left:50%;width:12px;height:12px;margin:0 0 -6px -6px;border-radius:50%;background:rgba(255,255,255,.8);box-shadow:0 0 0 1px rgba(0,0,0,.45)}
-.vstline.active .dot{width:18px;height:18px;margin:0 0 -9px -9px;background:#fff}
+.vstline::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:4px;margin-left:-2px;border-radius:2px;background:rgba(255,255,255,.42);box-shadow:0 0 3px rgba(0,0,0,.7)}
+.vstline .dot{position:absolute;left:50%;width:16px;height:16px;margin:0 0 -8px -8px;border-radius:50%;background:rgba(255,255,255,.88);box-shadow:0 0 0 1px rgba(0,0,0,.45)}
+.vstline.active .dot{width:22px;height:22px;margin:0 0 -11px -11px;background:#fff}
+.vstline.rec::before{background:rgba(255,77,94,.75)}
+.vstline.rec .dot{background:#ff4d5e}
+.vrecbar{position:absolute;top:6px;right:max(46px,env(safe-area-inset-right));display:flex;flex-direction:row-reverse;align-items:center;gap:6px;z-index:3;pointer-events:auto;transition:opacity .35s}
+.vrecbar.idle{opacity:0;pointer-events:none}
+.vrecbar .vri{width:34px;height:34px;min-height:34px;padding:0;flex:0 0 34px;border-radius:50%;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.35)}
+.vrecbar .vri.rec{color:#ff4d5e;font-size:20px}
+.vrecbar .vri.rec.on{color:#fff;background:#e0263a;border-color:#ff8a96;font-size:13px;animation:vrecpulse 1.2s ease-in-out infinite}
+.vrecbar .vrect{font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 3px #000;font-variant-numeric:tabular-nums;white-space:nowrap}
+@keyframes vrecpulse{50%{box-shadow:0 0 0 7px rgba(224,38,58,.28)}}
 .vstline.dim .dot{background:rgba(255,255,255,.45)}
 .vstspd button{min-height:24px;width:30px;padding:0;font-size:12px;border-radius:9px;color:rgba(255,255,255,.85);background:rgba(0,0,0,.3);border-color:rgba(255,255,255,.25)}
 .vstspd button.on{background:rgba(255,255,255,.35);color:#fff;border-color:rgba(255,255,255,.5)}
 .vstrail{position:absolute;right:max(2px,env(safe-area-inset-right));top:calc(8% - 22px);bottom:calc(24% - 22px);width:40px;pointer-events:auto;touch-action:none;cursor:ns-resize}
 .vstrail .trk{position:absolute;left:0;right:0;top:22px;bottom:22px;pointer-events:none}
-.vstrail .trk::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.3);box-shadow:0 0 2px rgba(0,0,0,.6)}
-.vstrail .band{position:absolute;left:50%;width:6px;margin-left:-3px;border-radius:3px;background:rgba(255,255,255,.28);box-shadow:0 0 2px rgba(0,0,0,.5)}
+.vstrail .trk::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:4px;margin-left:-2px;border-radius:2px;background:rgba(255,255,255,.35);box-shadow:0 0 3px rgba(0,0,0,.7)}
+.vstrail .band{position:absolute;left:50%;width:10px;margin-left:-5px;border-radius:3px;background:rgba(255,255,255,.28);box-shadow:0 0 2px rgba(0,0,0,.5)}
 .vstrail .h{position:absolute;left:50%;width:14px;height:4px;margin-left:-7px;border-radius:2px;background:rgba(255,255,255,.7);color:transparent;font-size:0;box-shadow:0 0 2px rgba(0,0,0,.6)}
 .vstrail .hu{top:-2px}
 .vstrail .hl{bottom:-2px}
@@ -274,7 +283,7 @@ ha-card.simple #liverow,ha-card.simple #stliverow{display:none!important}
 .vstrail.active .h{width:26px;height:14px;margin-left:-13px;border-radius:4px;background:rgba(255,255,255,.85);color:#111;font-size:9px;font-weight:800;line-height:14px;text-align:center}
 .vstrail.active .hu{top:-7px}
 .vstrail.active .hl{bottom:-7px}
-.vstrail .dot{position:absolute;left:50%;width:10px;height:10px;margin:0 0 -5px -5px;border-radius:50%;background:rgba(255,255,255,.75);box-shadow:0 0 0 1px rgba(0,0,0,.45)}
+.vstrail .dot{position:absolute;left:50%;width:14px;height:14px;margin:0 0 -7px -7px;border-radius:50%;background:rgba(255,255,255,.75);box-shadow:0 0 0 1px rgba(0,0,0,.45)}
 .urechead{justify-content:space-between;align-items:center}
 .urechead .kind{flex:0 1 auto}
 .urechead .kind button{min-height:42px;padding:0 12px;font-size:12px}
