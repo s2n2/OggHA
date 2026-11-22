@@ -1,3 +1,67 @@
+## 3.21.0 - The Handy over Wi-Fi
+
+- **Connect Handy card** (`type: custom:ogg-connect-handy-card`): the Handy (firmware 4) over Wi-Fi as well as Bluetooth, switched by hand. It stays the same Ogg device with the same entities, and every card works as usual either way. Bluetooth is unchanged and stays the default.
+- **What each is best for:** Bluetooth for everything, with live control (finger, pads) at its quickest. Wi-Fi for scripts and videos, and anywhere the Handy has internet: they are sent ahead into the Handy's own buffer and play smoothly and in time; live control runs about 1.5 s behind, because every move goes through Ohdoki's servers.
+- **Keys in secrets.yaml:** the card saves the Handy's connection key and an Application ID (handyfeeling.com developer portal) as `ogg_handy_connection_key` and `ogg_handy_app_id`; administrators only, never shown in full or stored anywhere else.
+- **Measured on the Handy and built in:** out of points its stream runs on to the end of the stroke, so Ogg streams with pause-on-starving and re-syncs its clock after a pause; points go in order without waiting for each answer, at most two at a time and no faster than the Handy answers (about one a second), so the delay stays steady; each move keeps its arrival time (no drift) and close moves carry straight on. While Wi-Fi is on, IntiHA's *Connect to this device* is turned off for the Handy, so a Bluetooth reconnect does not interrupt it.
+- **Test** on the card: whether the Handy is on Wi-Fi, its firmware, the round trip and the delay.
+
+## 3.21.0b6 - The Handy over Wi-Fi (beta)
+
+- **Paced to the Handy:** beta 5 sent finger moves four times a second with up to ten requests on their way. The Handy takes about one a second over Wi-Fi, so they queued: round trips grew from 1.3 s to over 4 s, the delay grew with them (2 to 2.9 s) and requests timed out. Now at most two are on their way, sent no faster than the Handy answers, so the delay stays steady.
+
+Bluetooth is unchanged.
+
+## 3.21.0b5 - The Handy over Wi-Fi (beta)
+
+Finger control over Wi-Fi did not work in beta 4 (scripts did). From its log:
+
+- **Batches no longer wait for the last answer:** a request that reaches the Handy is answered only once the Handy has taken it, 1-2.6 s over Wi-Fi, and Ogg sent the next batch only after that. A finger's moves queued up behind it and reached the Handy after their time (some 1.3 s late). Batches now go out in order as soon as they are due, several on their way at once.
+- **The delay comes from real round trips:** taken from round trips to the Handy itself (the way there is most of one), not the server alone. About 1.3-1.6 s from New Zealand: Ohdoki's servers are in Europe and the Handy's own link to them is the slow part.
+- **Back in step when it falls behind:** if the Handy reports its clock behind Ogg's (it paused out of points), the next batch re-syncs it. A bug kept this from happening after a pause.
+- **Ready ahead:** the Handy is put in streaming mode with a fresh session as soon as it is online over Wi-Fi (and again after a stop), so the first move does not wait 2-4 s for that.
+
+Bluetooth is unchanged.
+
+## 3.21.0b4 - The Handy over Wi-Fi (beta)
+
+From trying beta 3 by hand (finger control felt awful, scripts unsure):
+
+- **No more drift:** when a move had to start after a point the Handy already had, the whole move was pushed back by the overlap. A script's next point is asked again every second and each live move overlaps the last a little, so the delay kept growing (and the late-point check then raised it further: 1.8 s instead of ~1 s). Every move now arrives at its own time; a point asked again adds nothing.
+- **Smooth finger control:** moves reach Home Assistant a little early or late (tens of ms). Each late one got a stop before it and each early one cut the previous turn short, so strokes came out jerky and shallow. A move meant to start within 0.25 s of where the last one ends now carries straight on from it.
+- Moves and sends are logged at debug level (custom_components.ogg.handy_wifi).
+
+Over Wi-Fi a finger still runs about a second behind (Ohdoki's servers are in Europe and the Handy's own link to them is the slow part); scripts and videos are read that far ahead, so they stay in time.
+
+## 3.21.0b3 - The Handy over Wi-Fi (beta)
+
+Measured on the Handy (firmware 4.3) with its position read 25 times a second over Bluetooth while it was driven over Wi-Fi:
+
+- **No run-on, without timing tricks:** out of points, the Handy's stream carries on in the same direction to the end of the stroke. Beta 2 sent an end hold just in time, but a hold must reach the Handy about a second ahead over Wi-Fi, and a short move still ran on. The stream now plays with *pause on starving*: out of points the Handy stops where the last one put it (measured: it stays), and the next move puts its clock back in step with Ogg's (measured: the move after a 3 s pause came on time).
+- Moves in quick succession still go as simple additions to the buffer, so live control has no extra delay.
+
+## 3.21.0b2 - The Handy over Wi-Fi (beta)
+
+Fixes from testing beta 1 on the Handy (firmware 4.3):
+
+- **No run-on at the end of a move:** when the Handy's stream runs out of points it carries on in the same direction to the end of the stroke (measured: a stream ending at 80 ran to 100). Every last move now ends with a hold point, sent just in time to reach the Handy before the move ends; a move that follows replaces it, so live control gets no extra delay.
+- **Bluetooth leaves it alone while Wi-Fi is on:** IntiHA reconnected the Handy over Bluetooth 4 s after it went on Wi-Fi, and that reconnect sends Ogg's usual safety stop, which ends a Wi-Fi stream (and with both links on, the Handy's buffer is ~300 points instead of thousands). While Wi-Fi is on, Ogg turns IntiHA's "Connect to this device" off for the Handy, and back on when Wi-Fi is switched off (only if Ogg turned it off).
+- **The live delay is measured:** from when points actually reach the Handy (its own clock), not the round trip to the server alone (the Handy's link to the server is the slow part).
+- The first request after a restart (which also sets up the secure connection) no longer inflates the delay; a stale error clears when the Handy is back.
+
+## 3.21.0b1 - The Handy over Wi-Fi (beta)
+
+A beta on the `feat/handy-wifi` branch. Bluetooth is unchanged.
+
+- **Connect Handy card** (`type: custom:ogg-connect-handy-card`): use The Handy over Wi-Fi instead of Bluetooth, switched by hand. Put the Handy on Wi-Fi (its app or button), then switch the card on; switch it off to go back to Bluetooth.
+- **The same device either way:** the Handy stays one Ogg device with the same entities, and every card works as before. Only the route underneath changes.
+- **Smooth over the internet:** on Wi-Fi the Handy is reached through Ohdoki's Handy API (there is no local Wi-Fi control). Moves go as timed points in the Handy's own buffer (HSP), played by its clock in step with the server's, so a slow request changes nothing:
+  - live moves (a finger, held speeds) run a short delay behind, shown on the card (about 0.8 s from here);
+  - scripts and recordings Ogg plays are sent up to 20 s ahead;
+  - scripts and videos the Play card plays are read that delay ahead, so they stay in time.
+- **Keys in secrets.yaml:** the card saves the Handy's connection key and an Application ID (from the handyfeeling.com developer portal) as `ogg_handy_connection_key` and `ogg_handy_app_id`. Only administrators can set them, and they are never shown in full or stored anywhere else.
+- **Test** on the card: whether the Handy is on Wi-Fi, its firmware, the round trip and the live delay.
+
 ## 3.20.3 - Smooth slow control, no runaway jumps
 
 - **Slow finger control is smooth:** moving the stroke bar (or the slider on a video) slowly, the card held back changes under 1.5% and then sent them as one quick hop, so the stroker stood still most of the time and jumped a little every few hundred ms (measured: still 72% of the time at 5%/s, hops five times the finger's speed). Now every step of about 1% goes, at the finger's own pace, so the steps join up. A finger resting with a little shake still sends nothing.

@@ -81,13 +81,7 @@ class OggEntity(PrivateStateMixin, Entity):
     @property
     def device_online(self) -> bool:
         """Whether a command can currently reach this device."""
-        return (
-            self.hub.enabled
-            and self.hub.connected
-            and self.device_key in self.hub.devices
-            and self.device.connected
-            and not self.device.recovering
-        )
+        return self.device_key in self.hub.devices and self.hub.device_online(self.device)
 
     async def async_added_to_hass(self) -> None:
         """Subscribe after HA has attached the entity."""

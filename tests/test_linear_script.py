@@ -32,6 +32,7 @@ def make_hub(linear_count: int = 1):
     hub._linear_runs = {}
     hub._linear_serials = {}
     hub._require_online = lambda dev: None
+    hub.wifi = SimpleNamespace(routes=lambda key: False)   # Bluetooth
     sent: list[tuple[float, float, float]] = []
     start = time.monotonic()
     real_linear = OggHub.async_linear

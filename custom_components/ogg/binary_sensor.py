@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -35,3 +37,11 @@ class OggConnectedSensor(OggEntity, BinarySensorEntity):
         if self.device_key is None:
             return self.hub.connected
         return self.device_online
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Over Wi-Fi: how far ahead moves must go (the cards play scripts that far ahead)."""
+        if self.device_key is None or not self.hub.wifi.routes(self.device_key):
+            return None
+        # Rounded, so the state is not rewritten for every small change.
+        return {"transport": "wifi", "lead_ms": int(round(self.hub.wifi.lead_ms / 50) * 50)}

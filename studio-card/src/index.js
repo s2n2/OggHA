@@ -20,6 +20,7 @@ import { ScreenOffPart } from './card/screenoff.js';
 import { OggPrivacyCard, PRIVACY_TAG } from './card/privacy.js';
 import { OggQueueCard, QUEUE_TAG } from './card/queuecard.js';
 import { EASY_TAG, OggEasyCard } from './card/easy.js';
+import { CONNECT_HANDY_TAG, OggConnectHandyCard } from './card/connecthandy.js';
 import { privateHass } from './lib/private.js';
 
 // Each part's methods join the card (later parts win on a shared name).
@@ -42,6 +43,12 @@ if (!customElements.get(QUEUE_TAG)) {
   customElements.define(QUEUE_TAG, OggQueueCard);
   window.customCards = window.customCards || [];
   window.customCards.push({ type: QUEUE_TAG, name: 'Ogg Queue', description: 'Make a queue of patterns, moods and scripts, each for a set time; add it to his or hers queue and send your partner a link to play it.', preview: true });
+}
+
+if (!customElements.get(CONNECT_HANDY_TAG)) {
+  customElements.define(CONNECT_HANDY_TAG, OggConnectHandyCard);
+  window.customCards = window.customCards || [];
+  window.customCards.push({ type: CONNECT_HANDY_TAG, name: 'Ogg Connect Handy', description: 'The Handy over Wi-Fi instead of Bluetooth, switched by hand; Ogg and every card work the same either way.', preview: true });
 }
 
 if (!customElements.get(EASY_TAG)) {
