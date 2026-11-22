@@ -165,7 +165,7 @@ export class OggConnectHandyCard extends HTMLElement {
         info = 'Turn Ogg on to reach the Handy.';
       } else if (st.online) {
         state = `Wi-Fi: ${name} is connected`; cls = 'ok';
-        info = 'Everything works as usual. Scripts and videos are sent ahead, so they stay smooth and in time. Live control (finger, pads) runs the delay below behind, as every move goes through Ohdoki's servers: Bluetooth is better for that. Switch off to go back to Bluetooth.';
+        info = "Everything works as usual. Scripts and videos are sent ahead, so they stay smooth and in time. Live control (finger, pads) runs the delay below behind, as every move goes through Ohdoki's servers: Bluetooth is better for that. Switch off to go back to Bluetooth.";
       } else {
         state = 'Wi-Fi: the Handy is not on Wi-Fi'; cls = 'warn';
         info = 'Put the Handy on Wi-Fi (its app or button) and check it is switched on. Ogg checks every 10 seconds.';

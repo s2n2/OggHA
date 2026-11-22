@@ -1,3 +1,7 @@
+## 3.21.1 - Connect Handy card text
+
+- The Connect Handy card's new guidance (what Bluetooth and Wi-Fi each suit) was missing from 3.21.0: a quote in its text kept the card from being rebuilt, so 3.21.0 carried the beta 6 card. Nothing else changes.
+
 ## 3.21.0 - The Handy over Wi-Fi
 
 - **Connect Handy card** (`type: custom:ogg-connect-handy-card`): the Handy (firmware 4) over Wi-Fi as well as Bluetooth, switched by hand. It stays the same Ogg device with the same entities, and every card works as usual either way. Bluetooth is unchanged and stays the default.
