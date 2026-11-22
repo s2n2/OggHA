@@ -200,3 +200,17 @@ console.log('slow finger following passed');
   assert.strictEqual(matchVideoScript('', names, saved), null);
   console.log('video script matching passed');
 }
+
+// Android's photo picker names a video only by a number: the script recorded
+// with that very file (its size) still goes with it, whatever its name.
+{
+  const { matchVideoScript, videoKey } = await import('../src/lib/outputs.js');
+  const names = ['Beach Day', 'Sunset ride', '1000001279 · 5:24 · Sun 22 Nov 09:01'];
+  const saved = { 'Beach Day': '2026-11-20', 'Sunset ride': '2026-11-22' };
+  const keys = { 'Sunset ride': 'size:52428801' };
+  assert.strictEqual(videoKey({ size: 52428801 }), 'size:52428801');
+  assert.strictEqual(videoKey(null), '');
+  assert.strictEqual(matchVideoScript('1000002222', names, saved, keys, 'size:52428801'), 'Sunset ride');
+  assert.strictEqual(matchVideoScript('Beach Day', names, saved, keys, 'size:1'), 'Beach Day');   // a different file: by name
+  console.log('video script by file passed');
+}

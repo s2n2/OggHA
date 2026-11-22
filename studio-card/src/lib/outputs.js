@@ -91,14 +91,21 @@ export function mergePasses(passes) {
   return out.filter((a, i) => i === 0 || a.at !== out[i - 1].at || (out[i - 1] = a, false));
 }
 
+// A video file's fingerprint: its size in bytes (exact, known at once).
+export const videoKey = (file) => (file && file.size > 0 ? `size:${file.size}` : '');
+
 // The saved script that goes with a video: named like it (case, extension and
 // punctuation aside), or starting with its name (a recording made with it is
 // saved as "<video> · 5:24 · Sun 22 Nov 09:01"). Several: the newest saved.
-export function matchVideoScript(video, names, saved = {}) {
+export function matchVideoScript(video, names, saved = {}, keys = {}, key = '') {
   const norm = (s) => String(s || '').toLowerCase().replace(/\.(funscript|json)$/, '').replace(/[^a-z0-9]+/g, '');
+  const newest = (list) => list.slice().sort((a, b) => String(saved[b] || '').localeCompare(String(saved[a] || '')))[0] || null;
+  // Recorded with this very file (its size): whatever the phone calls it
+  // (Android's photo picker gives only a number like 1000001279).
+  const same = key ? names.filter((n) => keys[n] === key) : [];
+  if (same.length) return newest(same);
   const want = norm(video);
   if (!want) return null;
-  const newest = (list) => list.slice().sort((a, b) => String(saved[b] || '').localeCompare(String(saved[a] || '')))[0] || null;
   const exact = names.filter((n) => norm(n) === want);
   if (exact.length) return newest(exact);
   return newest(names.filter((n) => { const k = norm(n); return k.length >= 4 && (k.startsWith(want) || want.startsWith(k)); }));

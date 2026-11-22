@@ -2,7 +2,7 @@
 import { FOLLOW_AI } from '../lib/ai.js';
 import { RUN_MODE_DEFAULT, fileKind, isStroke, liveIntensity, normalise } from '../lib/convert.js';
 import { DEVICE_KEY, LIB_FILE, LIB_LOADED, LIB_TAKE, LIVE_MS, NO_DEVICE, SPEEDS, TAKE_SRC, VIDEO_QUEUE, VIDEO_OFFSET_KEY, VIDEO_TICK_MS, capture, decodeText, duration, fmt } from '../lib/core.js';
-import { FOLLOW_STROKER, mergePasses, parseTarget, sampleAt } from '../lib/outputs.js';
+import { FOLLOW_STROKER, mergePasses, parseTarget, sampleAt, videoKey } from '../lib/outputs.js';
 import { defaultName } from '../lib/compose.js';
 import { smoothActions } from '../lib/smooth.js';
 
@@ -462,9 +462,19 @@ export class VideoPart {
   async _vrecSave() {
     const script = this._vrecScript();
     if (!script) { this._toast('Nothing recorded yet: press ● first.'); return; }
-    // Named after the video file, so it loads with that video next time.
-    // Recorded again, it replaces that video's script.
-    const name = (this._vname ? this._vname.replace(/\s+/g, ' ').trim() : '').slice(0, 60).trim() || defaultName(duration(script));
+    // Named after the video, so it loads with it next time (its file's size
+    // is kept too, for a phone that gives the file only a number). Recorded
+    // again, it replaces that video's script.
+    const key = videoKey(this._vfileObj);
+    if (key) script.metadata = { ...(script.metadata || {}), video_key: key };
+    let name = (this._vAutoScript || (this._vname ? this._vname.replace(/\s+/g, ' ').trim() : '')).slice(0, 60).trim();
+    if (/^\d*$/.test(name) && typeof window.prompt === 'function') {
+      // Android's photo picker names a video only by a number: ask for a better one.
+      const typed = window.prompt('Name this recording (it loads with this video):', name || defaultName(duration(script)));
+      // (No answer, or an app that cannot ask: keep the suggested name.)
+      if (typed !== null) name = typed.replace(/\s+/g, ' ').trim().slice(0, 60);
+    }
+    name = name || defaultName(duration(script));
     const savedState = this._studio && this._studio.saved && this._hass.states[this._studio.saved];
     const existed = Boolean(savedState && (savedState.attributes.options || []).includes(name));
     try {

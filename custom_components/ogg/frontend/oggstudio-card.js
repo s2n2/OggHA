@@ -502,11 +502,14 @@
     out.sort((a, b) => a.at - b.at);
     return out.filter((a, i) => i === 0 || a.at !== out[i - 1].at || (out[i - 1] = a, false));
   }
-  function matchVideoScript(video, names, saved = {}) {
+  var videoKey = (file) => file && file.size > 0 ? `size:${file.size}` : "";
+  function matchVideoScript(video, names, saved = {}, keys = {}, key = "") {
     const norm = (s) => String(s || "").toLowerCase().replace(/\.(funscript|json)$/, "").replace(/[^a-z0-9]+/g, "");
+    const newest = (list) => list.slice().sort((a, b) => String(saved[b] || "").localeCompare(String(saved[a] || "")))[0] || null;
+    const same = key ? names.filter((n) => keys[n] === key) : [];
+    if (same.length) return newest(same);
     const want = norm(video);
     if (!want) return null;
-    const newest = (list) => list.slice().sort((a, b) => String(saved[b] || "").localeCompare(String(saved[a] || "")))[0] || null;
     const exact = names.filter((n) => norm(n) === want);
     if (exact.length) return newest(exact);
     return newest(names.filter((n) => {
@@ -4437,7 +4440,14 @@ ${VIEWERS_STYLE}
         this._toast("Nothing recorded yet: press ● first.");
         return;
       }
-      const name = (this._vname ? this._vname.replace(/\s+/g, " ").trim() : "").slice(0, 60).trim() || defaultName(duration(script));
+      const key = videoKey(this._vfileObj);
+      if (key) script.metadata = { ...script.metadata || {}, video_key: key };
+      let name = (this._vAutoScript || (this._vname ? this._vname.replace(/\s+/g, " ").trim() : "")).slice(0, 60).trim();
+      if (/^\d*$/.test(name) && typeof window.prompt === "function") {
+        const typed = window.prompt("Name this recording (it loads with this video):", name || defaultName(duration(script)));
+        if (typed !== null) name = typed.replace(/\s+/g, " ").trim().slice(0, 60);
+      }
+      name = name || defaultName(duration(script));
       const savedState = this._studio && this._studio.saved && this._hass.states[this._studio.saved];
       const existed = Boolean(savedState && (savedState.attributes.options || []).includes(name));
       try {
@@ -6681,7 +6691,13 @@ ${VIEWERS_STYLE}
       }
       const names = (savedState.attributes.options || []).filter((n) => n && !/^\(.*\)$/.test(n));
       const info = savedState.attributes.scripts || {};
-      const match = matchVideoScript(this._vname, names, Object.fromEntries(Object.entries(info).map(([k, v]) => [k, v && v.saved])));
+      const match = matchVideoScript(
+        this._vname,
+        names,
+        Object.fromEntries(Object.entries(info).map(([k, v]) => [k, v && v.saved])),
+        Object.fromEntries(Object.entries(info).map(([k, v]) => [k, v && v.video])),
+        videoKey(this._vfileObj)
+      );
       const sel = this._el("vsrc");
       if (!match) {
         if (this._vAutoScript && sel.value === this._vAutoScript) {

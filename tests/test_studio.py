@@ -181,3 +181,12 @@ async def test_studio_play_gives_a_stroker_strokes(hass, monkeypatch):
     monkeypatch.setattr(studio, "_is_stroker", lambda hass, entity_id: False)
     await hass.services.async_call(DOMAIN, "studio_play", {"entity_id": "button.toy_stop", "script": stroke}, blocking=True)
     assert played[-1]["output"] == "vibrate"
+
+
+def test_a_video_recording_keeps_its_video_fingerprint():
+    from custom_components.ogg.studio.library import clean_script, script_info
+
+    script = clean_script({"actions": [{"at": 0, "pos": 10}, {"at": 500, "pos": 90}],
+                           "metadata": {"type": "stroke", "video_key": "size:52428801"}})
+    assert script_info(script)["video"] == "size:52428801"
+    assert "video" not in script_info(clean_script({"actions": [{"at": 0, "pos": 10}]}))

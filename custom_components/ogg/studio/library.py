@@ -118,8 +118,14 @@ def script_info(script: dict[str, Any]) -> dict[str, Any]:
     second = script.get("channels", {}).get("V1", {}).get("actions") or [{"at": 0}]
     first = script["actions"] or [{"at": 0}]
     duration = max(first[-1]["at"], second[-1]["at"])
-    return {"duration_ms": duration, "motors": 2 if "channels" in script else 1,
+    info = {"duration_ms": duration, "motors": 2 if "channels" in script else 1,
             "actions": len(script["actions"]), "kind": "stroke" if is_stroke(script) else "vibration"}
+    # The video it was recorded with (its file's size): it loads with that
+    # video whatever the phone calls the file.
+    video = (script.get("metadata") or {}).get("video_key")
+    if isinstance(video, str) and video:
+        info["video"] = video
+    return info
 
 
 class Library:

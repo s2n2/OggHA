@@ -1,3 +1,8 @@
+## 3.21.4 - Video scripts by file
+
+- **A video finds its script even when the phone hides its name:** Android's photo picker gives a video only a number (like 1000001279), not its file name. A recording now keeps the video file's size, and choosing that same file again loads its script whatever it is called.
+- **Name it yourself:** saving a recording for a video named only by a number asks for a name (suggested: the script already matched, so recording again replaces it). Otherwise it is saved under the video's file name as before.
+
 ## 3.21.3 - Video recordings named after the video
 
 - **A video recording is saved under the video's file name** (up to 60 characters), so it loads with that video next time. Recorded again, it replaces that video's earlier script (the card says so). Without a video name it is named by length and date as before.

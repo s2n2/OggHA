@@ -3,7 +3,7 @@ import { FOLLOW_AI } from '../lib/ai.js';
 import { RUN_MODES, RUN_MODE_DEFAULT, fileKind, fileTitle, isStroke, normalise } from '../lib/convert.js';
 import { SAMPLE_MS, SPEEDS, TAKE_SRC, VIDEO_QUEUE, decodeText, duration, encodeCode, esc, fmt } from '../lib/core.js';
 import { limitLevels, limitMove } from '../lib/limits.js';
-import { FOLLOW_STROKER, OUT_KEY, matchVideoScript, outLevels, parseTarget } from '../lib/outputs.js';
+import { FOLLOW_STROKER, OUT_KEY, matchVideoScript, outLevels, parseTarget, videoKey } from '../lib/outputs.js';
 import { STROKE_TOP } from '../lib/stroke.js';
 import { gearHtml, openDeviceSettings } from '../lib/devsettings.js';
 
@@ -671,7 +671,9 @@ export class OutputsPart {
     }
     const names = (savedState.attributes.options || []).filter((n) => n && !/^\(.*\)$/.test(n));
     const info = savedState.attributes.scripts || {};
-    const match = matchVideoScript(this._vname, names, Object.fromEntries(Object.entries(info).map(([k, v]) => [k, v && v.saved])));
+    const match = matchVideoScript(this._vname, names,
+      Object.fromEntries(Object.entries(info).map(([k, v]) => [k, v && v.saved])),
+      Object.fromEntries(Object.entries(info).map(([k, v]) => [k, v && v.video])), videoKey(this._vfileObj));
     const sel = this._el('vsrc');
     if (!match) {
       // The last video's own script does not go with this one.
