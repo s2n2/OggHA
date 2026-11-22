@@ -1,3 +1,7 @@
+## 3.21.3 - Video recordings named after the video
+
+- **A video recording is saved under the video's file name** (up to 60 characters), so it loads with that video next time. Recorded again, it replaces that video's earlier script (the card says so). Without a video name it is named by length and date as before.
+
 ## 3.21.2 - Range rail, script jump, video scripts
 
 - **Range limits move straight away:** on the stroke range rail, a touch grabs the nearest limit (or the whole band) and drags it at once; the hold before it moved is gone.

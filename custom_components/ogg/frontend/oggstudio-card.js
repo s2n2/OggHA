@@ -4437,8 +4437,9 @@ ${VIEWERS_STYLE}
         this._toast("Nothing recorded yet: press ● first.");
         return;
       }
-      const base = this._vname ? `${this._vname} · ` : "";
-      const name = `${base}${defaultName(duration(script))}`.slice(0, 80);
+      const name = (this._vname ? this._vname.replace(/\s+/g, " ").trim() : "").slice(0, 60).trim() || defaultName(duration(script));
+      const savedState = this._studio && this._studio.saved && this._hass.states[this._studio.saved];
+      const existed = Boolean(savedState && (savedState.attributes.options || []).includes(name));
       try {
         const res = await this._hass.callWS({ type: "call_service", domain: "ogg", service: "studio_save", service_data: { name, script }, return_response: true });
         const saved = res && res.response && res.response.name || name;
@@ -4447,7 +4448,7 @@ ${VIEWERS_STYLE}
         this._vscript = script;
         this._vconvs = {};
         this._vrecReset();
-        this._toast(`Saved as “${saved}”. It plays with this video (and is in your scripts).`);
+        this._toast(existed ? `Saved over “${saved}” (this video's earlier recording). It plays with this video.` : `Saved as “${saved}”. It plays with this video, and loads with it next time.`);
         this._update();
       } catch (e) {
         this._toast("Could not save: " + (e.message || e));
