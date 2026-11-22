@@ -502,6 +502,18 @@
     out.sort((a, b) => a.at - b.at);
     return out.filter((a, i) => i === 0 || a.at !== out[i - 1].at || (out[i - 1] = a, false));
   }
+  function matchVideoScript(video, names, saved = {}) {
+    const norm = (s) => String(s || "").toLowerCase().replace(/\.(funscript|json)$/, "").replace(/[^a-z0-9]+/g, "");
+    const want = norm(video);
+    if (!want) return null;
+    const newest = (list) => list.slice().sort((a, b) => String(saved[b] || "").localeCompare(String(saved[a] || "")))[0] || null;
+    const exact = names.filter((n) => norm(n) === want);
+    if (exact.length) return newest(exact);
+    return newest(names.filter((n) => {
+      const k = norm(n);
+      return k.length >= 4 && (k.startsWith(want) || want.startsWith(k));
+    }));
+  }
 
   // studio-card/src/lib/stroke.js
   var STROKE_TOP = 320;
@@ -2492,7 +2504,6 @@ ${VIEWERS_STYLE}
   }
 
   // studio-card/src/card/stroke.js
-  var RAIL_HOLD_MS = 220;
   var StrokePart = class {
     // ---------------------------------------------------------- stroke recorder
     _bindStroke() {
@@ -2612,42 +2623,21 @@ ${VIEWERS_STYLE}
       });
       const rail = $("strail");
       let grab = null;
-      let armT = null, armed = false, start = 0, pending = null;
       rail.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         capture(rail, e);
         const v = level(rail, e);
-        start = v;
-        armed = false;
-        pending = railGrab(this._st, v, 22 / rail.getBoundingClientRect().height * 100);
-        clearTimeout(armT);
-        armT = setTimeout(() => {
-          if (!pending) return;
-          armed = true;
-          grab = pending;
-          rail.classList.add("active");
-          if (grab.mode !== "move") Object.assign(this._st, railDrag(this._st, grab, start));
-          this._stShow();
-        }, RAIL_HOLD_MS);
+        grab = railGrab(this._st, v, 22 / rail.getBoundingClientRect().height * 100);
+        rail.classList.add("active");
+        if (grab.mode !== "move") Object.assign(this._st, railDrag(this._st, grab, v));
+        this._stShow();
       });
       rail.addEventListener("pointermove", (e) => {
-        const v = level(rail, e);
-        if (!armed) {
-          if (pending && Math.abs(v - start) > 4) {
-            pending = null;
-            clearTimeout(armT);
-            this._toast("That is the range: hold a limit a moment to move it. The position lane is beside it.");
-          }
-          return;
-        }
         if (!grab) return;
-        Object.assign(this._st, railDrag(this._st, grab, v));
+        Object.assign(this._st, railDrag(this._st, grab, level(rail, e)));
         this._stShow();
       });
       const railUp = () => {
-        clearTimeout(armT);
-        pending = null;
-        armed = false;
         if (!grab) return;
         if (grab.mode !== "move") this._st.last = grab.mode;
         grab = null;
@@ -6680,16 +6670,17 @@ ${VIEWERS_STYLE}
     }
     // A saved script named like the video (case, extension and punctuation
     // aside) is chosen for it: in the video's script list and the Library.
-    _matchVideoScript() {
-      const norm = (s) => String(s || "").toLowerCase().replace(/\.(funscript|json)$/, "").replace(/[^a-z0-9]+/g, "");
-      const want = norm(this._vname);
-      if (!want) return;
+    _matchVideoScript(tries = 0) {
+      if (!this._vname) return;
       const savedState = this._studio && this._studio.saved && this._hass && this._hass.states[this._studio.saved];
-      const names = (savedState && savedState.attributes.options || []).filter((n) => n && !/^\(.*\)$/.test(n));
-      const match = names.find((n) => norm(n) === want) || names.find((n) => {
-        const k = norm(n);
-        return k.length >= 4 && (k.startsWith(want) || want.startsWith(k));
-      });
+      if (!savedState) {
+        clearTimeout(this._vMatchT);
+        if (tries < 20) this._vMatchT = setTimeout(() => this._matchVideoScript(tries + 1), 500);
+        return;
+      }
+      const names = (savedState.attributes.options || []).filter((n) => n && !/^\(.*\)$/.test(n));
+      const info = savedState.attributes.scripts || {};
+      const match = matchVideoScript(this._vname, names, Object.fromEntries(Object.entries(info).map(([k, v]) => [k, v && v.saved])));
       const sel = this._el("vsrc");
       if (!match) {
         if (this._vAutoScript && sel.value === this._vAutoScript) {
@@ -10852,6 +10843,10 @@ ${GEAR_STYLE}
 .lv.lin i b{width:8px!important;left:var(--p,0%);margin-left:-4px;border-radius:2px;background:#ffb3d9;transition:left .25s linear}
 .pct{font-size:11px;font-weight:800;color:#e9fffb;font-variant-numeric:tabular-nums;min-width:28px;text-align:right}
 .hint{font-size:12.5px;color:var(--muted)}
+.scbar{position:relative;height:16px;border-radius:8px;background:#18233d;overflow:hidden;cursor:pointer;touch-action:none}
+.scbar canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;opacity:.9}
+.scbar i{position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(255,255,255,.28);border-right:2px solid #fff}
+.sctime{font-size:12px;color:var(--muted);margin-top:-4px}
 .modes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .modes button{min-height:64px;font-size:15px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
 .modes button span{font-size:22px}
@@ -11147,6 +11142,8 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         </div>
         <div id="k-script" class="panel">
           <div class="row"><select id="scsel" aria-label="Saved script"></select><button type="button" id="scren" class="ren" aria-label="Rename this script" title="Rename">✏️ Rename</button></div>
+          <div class="scbar" id="scbar" title="Tap to jump there"><canvas id="scheat"></canvas><i id="sccur"></i></div>
+          <div class="sctime" id="sctime"></div>
           <div class="row"><button class="go" id="scgo" type="button">▶ Play</button><label class="sw"><input type="checkbox" id="scloop"> Loop</label></div>
         </div>
         <div class="recrow"><button class="rec" id="rec" type="button">● Record</button><button id="save" type="button" disabled>💾 Save</button><span class="recinfo" id="recinfo">Record what plays, then save it.</span></div>
@@ -11209,6 +11206,21 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       $("scgo").addEventListener("click", () => {
         if (this._playing && this._playing.kind === "script") this._halt();
         else this._playScript();
+      });
+      $("scsel").addEventListener("change", () => {
+        this._scFrom = 0;
+        this._scLoad();
+      });
+      $("scbar").addEventListener("pointerdown", (e) => {
+        const s = this._scCache && this._scCache.script;
+        if (!s) return;
+        const r = $("scbar").getBoundingClientRect();
+        const at = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration(s);
+        if (this._playing && this._playing.kind === "script") this._playScript(at);
+        else {
+          this._scFrom = at;
+          this._scShow();
+        }
       });
       $("scren").addEventListener("click", () => this._rename());
       $("scan").addEventListener("click", () => this._search());
@@ -11339,6 +11351,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
           sc.value = v;
           if (v === this._wantScript) this._wantScript = null;
         }
+        this._scLoad();
       }
       this._$("scren").disabled = !names.length;
       if (this._queueCard) this._queueCard.externalTargets = this._targets().map((d) => d.stop);
@@ -11412,6 +11425,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       box.innerHTML = (two ? ["a", "b"] : ["a"]).map((ch, i) => `<div class="pad ${ch}" data-i="${i}" role="slider" aria-label="${esc(label(ch))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(this._pads[i])}" tabindex="0"><div class="fill" style="height:${this._pads[i]}%"></div><div class="lab">${esc(label(ch))}</div><div class="val">${Math.round(this._pads[i])}%</div></div>`).join("");
     }
     _showPlay() {
+      this._scShow();
       const $ = this._$;
       for (const b of this.shadowRoot.querySelectorAll(".kinds button")) b.classList.toggle("on", b.dataset.kind === this._kind);
       for (const k of ["manual", "pattern", "mood", "script"]) $(`k-${k}`).hidden = k !== this._kind;
@@ -11535,27 +11549,85 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       const m = renderMood(key, LOOP_MS, { strength: Number(this._$("moodstr").value), seed: 1 + Math.floor(Math.random() * 1e6) });
       this._start({ kind: "mood", key, tracks: { a: m.a, b: m.b || m.a, stroke: m.stroke }, loop: true, label: `${MOODS[key].icon} ${MOODS[key].label}` });
     }
-    async _playScript() {
+    // The chosen script (cached by name), for its shape and to play.
+    async _scGet(name) {
+      if (this._scCache && this._scCache.name === name) return this._scCache.script;
+      const res = await this._hass.callWS({ type: "call_service", domain: "ogg", service: "studio_get_script", service_data: { name }, return_response: true });
+      this._scCache = { name, script: res.response.script };
+      return this._scCache.script;
+    }
+    async _scLoad() {
+      const name = this._$("scsel").value;
+      if (!name || !this._hass) {
+        this._scCache = null;
+        this._scShow();
+        return;
+      }
+      try {
+        await this._scGet(name);
+      } catch (_) {
+        this._scCache = null;
+      }
+      this._scShow(true);
+    }
+    // The shape, where it is (playing, or where it will start) and the time.
+    _scShow(repaint) {
+      const $ = this._$;
+      if (!$) return;
+      const c = this._scCache && this._scCache.name === $("scsel").value ? this._scCache : null;
+      const canvas = $("scheat");
+      if (repaint || canvas.dataset.n !== (c ? c.name : "")) {
+        canvas.dataset.n = c ? c.name : "";
+        canvas.width = 160;
+        canvas.height = 1;
+        const ctx = canvas.getContext && canvas.getContext("2d");
+        if (ctx) {
+          ctx.clearRect(0, 0, 160, 1);
+          if (c) heatmap(c.script, 160).forEach((v, i) => {
+            ctx.fillStyle = heatColor(v);
+            ctx.fillRect(i, 0, 1, 1);
+          });
+        }
+      }
+      const len = c ? duration(c.script) : 0;
+      const p = this._playing && this._playing.kind === "script" && c && this._playing.label === c.name ? this._playing : null;
+      let at = this._scFrom || 0;
+      if (p) {
+        at = performance.now() - p.t0;
+        if (p.loop && len) at %= len;
+      }
+      at = Math.min(at, len);
+      $("sccur").style.left = len ? `${at / len * 100}%` : "0";
+      $("sccur").hidden = !c;
+      $("sctime").textContent = c ? `${clock(at)} / ${clock(len)}${p ? "" : at ? " · plays from here" : ""}` : "";
+      clearTimeout(this._scTimer);
+      if (p) this._scTimer = setTimeout(() => this._scShow(), 250);
+    }
+    async _playScript(from) {
       const name = this._$("scsel").value;
       if (!name) {
         this._toast("There are no saved scripts yet.");
         return;
       }
       try {
-        const res = await this._hass.callWS({ type: "call_service", domain: "ogg", service: "studio_get_script", service_data: { name }, return_response: true });
-        const s = res.response.script;
+        const s = await this._scGet(name);
         const v = isStroke(s) ? runScript(s, "speed") : s;
-        this._start({ kind: "script", tracks: { a: v.actions, b: v.channels && v.channels.V1 && v.channels.V1.actions || v.actions, stroke: isStroke(s) ? s.actions : null }, loop: this._$("scloop").checked, label: name });
+        const at = Math.max(0, from ?? this._scFrom ?? 0);
+        this._scFrom = 0;
+        this._start({ kind: "script", tracks: { a: v.actions, b: v.channels && v.channels.V1 && v.channels.V1.actions || v.actions, stroke: isStroke(s) ? s.actions : null }, loop: this._$("scloop").checked, label: name }, at);
+        this._scShow(true);
       } catch (e) {
         this._toast(`Could not load the script: ${e.message || e}`);
       }
     }
-    _start(play) {
+    _start(play, from = 0) {
       clearInterval(this._liveTimer);
       this._liveTimer = null;
       this._pads = [0, 0];
       this._showPads();
-      this._playing = { ...play, t0: performance.now(), len: Math.max(...[play.tracks.a, play.tracks.b].map((t) => t.length ? t[t.length - 1].at : 0)) };
+      const len = Math.max(...[play.tracks.a, play.tracks.b].map((t) => t.length ? t[t.length - 1].at : 0));
+      const at = from > 0 && from < len ? from : 0;
+      this._playing = { ...play, t0: performance.now() - at, from: at, len };
       this._resend();
       this._showPlay();
     }
@@ -11591,7 +11663,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
           if (d.dual) script.channels = { V1: { actions: scale(ch === "ab" ? p.tracks.b : first) } };
           output = "vibrate";
         }
-        this._hass.callService("ogg", "play_script", { entity_id: d.stop, script, output, speed: 1, loop: p.loop, ...p.loop ? { max_seconds: 21600 } : {} }).catch((e) => this._toast(`Could not play on ${d.name}: ${e.message || e}`));
+        this._hass.callService("ogg", "play_script", { entity_id: d.stop, script, output, speed: 1, loop: p.loop, ...p.from ? { start_ms: Math.round(p.from) } : {}, ...p.loop ? { max_seconds: 21600 } : {} }).catch((e) => this._toast(`Could not play on ${d.name}: ${e.message || e}`));
       }
       this._toast(`Playing ${p.label}.`);
     }

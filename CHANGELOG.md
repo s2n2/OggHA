@@ -1,3 +1,9 @@
+## 3.21.2 - Range rail, script jump, video scripts
+
+- **Range limits move straight away:** on the stroke range rail, a touch grabs the nearest limit (or the whole band) and drags it at once; the hold before it moved is gone.
+- **Script shape and jump in Manual → Script** (Easy card): under the script list, the script's shape as on the Queue card, with where it is. Tap it to jump there: while playing it carries on from there, otherwise Play starts there.
+- **A video's own script, more reliably:** a saved script named like the video (or a recording saved as "<video> · 5:24 · <date>") was missed if the saved scripts had not loaded yet when the video was chosen, and of several the first in the list won. Ogg now waits for the list and picks the exact name, else the newest.
+
 ## 3.21.1 - Connect Handy card text
 
 - The Connect Handy card's new guidance (what Bluetooth and Wi-Fi each suit) was missing from 3.21.0: a quote in its text kept the card from being rebuilt, so 3.21.0 carried the beta 6 card. Nothing else changes.

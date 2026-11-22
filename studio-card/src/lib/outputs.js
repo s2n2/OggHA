@@ -90,3 +90,16 @@ export function mergePasses(passes) {
   out.sort((a, b) => a.at - b.at);
   return out.filter((a, i) => i === 0 || a.at !== out[i - 1].at || (out[i - 1] = a, false));
 }
+
+// The saved script that goes with a video: named like it (case, extension and
+// punctuation aside), or starting with its name (a recording made with it is
+// saved as "<video> · 5:24 · Sun 22 Nov 09:01"). Several: the newest saved.
+export function matchVideoScript(video, names, saved = {}) {
+  const norm = (s) => String(s || '').toLowerCase().replace(/\.(funscript|json)$/, '').replace(/[^a-z0-9]+/g, '');
+  const want = norm(video);
+  if (!want) return null;
+  const newest = (list) => list.slice().sort((a, b) => String(saved[b] || '').localeCompare(String(saved[a] || '')))[0] || null;
+  const exact = names.filter((n) => norm(n) === want);
+  if (exact.length) return newest(exact);
+  return newest(names.filter((n) => { const k = norm(n); return k.length >= 4 && (k.startsWith(want) || want.startsWith(k)); }));
+}

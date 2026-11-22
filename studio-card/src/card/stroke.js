@@ -7,7 +7,6 @@ import { FOLLOW_STROKER, approachStep, parseTarget, railDrag, railGrab } from '.
 import { smoothActions } from '../lib/smooth.js';
 import { STROKE_LIMITS_RESET, STROKE_LIMIT_KEY, STROKE_SPEEDS, STROKE_SPEED_KEY, okPct, strokeSetLimit, strokeStep, strokeVel } from '../lib/stroke.js';
 
-const RAIL_HOLD_MS = 220;   // hold a range limit this long before it moves
 
 // Methods mixed into OggStudioCard.
 export class StrokePart {
@@ -74,45 +73,25 @@ export class StrokePart {
       const steps = { ArrowUp: 2, ArrowDown: -2, PageUp: 10, PageDown: -10 };
       if (e.key in steps) { e.preventDefault(); e.stopPropagation(); this._st.pos = Math.min(100, Math.max(0, this._st.pos + steps[e.key])); this._stMark(); this._stRun(); }
     });
-    // Range rail: drag a limit, or the band to move the whole range.
+    // Range rail: drag a limit, or the band to move the whole range. It
+    // moves straight away (a hold before it moved felt clunky).
     const rail = $('strail');
     let grab = null;
-    // A limit moves only after a short hold: a quick swipe here (meant for
-    // the position lane beside it) used to drag a limit to wherever the
-    // finger stopped, squashing the range to a few %.
-    let armT = null, armed = false, start = 0, pending = null;
     rail.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       capture(rail, e);
       const v = level(rail, e);
-      start = v;
-      armed = false;
-      pending = railGrab(this._st, v, 22 / rail.getBoundingClientRect().height * 100);   // ~22 px either side of a limit
-      clearTimeout(armT);
-      armT = setTimeout(() => {
-        if (!pending) return;
-        armed = true;
-        grab = pending;
-        rail.classList.add('active');
-        if (grab.mode !== 'move') Object.assign(this._st, railDrag(this._st, grab, start));
-        this._stShow();
-      }, RAIL_HOLD_MS);
+      grab = railGrab(this._st, v, 22 / rail.getBoundingClientRect().height * 100);   // ~22 px either side of a limit
+      rail.classList.add('active');
+      if (grab.mode !== 'move') Object.assign(this._st, railDrag(this._st, grab, v));
+      this._stShow();
     });
     rail.addEventListener('pointermove', (e) => {
-      const v = level(rail, e);
-      if (!armed) {
-        if (pending && Math.abs(v - start) > 4) {
-          pending = null; clearTimeout(armT);
-          this._toast('That is the range: hold a limit a moment to move it. The position lane is beside it.');
-        }
-        return;
-      }
       if (!grab) return;
-      Object.assign(this._st, railDrag(this._st, grab, v));
+      Object.assign(this._st, railDrag(this._st, grab, level(rail, e)));
       this._stShow();
     });
     const railUp = () => {
-      clearTimeout(armT); pending = null; armed = false;
       if (!grab) return;
       // A limit dragged by hand counts as the last one set (for Set limit's pairing).
       if (grab.mode !== 'move') this._st.last = grab.mode;

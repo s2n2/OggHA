@@ -17,7 +17,8 @@ import { limitMove, limitsFor } from '../lib/limits.js';
 import { MOODS } from '../lib/moods.js';
 import { sampleAt } from '../lib/outputs.js';
 import { PATTERNS, PATTERNS_DUAL, PATTERN_RANDOM, patternPeriod } from '../lib/patterns.js';
-import { clock, renderMood, renderPattern } from '../lib/compose.js';
+import { clock, duration, renderMood, renderPattern } from '../lib/compose.js';
+import { heatColor, heatmap } from '../lib/tools.js';
 import { VIEWERS_STYLE, oggPrivate, paintViewers, viewersBadge } from '../lib/private.js';
 import { lockAll, makeCover, studioSettings } from '../lib/cover.js';
 import { GEAR_STYLE, gearHtml, openDeviceSettings } from '../lib/devsettings.js';
@@ -79,6 +80,10 @@ ${GEAR_STYLE}
 .lv.lin i b{width:8px!important;left:var(--p,0%);margin-left:-4px;border-radius:2px;background:#ffb3d9;transition:left .25s linear}
 .pct{font-size:11px;font-weight:800;color:#e9fffb;font-variant-numeric:tabular-nums;min-width:28px;text-align:right}
 .hint{font-size:12.5px;color:var(--muted)}
+.scbar{position:relative;height:16px;border-radius:8px;background:#18233d;overflow:hidden;cursor:pointer;touch-action:none}
+.scbar canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;opacity:.9}
+.scbar i{position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(255,255,255,.28);border-right:2px solid #fff}
+.sctime{font-size:12px;color:var(--muted);margin-top:-4px}
 .modes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .modes button{min-height:64px;font-size:15px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
 .modes button span{font-size:22px}
@@ -321,6 +326,8 @@ export class OggEasyCard extends HTMLElement {
         </div>
         <div id="k-script" class="panel">
           <div class="row"><select id="scsel" aria-label="Saved script"></select><button type="button" id="scren" class="ren" aria-label="Rename this script" title="Rename">✏️ Rename</button></div>
+          <div class="scbar" id="scbar" title="Tap to jump there"><canvas id="scheat"></canvas><i id="sccur"></i></div>
+          <div class="sctime" id="sctime"></div>
           <div class="row"><button class="go" id="scgo" type="button">▶ Play</button><label class="sw"><input type="checkbox" id="scloop"> Loop</label></div>
         </div>
         <div class="recrow"><button class="rec" id="rec" type="button">● Record</button><button id="save" type="button" disabled>💾 Save</button><span class="recinfo" id="recinfo">Record what plays, then save it.</span></div>
@@ -354,6 +361,16 @@ export class OggEasyCard extends HTMLElement {
     });
     $('moodstr').addEventListener('input', () => { this._showPlay(); this._again('mood', () => this._playMood(this._playing.key)); });
     $('scgo').addEventListener('click', () => { if (this._playing && this._playing.kind === 'script') this._halt(); else this._playScript(); });
+    $('scsel').addEventListener('change', () => { this._scFrom = 0; this._scLoad(); });
+    // The script's shape (like the Queue card): tap to jump there, playing or not.
+    $('scbar').addEventListener('pointerdown', (e) => {
+      const s = this._scCache && this._scCache.script;
+      if (!s) return;
+      const r = $('scbar').getBoundingClientRect();
+      const at = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration(s);
+      if (this._playing && this._playing.kind === 'script') this._playScript(at);
+      else { this._scFrom = at; this._scShow(); }
+    });
     $('scren').addEventListener('click', () => this._rename());
     $('scan').addEventListener('click', () => this._search());
     $('lockb').addEventListener('click', () => lockAll());
@@ -468,6 +485,7 @@ export class OggEasyCard extends HTMLElement {
       const v = this._wantScript && names.includes(this._wantScript) ? this._wantScript : sc.value;
       sc.innerHTML = html; sc.dataset.h = html;
       if (names.includes(v)) { sc.value = v; if (v === this._wantScript) this._wantScript = null; }
+      this._scLoad();
     }
     this._$('scren').disabled = !names.length;
     if (this._queueCard) this._queueCard.externalTargets = this._targets().map((d) => d.stop);
@@ -538,6 +556,7 @@ export class OggEasyCard extends HTMLElement {
   }
 
   _showPlay() {
+    this._scShow();
     const $ = this._$;
     for (const b of this.shadowRoot.querySelectorAll('.kinds button')) b.classList.toggle('on', b.dataset.kind === this._kind);
     for (const k of ['manual', 'pattern', 'mood', 'script']) $(`k-${k}`).hidden = k !== this._kind;
@@ -646,21 +665,67 @@ export class OggEasyCard extends HTMLElement {
     this._start({ kind: 'mood', key, tracks: { a: m.a, b: m.b || m.a, stroke: m.stroke }, loop: true, label: `${MOODS[key].icon} ${MOODS[key].label}` });
   }
 
-  async _playScript() {
+  // The chosen script (cached by name), for its shape and to play.
+  async _scGet(name) {
+    if (this._scCache && this._scCache.name === name) return this._scCache.script;
+    const res = await this._hass.callWS({ type: 'call_service', domain: 'ogg', service: 'studio_get_script', service_data: { name }, return_response: true });
+    this._scCache = { name, script: res.response.script };
+    return this._scCache.script;
+  }
+
+  async _scLoad() {
+    const name = this._$('scsel').value;
+    if (!name || !this._hass) { this._scCache = null; this._scShow(); return; }
+    try { await this._scGet(name); } catch (_) { this._scCache = null; }
+    this._scShow(true);
+  }
+
+  // The shape, where it is (playing, or where it will start) and the time.
+  _scShow(repaint) {
+    const $ = this._$;
+    if (!$) return;
+    const c = this._scCache && this._scCache.name === $('scsel').value ? this._scCache : null;
+    const canvas = $('scheat');
+    if (repaint || canvas.dataset.n !== (c ? c.name : '')) {
+      canvas.dataset.n = c ? c.name : '';
+      canvas.width = 160; canvas.height = 1;
+      const ctx = canvas.getContext && canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, 160, 1);
+        if (c) heatmap(c.script, 160).forEach((v, i) => { ctx.fillStyle = heatColor(v); ctx.fillRect(i, 0, 1, 1); });
+      }
+    }
+    const len = c ? duration(c.script) : 0;
+    const p = this._playing && this._playing.kind === 'script' && c && this._playing.label === c.name ? this._playing : null;
+    let at = this._scFrom || 0;
+    if (p) { at = performance.now() - p.t0; if (p.loop && len) at %= len; }
+    at = Math.min(at, len);
+    $('sccur').style.left = len ? `${(at / len) * 100}%` : '0';
+    $('sccur').hidden = !c;
+    $('sctime').textContent = c ? `${clock(at)} / ${clock(len)}${p ? '' : at ? ' · plays from here' : ''}` : '';
+    clearTimeout(this._scTimer);
+    if (p) this._scTimer = setTimeout(() => this._scShow(), 250);
+  }
+
+  async _playScript(from) {
     const name = this._$('scsel').value;
     if (!name) { this._toast('There are no saved scripts yet.'); return; }
     try {
-      const res = await this._hass.callWS({ type: 'call_service', domain: 'ogg', service: 'studio_get_script', service_data: { name }, return_response: true });
-      const s = res.response.script;
+      const s = await this._scGet(name);
       const v = isStroke(s) ? runScript(s, 'speed') : s;
-      this._start({ kind: 'script', tracks: { a: v.actions, b: (v.channels && v.channels.V1 && v.channels.V1.actions) || v.actions, stroke: isStroke(s) ? s.actions : null }, loop: this._$('scloop').checked, label: name });
+      const at = Math.max(0, from ?? this._scFrom ?? 0);
+      this._scFrom = 0;
+      this._start({ kind: 'script', tracks: { a: v.actions, b: (v.channels && v.channels.V1 && v.channels.V1.actions) || v.actions, stroke: isStroke(s) ? s.actions : null }, loop: this._$('scloop').checked, label: name }, at);
+      this._scShow(true);
     } catch (e) { this._toast(`Could not load the script: ${e.message || e}`); }
   }
 
-  _start(play) {
+  _start(play, from = 0) {
     clearInterval(this._liveTimer); this._liveTimer = null;
     this._pads = [0, 0]; this._showPads();
-    this._playing = { ...play, t0: performance.now(), len: Math.max(...[play.tracks.a, play.tracks.b].map((t) => (t.length ? t[t.length - 1].at : 0))) };
+    const len = Math.max(...[play.tracks.a, play.tracks.b].map((t) => (t.length ? t[t.length - 1].at : 0)));
+    const at = from > 0 && from < len ? from : 0;
+    this._playing = { ...play, t0: performance.now() - at, from: at, len };
     this._resend();
     this._showPlay();
   }
@@ -691,7 +756,7 @@ export class OggEasyCard extends HTMLElement {
         if (d.dual) script.channels = { V1: { actions: scale(ch === 'ab' ? p.tracks.b : first) } };
         output = 'vibrate';
       }
-      this._hass.callService('ogg', 'play_script', { entity_id: d.stop, script, output, speed: 1, loop: p.loop, ...(p.loop ? { max_seconds: 21600 } : {}) })
+      this._hass.callService('ogg', 'play_script', { entity_id: d.stop, script, output, speed: 1, loop: p.loop, ...(p.from ? { start_ms: Math.round(p.from) } : {}), ...(p.loop ? { max_seconds: 21600 } : {}) })
         .catch((e) => this._toast(`Could not play on ${d.name}: ${e.message || e}`));
     }
     this._toast(`Playing ${p.label}.`);

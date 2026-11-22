@@ -186,3 +186,17 @@ console.log('slow finger following passed');
   assert.deepStrictEqual([wifi.goal, Math.round(wifi.dur)], [0, 700], 'Wi-Fi: read 0.8 s ahead');
   console.log('Wi-Fi lead passed');
 }
+
+// A saved script named like a video goes with it: exactly, or a recording
+// saved as "<video> · 5:24 · <date>"; of several, the newest.
+{
+  const { matchVideoScript } = await import('../src/lib/outputs.js');
+  const names = ['1000001279 · 0:33 · Sat 21 Nov', '1000001279 · 5:24 · Sun 22 Nov 09:01', 'Quickie (5 min)', 'Beach Day'];
+  const saved = { '1000001279 · 0:33 · Sat 21 Nov': '2026-11-21T10:51:02', '1000001279 · 5:24 · Sun 22 Nov 09:01': '2026-11-21T20:01:12' };
+  assert.strictEqual(matchVideoScript('1000001279', names, saved), '1000001279 · 5:24 · Sun 22 Nov 09:01');
+  assert.strictEqual(matchVideoScript('beach_day', names, saved), 'Beach Day');
+  assert.strictEqual(matchVideoScript('Beach Day.funscript', names, saved), 'Beach Day');
+  assert.strictEqual(matchVideoScript('holiday', names, saved), null);
+  assert.strictEqual(matchVideoScript('', names, saved), null);
+  console.log('video script matching passed');
+}

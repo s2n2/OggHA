@@ -3,7 +3,7 @@ import { FOLLOW_AI } from '../lib/ai.js';
 import { RUN_MODES, RUN_MODE_DEFAULT, fileKind, fileTitle, isStroke, normalise } from '../lib/convert.js';
 import { SAMPLE_MS, SPEEDS, TAKE_SRC, VIDEO_QUEUE, decodeText, duration, encodeCode, esc, fmt } from '../lib/core.js';
 import { limitLevels, limitMove } from '../lib/limits.js';
-import { FOLLOW_STROKER, OUT_KEY, outLevels, parseTarget } from '../lib/outputs.js';
+import { FOLLOW_STROKER, OUT_KEY, matchVideoScript, outLevels, parseTarget } from '../lib/outputs.js';
 import { STROKE_TOP } from '../lib/stroke.js';
 import { gearHtml, openDeviceSettings } from '../lib/devsettings.js';
 
@@ -660,14 +660,18 @@ export class OutputsPart {
 
   // A saved script named like the video (case, extension and punctuation
   // aside) is chosen for it: in the video's script list and the Library.
-  _matchVideoScript() {
-    const norm = (s) => String(s || '').toLowerCase().replace(/\.(funscript|json)$/, '').replace(/[^a-z0-9]+/g, '');
-    const want = norm(this._vname);
-    if (!want) return;
+  _matchVideoScript(tries = 0) {
+    if (!this._vname) return;
     const savedState = this._studio && this._studio.saved && this._hass && this._hass.states[this._studio.saved];
-    const names = ((savedState && savedState.attributes.options) || []).filter((n) => n && !/^\(.*\)$/.test(n));
-    const match = names.find((n) => norm(n) === want)
-      || names.find((n) => { const k = norm(n); return k.length >= 4 && (k.startsWith(want) || want.startsWith(k)); });
+    if (!savedState) {
+      // The saved scripts are not known yet (the card is still loading): look again shortly.
+      clearTimeout(this._vMatchT);
+      if (tries < 20) this._vMatchT = setTimeout(() => this._matchVideoScript(tries + 1), 500);
+      return;
+    }
+    const names = (savedState.attributes.options || []).filter((n) => n && !/^\(.*\)$/.test(n));
+    const info = savedState.attributes.scripts || {};
+    const match = matchVideoScript(this._vname, names, Object.fromEntries(Object.entries(info).map(([k, v]) => [k, v && v.saved])));
     const sel = this._el('vsrc');
     if (!match) {
       // The last video's own script does not go with this one.
