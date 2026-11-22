@@ -172,6 +172,31 @@ Home Assistant has restarted, then hard-refresh your browser.
 For manual installation, copy `custom_components/ogg` into your Home Assistant
 configuration's `custom_components` folder, restart, then add Ogg as above.
 
+### The Handy over Wi-Fi: the Connect Handy card (3.21)
+
+```yaml
+type: custom:ogg-connect-handy-card
+```
+
+The Handy (firmware 4) can also be reached over Wi-Fi, through Ohdoki's Handy
+API, switched by hand on this card. It stays the same Ogg device with the same
+entities, and every card works as usual whichever way it is connected.
+
+- **Bluetooth** (the default): everything, with live control (a finger on the
+  stroke bar, pads) at its quickest.
+- **Wi-Fi**: scripts and videos play smoothly and in time (they are sent ahead
+  into the Handy's own buffer), and it works anywhere the Handy has internet.
+  Live control runs about 1.5 s behind (every move goes through Ohdoki's
+  servers), so Bluetooth is better for that.
+
+To set it up: on the card's Keys, enter the Handy's connection key and an
+Application ID from the handyfeeling.com developer portal (an administrator
+only; they are kept in `secrets.yaml` as `ogg_handy_connection_key` and
+`ogg_handy_app_id`, never shown in full). Put the Handy on Wi-Fi, then switch
+the card on. While Wi-Fi is on, Ogg turns IntiHA's *Connect to this device* off
+for the Handy, so a Bluetooth reconnect does not interrupt it; switching Wi-Fi
+off turns it back on.
+
 ## Configure your servers
 
 You can enter **five manual addresses** and select **five sensor entities**.

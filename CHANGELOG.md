@@ -1,3 +1,11 @@
+## 3.21.0 - The Handy over Wi-Fi
+
+- **Connect Handy card** (`type: custom:ogg-connect-handy-card`): the Handy (firmware 4) over Wi-Fi as well as Bluetooth, switched by hand. It stays the same Ogg device with the same entities, and every card works as usual either way. Bluetooth is unchanged and stays the default.
+- **What each is best for:** Bluetooth for everything, with live control (finger, pads) at its quickest. Wi-Fi for scripts and videos, and anywhere the Handy has internet: they are sent ahead into the Handy's own buffer and play smoothly and in time; live control runs about 1.5 s behind, because every move goes through Ohdoki's servers.
+- **Keys in secrets.yaml:** the card saves the Handy's connection key and an Application ID (handyfeeling.com developer portal) as `ogg_handy_connection_key` and `ogg_handy_app_id`; administrators only, never shown in full or stored anywhere else.
+- **Measured on the Handy and built in:** out of points its stream runs on to the end of the stroke, so Ogg streams with pause-on-starving and re-syncs its clock after a pause; points go in order without waiting for each answer, at most two at a time and no faster than the Handy answers (about one a second), so the delay stays steady; each move keeps its arrival time (no drift) and close moves carry straight on. While Wi-Fi is on, IntiHA's *Connect to this device* is turned off for the Handy, so a Bluetooth reconnect does not interrupt it.
+- **Test** on the card: whether the Handy is on Wi-Fi, its firmware, the round trip and the delay.
+
 ## 3.21.0b6 - The Handy over Wi-Fi (beta)
 
 - **Paced to the Handy:** beta 5 sent finger moves four times a second with up to ten requests on their way. The Handy takes about one a second over Wi-Fi, so they queued: round trips grew from 1.3 s to over 4 s, the delay grew with them (2 to 2.9 s) and requests timed out. Now at most two are on their way, sent no faster than the Handy answers, so the delay stays steady.
