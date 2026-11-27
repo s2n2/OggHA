@@ -10872,7 +10872,8 @@ ha-card.embedded .head{display:none}
       return ((x ^ x >>> 14) >>> 0) / 4294967296;
     };
   }
-  function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130, minutes = 60) {
+  var CRUEL_SEG_SCALE = 0.9;
+  function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130, minutes = 60, cruel = false) {
     minutes = Math.max(1, Math.min(90, Math.round(minutes)));
     intensity = Math.max(1, Math.min(10, Math.round(intensity)));
     const total = minutes * 6e4;
@@ -10884,6 +10885,9 @@ ha-card.embedded .head{display:none}
     const U = (a, b) => a + (b - a) * rnd();
     const RI = (a, b) => Math.floor(U(a, b + 1));
     const pick = (list) => list[Math.floor(rnd() * list.length)];
+    const crnd = mulberry32(Math.imul((seed >>> 0) + 1, 2246822507) ^ 3266489909);
+    const CU = (a, b) => a + (b - a) * crnd();
+    const segScale = cruel ? CRUEL_SEG_SCALE : 1;
     const A = [];
     let t = 0;
     const add = (p) => A.push({ at: Math.round(t), pos: Math.max(0, Math.min(100, Math.round(p))) });
@@ -10893,17 +10897,25 @@ ha-card.embedded .head{display:none}
       return [c - h, c + h];
     };
     const live = (e) => t < e && t < total;
-    function strokes(dur, b0, b1, lo, hi, j = 4) {
+    function strokes(dur, b0, b1, lo, hi, j = 4, clip = false) {
       [lo, hi] = R(lo, hi);
       b0 = B(b0);
       b1 = B(b1);
       const st = t, e = t + dur * 1e3;
       while (live(e)) {
         const g = (t - st) / (e - st), h = 6e4 / (b0 + (b1 - b0) * g) / 2;
+        if (!clip) {
+          add(hi - U(0, j));
+          t += h;
+          add(lo + U(0, j));
+          t += h;
+          continue;
+        }
         add(hi - U(0, j));
-        t += h;
+        t += Math.max(1e3, Math.min(h, e - t));
+        if (!live(e)) break;
         add(lo + U(0, j));
-        t += h;
+        t += Math.max(1e3, Math.min(h, e - t));
       }
     }
     function stairs(dur, b0, b1, steps, lo, hi) {
@@ -10913,8 +10925,15 @@ ha-card.embedded .head{display:none}
       }
     }
     function waves(dur, b, w, top, depth, swing) {
+      dur *= segScale;
       const st = t, e = t + dur * 1e3, h = 6e4 / B(b) / 2, ph = U(0, 2 * Math.PI);
+      let next = nextFreeze();
       while (live(e)) {
+        if (t >= next) {
+          freeze(e);
+          next = nextFreeze();
+          continue;
+        }
         const d = depth + swing * Math.sin(ph + 2 * Math.PI * (t - st) / (w * 1e3));
         add(top);
         t += h;
@@ -10923,9 +10942,22 @@ ha-card.embedded .head{display:none}
       }
     }
     function tease(dur, b, de, hiBand, loBand) {
+      dur *= segScale;
       const e = t + dur * 1e3, h = 6e4 / B(b) / 2;
       let n = 0, nd = RI(...de);
+      let next = nextFreeze();
+      let fakeAt = cruel && crnd() < 0.5 ? t + CU(0.3, 0.8) * dur * 1e3 : Infinity;
       while (live(e)) {
+        if (t >= fakeAt) {
+          fakeOut(e);
+          fakeAt = Infinity;
+          continue;
+        }
+        if (t >= next) {
+          freeze(e);
+          next = nextFreeze();
+          continue;
+        }
         n++;
         if (n >= nd) {
           add(100);
@@ -10973,10 +11005,32 @@ ha-card.embedded .head{display:none}
     }
     function hold(dur, p) {
       if (t >= total) return;
+      let ms = dur * holdMult * 1e3;
+      if (cruel) {
+        ms = Math.min(ms, total - t - 500);
+        if (ms < 1e3) return;
+      }
       add(p);
-      t += dur * holdMult * 1e3;
+      t += ms;
       add(p);
       t += 500;
+    }
+    function nextFreeze() {
+      return cruel ? t + CU(40, 120) * 1e3 : Infinity;
+    }
+    function freeze(e) {
+      const ms = CU(4, 12) * 1e3, p = CU(70, 100);
+      if (t + ms + 500 > Math.min(e, total)) return;
+      add(p);
+      t += ms;
+      add(p);
+      t += 500;
+    }
+    function fakeOut(e) {
+      const stop = CU(8, 15) * holdMult, room = (Math.min(e, total) - t) / 1e3 - stop - 0.5;
+      if (room < 10) return;
+      strokes(Math.min(CU(15, 25), room), 60, 110, 0, 100);
+      hold(stop / holdMult, 100);
     }
     const plan = [];
     const warm = pick(["ramp", "waves", "slow"]);
@@ -11044,12 +11098,24 @@ ha-card.embedded .head{display:none}
     }
     const cool = U(110, 290);
     const sum = plan.reduce((n, [s]) => n + s, 0);
-    const scale = (3600 - cool) / sum * (minutes / 60);
+    let scale = (3600 - cool) / sum * (minutes / 60);
+    if (cruel) {
+      let rest2 = 0, stops = 0;
+      for (const p of plan) {
+        if (p[2]) {
+          p[0] *= CU(1, 1.5);
+          stops += p[0];
+        } else rest2 += p[0];
+      }
+      scale = Math.min(scale, (3600 - cool) * (minutes / 60) / (rest2 + stops * holdMult));
+    }
     for (const [s, run] of plan) {
       if (t >= total) break;
       run(s * scale);
     }
-    strokes(Math.max(0, (total - t) / 1e3), 30 / tempoMult, 12 / tempoMult, 40, 70);
+    const rest = Math.max(0, (total - t) / 1e3);
+    if (cruel) strokes(rest, 10 / tempoMult, 8 / tempoMult, 48, 60, 2, true);
+    else strokes(rest, 30 / tempoMult, 12 / tempoMult, 40, 70);
     add(50);
     return { version: "1.0", inverted: false, range: 100, actions: A };
   }
@@ -11069,7 +11135,7 @@ ha-card.embedded .head{display:none}
     }
     return "";
   }
-  var relaxTeaseEdgeFile = (intensity, minutes = 60, seed) => `relax_tease_edge_${Math.max(1, Math.min(90, Math.round(minutes)))}min_i${Math.max(1, Math.min(10, Math.round(intensity)))}${seed ? `_v${seed}` : ""}.funscript`;
+  var relaxTeaseEdgeFile = (intensity, minutes = 60, seed, cruel = false) => `relax_tease_edge_${Math.max(1, Math.min(90, Math.round(minutes)))}min_i${Math.max(1, Math.min(10, Math.round(intensity)))}${seed ? `_v${seed}` : ""}${cruel ? "_cruel" : ""}.funscript`;
 
   // studio-card/src/card/easy.js
   var STROKES = /* @__PURE__ */ new WeakMap();
@@ -11182,6 +11248,8 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
 .loadbox .x{flex:0 0 48px}
 #loadedbox .row input{flex:2 1 0}
 .loadbox .sub{border-top:1px solid var(--line);padding-top:10px;margin-top:4px}
+.gcruel{margin:2px 0 0 76px;flex-wrap:wrap;row-gap:0}.gcruel span{font-weight:500;font-size:11.5px;color:var(--muted)}
+.scbar.blind canvas,.scbar.blind i{visibility:hidden}
 .loadbox .ends{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin:-6px 0 0 76px;padding-right:66px}
 .loadbox .sl span{flex:0 0 66px}
 .loadbox .sl b{flex:0 0 56px;white-space:nowrap}
@@ -11453,7 +11521,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
           <div class="row"><select id="scsel" aria-label="Saved script"></select><button type="button" id="scren" class="ren" aria-label="Rename this script" title="Rename">✏️ Rename</button></div>
           <div class="scbar" id="scbar" title="Tap to jump there"><canvas id="scheat"></canvas><i id="sccur"></i></div>
           <div class="sctime" id="sctime"></div>
-          <div class="row"><button class="go" id="scgo" type="button">▶ Play</button><label class="sw"><input type="checkbox" id="scloop"> Loop</label></div>
+          <div class="row"><button class="go" id="scgo" type="button">▶ Play</button><label class="sw"><input type="checkbox" id="scloop"> Loop</label><label class="sw" title="While it plays, hide where it is and how long is left"><input type="checkbox" id="schide"> Hide timeline</label></div>
         </div>
         <div class="recrow"><button class="rec" id="rec" type="button">● Record</button><button id="save" type="button" disabled>💾 Save</button><span class="recinfo" id="recinfo">Record what plays, then save it.</span></div>
         <button class="stop big" id="stopall" type="button" title="Stop everything Ogg is playing, on every card">■ Stop all</button>
@@ -11468,6 +11536,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
           <label class="sl"><span>Length</span><input type="range" id="glen" min="1" max="90" step="1" value="60"><b id="glenv">60 min</b></label>
           <label class="sl"><span>Intensity</span><input type="range" id="gint" min="1" max="10" step="1" value="6"><b id="gintv">6</b></label>
           <div class="ends"><span>Gentle</span><span>Intense</span></div>
+          <label class="sw gcruel"><input type="checkbox" id="gcruel"> Cruel mode <span>surprise freezes, fake-out edges, a denied ending</span></label>
           <label class="sl"><span>Max bpm</span><input type="range" id="gbpm" min="80" max="150" step="5" value="130"><b id="gbpmv">130</b></label>
           <label class="sl"><span>Variation</span><input type="range" id="gseed" min="1" max="100" step="1" value="7" aria-label="Variation (the same number always makes the same script)"><b id="gseedv">7</b></label>
           <div class="gprev" id="gprev" hidden><canvas id="gcan" aria-label="Preview: position over time, coloured by speed"></canvas><div class="gaxis"><span>0:00</span><span id="gmid"></span><span id="gend"></span></div></div>
@@ -11562,6 +11631,12 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       for (const id of ["glen", "gint", "gbpm", "gseed"]) $(id).addEventListener("input", () => {
         $(`${id}v`).textContent = `${$(id).value}${id === "glen" ? " min" : ""}`;
         this._genChanged();
+      });
+      $("gcruel").addEventListener("change", () => this._genChanged());
+      $("schide").checked = !!keepGet2().hideTimeline;
+      $("schide").addEventListener("change", () => {
+        keepSet2({ hideTimeline: $("schide").checked });
+        this._scShow();
       });
       $("gmake").addEventListener("click", () => this._genMake());
       $("gload").addEventListener("click", () => this._genLoad());
@@ -11949,9 +12024,11 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         if (p.loop && len) at %= len;
       }
       at = Math.min(at, len);
-      $("sccur").style.left = len ? `${at / len * 100}%` : "0";
+      const blind = !!p && $("schide").checked;
+      $("scbar").classList.toggle("blind", blind);
+      $("sccur").style.left = len && !blind ? `${at / len * 100}%` : "0";
       $("sccur").hidden = !c;
-      $("sctime").textContent = c ? `${clock(at)} / ${clock(len)}${p ? "" : at ? " · plays from here" : ""}` : "";
+      $("sctime").textContent = !c ? "" : blind ? "Playing · timeline hidden" : `${clock(at)} / ${clock(len)}${p ? "" : at ? " · plays from here" : ""}`;
       clearTimeout(this._scTimer);
       if (p) this._scTimer = setTimeout(() => this._scShow(), 250);
     }
@@ -12215,16 +12292,16 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
     _genSettings() {
       const $ = this._$;
       const seed = Math.floor(Number($("gseed").value));
-      return { minutes: Number($("glen").value) || 60, intensity: Number($("gint").value) || 6, maxBpm: Number($("gbpm").value) || 130, seed: Number.isFinite(seed) ? Math.max(1, Math.min(100, seed)) : 7 };
+      return { minutes: Number($("glen").value) || 60, intensity: Number($("gint").value) || 6, maxBpm: Number($("gbpm").value) || 130, seed: Number.isFinite(seed) ? Math.max(1, Math.min(100, seed)) : 7, cruel: $("gcruel").checked };
     }
     _genBuild() {
       const g = this._genSettings();
-      const key = `${g.seed}|${g.intensity}|${g.maxBpm}|${g.minutes}`;
+      const key = `${g.seed}|${g.intensity}|${g.maxBpm}|${g.minutes}|${g.cruel}`;
       if (!this._gen || this._gen.key !== key) {
-        const raw = generateRelaxTeaseEdge(g.seed, g.intensity, g.maxBpm, g.minutes);
+        const raw = generateRelaxTeaseEdge(g.seed, g.intensity, g.maxBpm, g.minutes, g.cruel);
         const bad = checkScript(raw);
         if (bad) throw new Error(`the made script is wrong (${bad})`);
-        const script = normalise({ ...raw, metadata: { type: "stroke", title: `Relax tease edge ${g.minutes} min i${g.intensity}` } }, "stroke", false);
+        const script = normalise({ ...raw, metadata: { type: "stroke", title: `Relax tease edge ${g.minutes} min i${g.intensity}${g.cruel ? " cruel" : ""}` } }, "stroke", false);
         this._gen = { key, g, raw, script, peak: peakSpeed(raw.actions) };
       }
       return this._gen;
@@ -12310,7 +12387,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
     _genLoad() {
       try {
         const { g, script } = this._genBuild();
-        this._useLoaded({ name: `Relax tease edge ${g.minutes}m i${g.intensity} v${g.seed}${g.maxBpm !== 130 ? ` ${g.maxBpm}bpm` : ""}`, script }, "Loaded");
+        this._useLoaded({ name: `Relax tease edge ${g.minutes}m i${g.intensity} v${g.seed}${g.maxBpm !== 130 ? ` ${g.maxBpm}bpm` : ""}${g.cruel ? " cruel" : ""}`, script }, "Loaded");
         this._genInfo();
       } catch (e) {
         this._toast(e.message || String(e));
@@ -12320,7 +12397,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       try {
         const { g, raw } = this._genBuild();
         const url = URL.createObjectURL(new Blob([JSON.stringify(raw)], { type: "application/json" }));
-        const a = Object.assign(document.createElement("a"), { href: url, download: relaxTeaseEdgeFile(g.intensity, g.minutes, g.seed) });
+        const a = Object.assign(document.createElement("a"), { href: url, download: relaxTeaseEdgeFile(g.intensity, g.minutes, g.seed, g.cruel) });
         document.body.appendChild(a);
         a.click();
         a.remove();

@@ -266,6 +266,56 @@ console.log('slow finger following passed');
   console.log(`make a script passed (peaks: i1 ${Math.round(p1)}, i6 ${Math.round(p6)}, i10 ${Math.round(p10)} units/s)`);
 }
 
+// Cruel mode: off is byte-for-byte the script from before it existed; on, every
+// script still ends on time with clean points, has its freezes and fake-outs,
+// and leaves at least 90 s of denied ending at 60 minutes.
+{
+  const { createHash } = await import('crypto');
+  const { generateRelaxTeaseEdge, checkScript, relaxTeaseEdgeFile } = await import('../src/lib/generate.js');
+  const hash = (g) => createHash('sha256').update(JSON.stringify(g)).digest('hex').slice(0, 16);
+  // Taken from 3.22.2, before cruel mode.
+  const before = { '1/6/60': '96bf8e214a3d71f4', '7/6/60': '527247b9956fee2d', '42/6/60': '5ca7b58691084a4f', '7/10/90': '72f2fba028e71688', '42/1/5': 'fe2453c7498e2b2e' };
+  for (const [k, h] of Object.entries(before)) {
+    const [seed, i, min] = k.split('/').map(Number);
+    assert.strictEqual(hash(generateRelaxTeaseEdge(seed, i, 130, min)), h, `cruel off changed ${k}`);
+    assert.strictEqual(hash(generateRelaxTeaseEdge(seed, i, 130, min, false)), h, `cruel false changed ${k}`);
+  }
+  const flats = (a, from, to) => { const out = []; for (let j = 1; j < a.length - 1; j++) if (a[j].pos === a[j - 1].pos && a[j].at - a[j - 1].at >= from && a[j].at - a[j - 1].at <= to) out.push(a[j]); return out; };
+  let worst = Infinity, freezes = 0;
+  for (let seed = 1; seed <= 100; seed++) {
+    for (const i of [1, 6, 10]) {
+      const g = generateRelaxTeaseEdge(seed, i, 130, 60, true);
+      assert.strictEqual(checkScript(g), '', `cruel variation ${seed} intensity ${i}`);
+      const a = g.actions, end = a[a.length - 1].at;
+      assert.ok(end >= 3600000 && end - 3600000 < 1000, `cruel variation ${seed} intensity ${i} ends at ${end}`);
+      // The denied ending: after the last stop, to the end.
+      let last = 0; for (let j = 1; j < a.length - 1; j++) if (a[j].pos === a[j - 1].pos && a[j].at - a[j - 1].at >= 3000) last = a[j].at + 500;
+      const fin = (3600000 - last) / 1000; worst = Math.min(worst, fin);
+      assert.ok(fin >= 90, `cruel variation ${seed} intensity ${i}: ending ${fin} s`);
+      const tail = a.filter((x) => x.at > last);
+      assert.ok(tail.every((x) => x.pos >= 45 && x.pos <= 62), `cruel variation ${seed} intensity ${i}: the ending is shallow`);
+      freezes += flats(a, 4000, 12000).filter((x) => x.pos >= 70 && x.pos < 100).length;
+      assert.notDeepStrictEqual(g, generateRelaxTeaseEdge(seed, i, 130, 60), 'cruel changes the script');
+    }
+  }
+  assert.ok(freezes / 300 >= 3, `surprise freezes: ${freezes / 300} a script`);
+  for (const min of [1, 2, 5, 15, 30, 45, 61, 75, 90]) {
+    for (const i of [1, 6, 10]) {
+      for (const seed of [1, 7, 50, 100]) {
+        const g = generateRelaxTeaseEdge(seed, i, 130, min, true);
+        assert.strictEqual(checkScript(g), '', `cruel ${min} min intensity ${i} variation ${seed}`);
+        const end = g.actions[g.actions.length - 1].at;
+        assert.ok(end >= min * 60000 && end - min * 60000 < 6000, `cruel ${min} min intensity ${i} variation ${seed} ends at ${end}`);
+      }
+    }
+  }
+  assert.deepStrictEqual(generateRelaxTeaseEdge(7, 8, 130, 60, true), generateRelaxTeaseEdge(7, 8, 130, 60, true));
+  assert.strictEqual(relaxTeaseEdgeFile(8, 60, undefined, true), 'relax_tease_edge_60min_i8_cruel.funscript');
+  assert.strictEqual(relaxTeaseEdgeFile(8, 25, 42, true), 'relax_tease_edge_25min_i8_v42_cruel.funscript');
+  assert.strictEqual(relaxTeaseEdgeFile(8, 25, 42, false), 'relax_tease_edge_25min_i8_v42.funscript');
+  console.log(`cruel mode passed (shortest denied ending ${Math.round(worst)} s, ${(freezes / 300).toFixed(1)} freezes a script)`);
+}
+
 // A pasted code or funscript loads as a script with a name, and stays loaded.
 {
   globalThis.localStorage = globalThis.localStorage || (() => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; })();

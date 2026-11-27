@@ -25,7 +25,14 @@ export function mulberry32(seed) {
 //   from 6), the stops after each edge x0.5-1.4.
 // * maxBpm caps every tempo. minutes 1-90: the plan fills it, the cool-down
 //   to the end.
-export function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130, minutes = 60) {
+// * cruel (off by default): surprise freezes in waves and tease, fake-out
+//   edges in about half the tease sections, each edge's stop 1-1.5x as long,
+//   and a denied ending (barely moving) in place of the cool-down. Waves and
+//   tease run at CRUEL_SEG_SCALE of their length to make room; freezes and
+//   fake-outs happen inside them. Cruel draws from its own random stream, so
+//   with it off the script is exactly as before.
+export const CRUEL_SEG_SCALE = 0.9;
+export function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130, minutes = 60, cruel = false) {
   minutes = Math.max(1, Math.min(90, Math.round(minutes)));
   intensity = Math.max(1, Math.min(10, Math.round(intensity)));
   const total = minutes * 60000;
@@ -39,6 +46,10 @@ export function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130, mi
   const U = (a, b) => a + (b - a) * rnd();
   const RI = (a, b) => Math.floor(U(a, b + 1));
   const pick = (list) => list[Math.floor(rnd() * list.length)];
+  // Cruel mode's own stream: nothing in it is drawn with cruel off.
+  const crnd = mulberry32(Math.imul((seed >>> 0) + 1, 0x85EBCA6B) ^ 0xC2B2AE35);
+  const CU = (a, b) => a + (b - a) * crnd();
+  const segScale = cruel ? CRUEL_SEG_SCALE : 1;
 
   const A = []; let t = 0;
   const add = (p) => A.push({ at: Math.round(t), pos: Math.max(0, Math.min(100, Math.round(p))) });
@@ -48,12 +59,15 @@ export function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130, mi
 
   // ---- the building blocks (dur in seconds, bpm before intensity) ----
   // Strokes; tempo ramps from b0 to b1.
-  function strokes(dur, b0, b1, lo, hi, j = 4) {
+  // clip: the last half-stroke is cut short so it ends on time (the slow denied ending).
+  function strokes(dur, b0, b1, lo, hi, j = 4, clip = false) {
     [lo, hi] = R(lo, hi); b0 = B(b0); b1 = B(b1);
     const st = t, e = t + dur * 1000;
     while (live(e)) {
       const g = (t - st) / (e - st), h = 60000 / (b0 + (b1 - b0) * g) / 2;
-      add(hi - U(0, j)); t += h; add(lo + U(0, j)); t += h;
+      if (!clip) { add(hi - U(0, j)); t += h; add(lo + U(0, j)); t += h; continue; }
+      add(hi - U(0, j)); t += Math.max(1000, Math.min(h, e - t)); if (!live(e)) break;
+      add(lo + U(0, j)); t += Math.max(1000, Math.min(h, e - t));
     }
   }
   // Tempo in steps, b0 to b1.
@@ -62,16 +76,24 @@ export function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130, mi
   }
   // Steady tempo; the stroke swells and fades like breathing, from `top` down.
   function waves(dur, b, w, top, depth, swing) {
+    dur *= segScale;
     const st = t, e = t + dur * 1000, h = 60000 / B(b) / 2, ph = U(0, 2 * Math.PI);
+    let next = nextFreeze();
     while (live(e)) {
+      if (t >= next) { freeze(e); next = nextFreeze(); continue; }
       const d = depth + swing * Math.sin(ph + 2 * Math.PI * (t - st) / (w * 1000));
       add(top); t += h; add(top - d); t += h;
     }
   }
   // Quick shallow flicks in a band, now and then one slow full stroke.
   function tease(dur, b, de, hiBand, loBand) {
+    dur *= segScale;
     const e = t + dur * 1000, h = 60000 / B(b) / 2; let n = 0, nd = RI(...de);
+    let next = nextFreeze();
+    let fakeAt = cruel && crnd() < 0.5 ? t + CU(0.3, 0.8) * dur * 1000 : Infinity;
     while (live(e)) {
+      if (t >= fakeAt) { fakeOut(e); fakeAt = Infinity; continue; }
+      if (t >= next) { freeze(e); next = nextFreeze(); continue; }
       n++;
       if (n >= nd) { add(100); t += U(900, 1600); add(U(0, 10)); t += U(1100, 2000); n = 0; nd = RI(...de); }
       else { add(U(...hiBand)); t += h; add(U(...loBand)); t += h; }
@@ -94,7 +116,30 @@ export function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130, mi
     }
   }
   // A complete stop: two points at the same place so the device holds still.
-  function hold(dur, p) { if (t >= total) return; add(p); t += dur * holdMult * 1000; add(p); t += 500; }
+  // (Cruel: cut short at the end, as its stops run longer.)
+  function hold(dur, p) {
+    if (t >= total) return;
+    let ms = dur * holdMult * 1000;
+    if (cruel) { ms = Math.min(ms, total - t - 500); if (ms < 1000) return; }
+    add(p); t += ms; add(p); t += 500;
+  }
+
+  // ---- cruel mode (never reached with it off) ----
+  // The next surprise freeze, 40-120 s on.
+  function nextFreeze() { return cruel ? t + CU(40, 120) * 1000 : Infinity; }
+  // Stops dead high up for 4-12 s, then carries on. Inside the section: skipped if it would not fit.
+  function freeze(e) {
+    const ms = CU(4, 12) * 1000, p = CU(70, 100);
+    if (t + ms + 500 > Math.min(e, total)) return;
+    add(p); t += ms; add(p); t += 500;
+  }
+  // A sudden 15-25 s build to near the peak, a hard stop, then back to teasing.
+  function fakeOut(e) {
+    const stop = CU(8, 15) * holdMult, room = (Math.min(e, total) - t) / 1000 - stop - 0.5;
+    if (room < 10) return;
+    strokes(Math.min(CU(15, 25), room), 60, 110, 0, 100);
+    hold(stop / holdMult, 100);
+  }
 
   // ---- the plan (seconds as at 60 minutes, scaled to fit) ----
   const plan = [];
@@ -140,11 +185,22 @@ export function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130, mi
   // Scale the plan to the length, leaving the cool-down (3-8% at 60 min).
   const cool = U(110, 290);
   const sum = plan.reduce((n, [s]) => n + s, 0);
-  const scale = (3600 - cool) / sum * (minutes / 60);
+  let scale = (3600 - cool) / sum * (minutes / 60);
+  if (cruel) {
+    // Each stop 1-1.5x as long. The plan is scaled with the stops at the length
+    // they really run (x holdMult), so it still leaves the whole cool-down;
+    // never larger than without cruel.
+    let rest = 0, stops = 0;
+    for (const p of plan) { if (p[2]) { p[0] *= CU(1, 1.5); stops += p[0]; } else rest += p[0]; }
+    scale = Math.min(scale, (3600 - cool) * (minutes / 60) / (rest + stops * holdMult));
+  }
   for (const [s, run] of plan) { if (t >= total) break; run(s * scale); }
 
   // Cool-down to the end, gentle at any intensity (its bpm is before scaling).
-  strokes(Math.max(0, (total - t) / 1000), 30 / tempoMult, 12 / tempoMult, 40, 70);
+  // Cruel: denied, barely moving, very shallow and slow.
+  const rest = Math.max(0, (total - t) / 1000);
+  if (cruel) strokes(rest, 10 / tempoMult, 8 / tempoMult, 48, 60, 2, true);
+  else strokes(rest, 30 / tempoMult, 12 / tempoMult, 40, 70);
   add(50);
 
   return { version: '1.0', inverted: false, range: 100, actions: A };
@@ -170,4 +226,4 @@ export function checkScript(script) {
   return '';
 }
 
-export const relaxTeaseEdgeFile = (intensity, minutes = 60, seed) => `relax_tease_edge_${Math.max(1, Math.min(90, Math.round(minutes)))}min_i${Math.max(1, Math.min(10, Math.round(intensity)))}${seed ? `_v${seed}` : ''}.funscript`;
+export const relaxTeaseEdgeFile = (intensity, minutes = 60, seed, cruel = false) => `relax_tease_edge_${Math.max(1, Math.min(90, Math.round(minutes)))}min_i${Math.max(1, Math.min(10, Math.round(intensity)))}${seed ? `_v${seed}` : ''}${cruel ? '_cruel' : ''}.funscript`;

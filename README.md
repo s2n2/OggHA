@@ -127,6 +127,14 @@ or downloads as `relax_tease_edge_<minutes>min_i<intensity>_v<variation>.funscri
 shows the fastest move: above about 320 units/s (a stroker's top speed) the
 fastest strokes come out shorter, so lower Max bpm or Intensity to keep inside it.
 
+**Cruel mode** (beside Intensity, off by default) makes it less predictable:
+surprise freezes high up for 4 to 12 seconds during waves and teasing, fake-out
+edges (a sudden build, a hard stop, back to teasing) in about half the tease
+sections, each edge's stop 1 to 1.5 times as long, and a denied ending (barely
+moving) instead of the cool-down. It still ends exactly on time; the download
+ends in `_cruel`. Off, the scripts are exactly as before. **Hide timeline**
+(Manual → Script) blanks the bar and clock while a script plays.
+
 ### Ogg Control Deck: bundled dashboard card (v0.1.9+)
 
 The gear beside **HA Server** opens IntiHA in Devices & services, and the gear beside **Ogg** opens Ogg in Devices & services. These links are separate from the on/off switches.

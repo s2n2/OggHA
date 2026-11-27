@@ -1,3 +1,8 @@
+## 3.23.0 - Cruel mode, hide the timeline
+
+- **Cruel mode** (Make a script, beside Intensity; off by default). When it is on, the script is less predictable: surprise freezes (it stops dead high up for 4 to 12 seconds, about every 40 to 120 seconds of waves or teasing, then carries on), fake-out edges in about half the tease sections (a sudden 15 to 25 second build to near the peak, a hard stop, back to teasing), each edge's stop a random 1 to 1.5 times as long, and a denied ending (barely moving, very shallow, very slow) in place of the cool-down. Waves and teasing run at 90% of their length to make room, so it still ends exactly on time (at 60 minutes the denied ending is never under 90 seconds). The download is named with _cruel, e.g. relax_tease_edge_60min_i8_v7_cruel.funscript. With it off, every script is exactly the same as in 3.22.2.
+- **Hide timeline** (Manual → Script, beside Loop): while a script plays, its bar and clock go blank, so you cannot see what is coming. Remembered in this browser.
+
 ## 3.22.2 - Variations that differ
 
 - **Each Variation is its own plan now, 1 to 100 on a slider:** it picks the warm-up (strokes, waves or slow deep strokes), how many edges (2 to 5), how each builds (a ramp or tempo steps), how hard it peaks and where it stops, and the sections between them, chosen from waves, teasing, slow deep strokes, strokes in one zone and fast/slow pulses, each with its own tempo, depth and timing. Before, variations only changed small details and looked alike. The same settings still always make the same script, but a variation number makes a different script than in 3.22.1.

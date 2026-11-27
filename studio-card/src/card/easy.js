@@ -142,6 +142,8 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
 .loadbox .x{flex:0 0 48px}
 #loadedbox .row input{flex:2 1 0}
 .loadbox .sub{border-top:1px solid var(--line);padding-top:10px;margin-top:4px}
+.gcruel{margin:2px 0 0 76px;flex-wrap:wrap;row-gap:0}.gcruel span{font-weight:500;font-size:11.5px;color:var(--muted)}
+.scbar.blind canvas,.scbar.blind i{visibility:hidden}
 .loadbox .ends{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin:-6px 0 0 76px;padding-right:66px}
 .loadbox .sl span{flex:0 0 66px}
 .loadbox .sl b{flex:0 0 56px;white-space:nowrap}
@@ -351,7 +353,7 @@ export class OggEasyCard extends HTMLElement {
           <div class="row"><select id="scsel" aria-label="Saved script"></select><button type="button" id="scren" class="ren" aria-label="Rename this script" title="Rename">✏️ Rename</button></div>
           <div class="scbar" id="scbar" title="Tap to jump there"><canvas id="scheat"></canvas><i id="sccur"></i></div>
           <div class="sctime" id="sctime"></div>
-          <div class="row"><button class="go" id="scgo" type="button">▶ Play</button><label class="sw"><input type="checkbox" id="scloop"> Loop</label></div>
+          <div class="row"><button class="go" id="scgo" type="button">▶ Play</button><label class="sw"><input type="checkbox" id="scloop"> Loop</label><label class="sw" title="While it plays, hide where it is and how long is left"><input type="checkbox" id="schide"> Hide timeline</label></div>
         </div>
         <div class="recrow"><button class="rec" id="rec" type="button">● Record</button><button id="save" type="button" disabled>💾 Save</button><span class="recinfo" id="recinfo">Record what plays, then save it.</span></div>
         <button class="stop big" id="stopall" type="button" title="Stop everything Ogg is playing, on every card">■ Stop all</button>
@@ -366,6 +368,7 @@ export class OggEasyCard extends HTMLElement {
           <label class="sl"><span>Length</span><input type="range" id="glen" min="1" max="90" step="1" value="60"><b id="glenv">60 min</b></label>
           <label class="sl"><span>Intensity</span><input type="range" id="gint" min="1" max="10" step="1" value="6"><b id="gintv">6</b></label>
           <div class="ends"><span>Gentle</span><span>Intense</span></div>
+          <label class="sw gcruel"><input type="checkbox" id="gcruel"> Cruel mode <span>surprise freezes, fake-out edges, a denied ending</span></label>
           <label class="sl"><span>Max bpm</span><input type="range" id="gbpm" min="80" max="150" step="5" value="130"><b id="gbpmv">130</b></label>
           <label class="sl"><span>Variation</span><input type="range" id="gseed" min="1" max="100" step="1" value="7" aria-label="Variation (the same number always makes the same script)"><b id="gseedv">7</b></label>
           <div class="gprev" id="gprev" hidden><canvas id="gcan" aria-label="Preview: position over time, coloured by speed"></canvas><div class="gaxis"><span>0:00</span><span id="gmid"></span><span id="gend"></span></div></div>
@@ -420,6 +423,9 @@ export class OggEasyCard extends HTMLElement {
     $('loadsave').addEventListener('click', () => this._saveLoaded());
     $('loadclear').addEventListener('click', () => { setLoadedScript(null); this._toast('Cleared the loaded script.'); });
     for (const id of ['glen', 'gint', 'gbpm', 'gseed']) $(id).addEventListener('input', () => { $(`${id}v`).textContent = `${$(id).value}${id === 'glen' ? ' min' : ''}`; this._genChanged(); });
+    $('gcruel').addEventListener('change', () => this._genChanged());
+    $('schide').checked = !!keepGet().hideTimeline;
+    $('schide').addEventListener('change', () => { keepSet({ hideTimeline: $('schide').checked }); this._scShow(); });
     $('gmake').addEventListener('click', () => this._genMake());
     $('gload').addEventListener('click', () => this._genLoad());
     $('gdl').addEventListener('click', () => this._genDownload());
@@ -762,9 +768,12 @@ export class OggEasyCard extends HTMLElement {
     let at = this._scFrom || 0;
     if (p) { at = performance.now() - p.t0; if (p.loop && len) at %= len; }
     at = Math.min(at, len);
-    $('sccur').style.left = len ? `${(at / len) * 100}%` : '0';
+    // Hide timeline: while it plays, no shape, no place and no clock.
+    const blind = !!p && $('schide').checked;
+    $('scbar').classList.toggle('blind', blind);
+    $('sccur').style.left = len && !blind ? `${(at / len) * 100}%` : '0';
     $('sccur').hidden = !c;
-    $('sctime').textContent = c ? `${clock(at)} / ${clock(len)}${p ? '' : at ? ' · plays from here' : ''}` : '';
+    $('sctime').textContent = !c ? '' : blind ? 'Playing · timeline hidden' : `${clock(at)} / ${clock(len)}${p ? '' : at ? ' · plays from here' : ''}`;
     clearTimeout(this._scTimer);
     if (p) this._scTimer = setTimeout(() => this._scShow(), 250);
   }
@@ -990,17 +999,17 @@ export class OggEasyCard extends HTMLElement {
   _genSettings() {
     const $ = this._$;
     const seed = Math.floor(Number($('gseed').value));
-    return { minutes: Number($('glen').value) || 60, intensity: Number($('gint').value) || 6, maxBpm: Number($('gbpm').value) || 130, seed: Number.isFinite(seed) ? Math.max(1, Math.min(100, seed)) : 7 };
+    return { minutes: Number($('glen').value) || 60, intensity: Number($('gint').value) || 6, maxBpm: Number($('gbpm').value) || 130, seed: Number.isFinite(seed) ? Math.max(1, Math.min(100, seed)) : 7, cruel: $('gcruel').checked };
   }
 
   _genBuild() {
     const g = this._genSettings();
-    const key = `${g.seed}|${g.intensity}|${g.maxBpm}|${g.minutes}`;
+    const key = `${g.seed}|${g.intensity}|${g.maxBpm}|${g.minutes}|${g.cruel}`;
     if (!this._gen || this._gen.key !== key) {
-      const raw = generateRelaxTeaseEdge(g.seed, g.intensity, g.maxBpm, g.minutes);
+      const raw = generateRelaxTeaseEdge(g.seed, g.intensity, g.maxBpm, g.minutes, g.cruel);
       const bad = checkScript(raw);
       if (bad) throw new Error(`the made script is wrong (${bad})`);
-      const script = normalise({ ...raw, metadata: { type: 'stroke', title: `Relax tease edge ${g.minutes} min i${g.intensity}` } }, 'stroke', false);
+      const script = normalise({ ...raw, metadata: { type: 'stroke', title: `Relax tease edge ${g.minutes} min i${g.intensity}${g.cruel ? ' cruel' : ''}` } }, 'stroke', false);
       this._gen = { key, g, raw, script, peak: peakSpeed(raw.actions) };
     }
     return this._gen;
@@ -1074,7 +1083,7 @@ export class OggEasyCard extends HTMLElement {
   _genLoad() {
     try {
       const { g, script } = this._genBuild();
-      this._useLoaded({ name: `Relax tease edge ${g.minutes}m i${g.intensity} v${g.seed}${g.maxBpm !== 130 ? ` ${g.maxBpm}bpm` : ''}`, script }, 'Loaded');
+      this._useLoaded({ name: `Relax tease edge ${g.minutes}m i${g.intensity} v${g.seed}${g.maxBpm !== 130 ? ` ${g.maxBpm}bpm` : ''}${g.cruel ? ' cruel' : ''}`, script }, 'Loaded');
       this._genInfo();
     } catch (e) { this._toast(e.message || String(e)); }
   }
@@ -1083,7 +1092,7 @@ export class OggEasyCard extends HTMLElement {
     try {
       const { g, raw } = this._genBuild();
       const url = URL.createObjectURL(new Blob([JSON.stringify(raw)], { type: 'application/json' }));
-      const a = Object.assign(document.createElement('a'), { href: url, download: relaxTeaseEdgeFile(g.intensity, g.minutes, g.seed) });
+      const a = Object.assign(document.createElement('a'), { href: url, download: relaxTeaseEdgeFile(g.intensity, g.minutes, g.seed, g.cruel) });
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (e) { this._toast(e.message || String(e)); }
