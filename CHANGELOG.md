@@ -1,3 +1,8 @@
+## 3.22.0 - Load or make a script
+
+- **Load a code or file in Other** (Easy card): paste a code (ogg1:…) or a funscript, or choose a .funscript file. It shows straight away as "📄 name · not saved" first in Manual → Script and in the video's script list, ready to play, before it is saved. Save it under a name (saving over a script asks first), or clear it. Until then it stays in this browser only.
+- **Make a script:** a 60-minute relax / tease / edge stroke script, made on the phone. Intensity 1–10 (6 is the standard: tempo, stroke length and how long each stop lasts), Max bpm (a hard cap on tempo, 80–150) and Variation (the same number always makes the same script). Make it to play or save it like a loaded one, or download it as relax_tease_edge_60min_i<intensity>.funscript. The card shows the fastest move and warns when it is faster than a stroker can go (about 320 units/s).
+
 ## 3.21.4 - Video scripts by file
 
 - **A video finds its script even when the phone hides its name:** Android's photo picker gives a video only a number (like 1000001279), not its file name. A recording now keeps the video file's size, and choosing that same file again loads its script whatever it is called.

@@ -3385,6 +3385,49 @@ ${VIEWERS_STYLE}
     }
   };
 
+  // studio-card/src/lib/loaded.js
+  var KEY = "ogg_loaded_script";
+  var LOADED_SRC = "loadedscript";
+  var current;
+  var listeners = /* @__PURE__ */ new Set();
+  function loadedScript() {
+    if (current === void 0) {
+      try {
+        const v = JSON.parse(localStorage.getItem(KEY) || "null");
+        current = v && v.name && v.script && Array.isArray(v.script.actions) ? v : null;
+      } catch (_) {
+        current = null;
+      }
+    }
+    return current;
+  }
+  function setLoadedScript(value) {
+    current = value && value.script ? { name: String(value.name || "Loaded script").slice(0, 60), script: value.script } : null;
+    try {
+      if (current) localStorage.setItem(KEY, JSON.stringify(current));
+      else localStorage.removeItem(KEY);
+    } catch (_) {
+    }
+    for (const fn of listeners) {
+      try {
+        fn(current);
+      } catch (_) {
+      }
+    }
+  }
+  function onLoadedScript(fn) {
+    listeners.add(fn);
+    return () => listeners.delete(fn);
+  }
+  async function readScript(text, fileName = "") {
+    const raw = await decodeText(String(text || ""));
+    if (!raw || !Array.isArray(raw.actions)) throw new Error("That is not a script");
+    const script = normalise(raw, fileKind(fileName, "auto"), Boolean(raw.inverted));
+    if (raw.metadata && raw.metadata.creator === "OggStudio" && raw.metadata.video_key) script.metadata.video_key = raw.metadata.video_key;
+    const name = (raw.metadata && raw.metadata.title || fileTitle(fileName) || "Loaded code").trim().slice(0, 60);
+    return { name, script };
+  }
+
   // studio-card/src/lib/limits.js
   var NO_LIMITS = { max: 100, lo: 0, hi: 100, speed: 100, delay: 0 };
   var MAX_DELAY_MS = 2e3;
@@ -4019,6 +4062,15 @@ ${VIEWERS_STYLE}
           if (parsed[1]) first.channels = { V1: { actions: parsed[1].actions || [] } };
           this._vraw = normalise(first, fileKind(files[0].name, "auto"), Boolean(first.inverted));
           this._vscriptName = files[0].name;
+        } else if ($("vsrc").value === LOADED_SRC) {
+          const l = loadedScript();
+          if (!l) {
+            this._vscript = null;
+            this._videoStatus();
+            return;
+          }
+          this._vraw = l.script;
+          this._vscriptName = l.name;
         } else if ($("vsrc").value === TAKE_SRC) {
           if (!this._take) {
             this._vscript = null;
@@ -4038,7 +4090,7 @@ ${VIEWERS_STYLE}
         }
         this._vscript = this._vraw;
         this._vconvs = {};
-        if (!fromFile && $("vsrc").value !== TAKE_SRC && !$("vsrc").value.startsWith(VIDEO_QUEUE)) this._useRemembered($("vsrc").value, this._vraw);
+        if (!fromFile && $("vsrc").value !== TAKE_SRC && $("vsrc").value !== LOADED_SRC && !$("vsrc").value.startsWith(VIDEO_QUEUE)) this._useRemembered($("vsrc").value, this._vraw);
         this._outRender();
         this._videoSend(true);
       } catch (e) {
@@ -6727,6 +6779,8 @@ ${VIEWERS_STYLE}
       const savedState = this._studio && this._studio.saved && this._hass.states[this._studio.saved];
       const names = (savedState && savedState.attributes.options || []).filter((n) => n && !/^\(.*\)$/.test(n));
       const take = this._take ? `Current take (${isStroke(this._take) ? "stroke" : "vibration"}, ${fmt(duration(this._take))})` : null;
+      const loadedS = loadedScript();
+      const loaded = loadedS ? `📄 ${loadedS.name} · not saved` : null;
       const queues = savedState && savedState.attributes.queues || {};
       const people = savedState && savedState.attributes.settings && savedState.attributes.settings.people || {};
       const whose = (w) => people[w] && people[w].name ? `${people[w].name}'s queue` : `${w === "his" ? "His" : "Hers"} queue`;
@@ -6745,18 +6799,19 @@ ${VIEWERS_STYLE}
       }).filter(Boolean);
       const lib = names.length ? Object.assign(document.createElement("optgroup"), { label: "Saved scripts" }) : null;
       if (lib) lib.append(...names.map((n) => new Option(n, n)));
-      const key = JSON.stringify([names, take, rows.map(([id, r]) => [id, r.name, r.for, Boolean(r.played)]), people]);
+      const key = JSON.stringify([names, take, loaded, rows.map(([id, r]) => [id, r.name, r.for, Boolean(r.played)]), people]);
       if (sel.dataset.key === key) return;
-      const current = sel.value;
-      sel.replaceChildren(new Option("From a file on this device…", ""), ...take ? [new Option(take, TAKE_SRC)] : [], ...groups, ...lib ? [lib] : []);
+      const current2 = sel.value;
+      sel.replaceChildren(new Option("From a file on this device…", ""), ...take ? [new Option(take, TAKE_SRC)] : [], ...loaded ? [new Option(loaded, LOADED_SRC)] : [], ...groups, ...lib ? [lib] : []);
       sel.dataset.key = key;
-      if ([...sel.options].some((o) => o.value === current)) sel.value = current;
-      else if (current === TAKE_SRC) {
+      if ([...sel.options].some((o) => o.value === current2)) sel.value = current2;
+      else if (current2 === TAKE_SRC || current2 === LOADED_SRC) {
         sel.value = "";
         this._loadVideoScript();
       }
       this._el("vfilebox").hidden = sel.value !== "";
       if (sel.value === TAKE_SRC && this._vraw !== this._take) this._loadVideoScript();
+      if (sel.value === LOADED_SRC && loadedS && this._vraw !== loadedS.script) this._loadVideoScript();
     }
     // Streamed live levels: never call while the device is offline, never let
     // Home Assistant pop up an error per call (notifyOnError=false), and back
@@ -10806,6 +10861,124 @@ ha-card.embedded .head{display:none}
     }
   };
 
+  // studio-card/src/lib/generate.js
+  function mulberry32(seed) {
+    let s = seed >>> 0;
+    return () => {
+      s = s + 1831565813 >>> 0;
+      let x = s;
+      x = Math.imul(x ^ x >>> 15, x | 1);
+      x ^= x + Math.imul(x ^ x >>> 7, x | 61);
+      return ((x ^ x >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130) {
+    intensity = Math.max(1, Math.min(10, Math.round(intensity)));
+    const k = intensity - 1;
+    const tempoMult = 0.6 + 0.08 * k;
+    const rangeScale = Math.min(1, 0.5 + 0.1 * k);
+    const holdMult = 0.5 + 0.1 * k;
+    const rnd = mulberry32(seed);
+    const U = (a, b) => a + (b - a) * rnd();
+    const RI = (a, b) => Math.floor(U(a, b + 1));
+    const A = [];
+    let t = 0;
+    const add = (p) => A.push({ at: Math.round(t), pos: Math.max(0, Math.min(100, Math.round(p))) });
+    const B = (b) => Math.min(maxBpm, b * tempoMult);
+    const R = (lo, hi) => {
+      const c = (lo + hi) / 2, h = (hi - lo) / 2 * rangeScale;
+      return [c - h, c + h];
+    };
+    function strokes(dur, b0, b1, lo, hi, j = 4) {
+      [lo, hi] = R(lo, hi);
+      b0 = B(b0);
+      b1 = B(b1);
+      const st = t, e = t + dur * 1e3;
+      while (t < e) {
+        const f = (t - st) / (e - st), h = 6e4 / (b0 + (b1 - b0) * f) / 2;
+        add(hi - U(0, j));
+        t += h;
+        add(lo + U(0, j));
+        t += h;
+      }
+    }
+    function waves(dur, b, w = 40) {
+      const st = t, e = t + dur * 1e3, h = 6e4 / B(b) / 2;
+      while (t < e) {
+        const d = 55 + 40 * Math.sin(2 * Math.PI * (t - st) / (w * 1e3));
+        add(95);
+        t += h;
+        add(95 - d);
+        t += h;
+      }
+    }
+    function tease(dur, b = 80, de = [6, 10]) {
+      const e = t + dur * 1e3, h = 6e4 / B(b) / 2;
+      let n = 0, nd = RI(...de);
+      while (t < e) {
+        n++;
+        if (n >= nd) {
+          add(100);
+          t += 1200;
+          add(5);
+          t += 1500;
+          n = 0;
+          nd = RI(...de);
+        } else {
+          add(U(90, 100));
+          t += h;
+          add(U(65, 78));
+          t += h;
+        }
+      }
+    }
+    function hold(dur, p) {
+      add(p);
+      t += dur * holdMult * 1e3;
+      add(p);
+      t += 500;
+    }
+    function edge(buildS, pb, peakS, holdS) {
+      strokes(buildS, 45, pb, 0, 100);
+      strokes(peakS, pb, pb, 0, 100);
+      hold(holdS, 100);
+    }
+    strokes(300, 18, 32, 35, 75);
+    waves(420, 40);
+    tease(360, 75);
+    edge(150, 100, 20, 30);
+    strokes(120, 22, 28, 30, 80);
+    tease(300, 85);
+    waves(240, 50);
+    edge(180, 110, 30, 40);
+    strokes(150, 20, 30, 40, 85);
+    tease(300, 90, [4, 7]);
+    edge(150, 115, 20, 30);
+    strokes(90, 25, 30, 30, 80);
+    tease(180, 95);
+    edge(200, 120, 40, 45);
+    strokes(Math.max(0, (36e5 - t) / 1e3), 30 / tempoMult, 12 / tempoMult, 40, 70);
+    add(50);
+    return { version: "1.0", inverted: false, range: 100, actions: A };
+  }
+  function peakSpeed(actions) {
+    let top = 0;
+    for (let i = 1; i < actions.length; i++) {
+      const dt = actions[i].at - actions[i - 1].at;
+      if (dt > 0) top = Math.max(top, Math.abs(actions[i].pos - actions[i - 1].pos) / dt * 1e3);
+    }
+    return top;
+  }
+  function checkScript(script) {
+    const a = script.actions;
+    for (let i = 0; i < a.length; i++) {
+      if (!Number.isInteger(a[i].at) || !Number.isInteger(a[i].pos) || a[i].pos < 0 || a[i].pos > 100) return `point ${i} is out of range`;
+      if (i && a[i].at <= a[i - 1].at) return `point ${i} is not after the one before`;
+    }
+    return "";
+  }
+  var relaxTeaseEdgeFile = (intensity) => `relax_tease_edge_60min_i${Math.max(1, Math.min(10, Math.round(intensity)))}.funscript`;
+
   // studio-card/src/card/easy.js
   var STROKES = /* @__PURE__ */ new WeakMap();
   var strokesFor = (track) => {
@@ -10909,6 +11082,16 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
 .toast{min-height:16px;font-size:12.5px;color:#ffcf8a}
 .row > .ren{flex:0 0 auto;min-height:48px;padding:0 14px;font-size:13.5px}
 .embed{margin:0 -4px}
+.loadbox{display:flex;flex-direction:column;gap:8px;margin:0 4px;padding:12px;border-radius:18px;border:1px solid var(--line);background:rgba(20,29,51,.6)}
+.loadbox textarea{box-sizing:border-box;width:100%;min-height:64px;resize:vertical;background:var(--field);color:var(--ink);border:1px solid var(--edge);border-radius:14px;padding:10px;font:13px/1.35 ui-monospace,Consolas,monospace}
+.loadbox input[type=text],.loadbox input[type=number]{box-sizing:border-box;width:100%;background:var(--field);color:var(--ink);border:1px solid var(--edge);border-radius:14px;padding:12px;font:inherit;font-size:15px;font-weight:650}
+.loadbox .lfile{position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.loadbox .lfile input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.loadbox .x{flex:0 0 48px}
+.loadbox .sub{border-top:1px solid var(--line);padding-top:10px;margin-top:4px}
+.loadbox .ends{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin:-6px 0 0 76px;padding-right:50px}
+.loadbox .sl span{flex:0 0 66px}
+.loadbox .warn{color:#ffcf8a}
 [hidden]{display:none!important}
 `;
   var keepGet2 = () => {
@@ -10964,7 +11147,19 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
     _oggPrivateChanged() {
       if (this._rawHass) this.hass = this._rawHass;
     }
+    connectedCallback() {
+      if (!this._offLoaded) this._offLoaded = onLoadedScript(() => {
+        this._showLoaded();
+        this._refresh();
+        const m = this._mediaCard;
+        if (m && m._hass && m._fillVideoScripts) m._fillVideoScripts();
+      });
+    }
     disconnectedCallback() {
+      if (this._offLoaded) {
+        this._offLoaded();
+        this._offLoaded = null;
+      }
       this._halt(true);
       clearInterval(this._recTimer);
       this._recTimer = null;
@@ -11167,7 +11362,24 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         <button class="stop big" id="stopall" type="button" title="Stop everything Ogg is playing, on every card">■ Stop all</button>
       </div>
       <div class="panel embed" id="p-queue"></div>
-      <div class="panel embed" id="p-other"></div>
+      <div class="panel embed" id="p-other">
+        <div class="loadbox" id="loadbox">
+          <div class="sthead">📥 Load a code or script</div>
+          <textarea id="codein" placeholder="Paste a code (ogg1:…) or a funscript" spellcheck="false" autocomplete="off"></textarea>
+          <div class="row"><button type="button" id="codego">Load it</button><button type="button" class="lfile" id="codefilebtn">📂 From a file<input type="file" id="codefile" accept=".funscript,.json,application/json" aria-label="Load a script from a file on this device"></button></div>
+          <div class="sthead sub">✨ Make a script <span>Relax, tease, edge · 60 min · for a stroker</span></div>
+          <label class="sl"><span>Intensity</span><input type="range" id="gint" min="1" max="10" step="1" value="6"><b id="gintv">6</b></label>
+          <div class="ends"><span>Gentle</span><span>Intense</span></div>
+          <label class="sl"><span>Max bpm</span><input type="range" id="gbpm" min="80" max="150" step="5" value="130"><b id="gbpmv">130</b></label>
+          <label class="sl"><span>Variation</span><input type="number" id="gseed" min="0" max="4294967295" step="1" value="7" inputmode="numeric" aria-label="Variation (the same number always makes the same script)"></label>
+          <div class="row"><button type="button" id="gmake">✨ Make it</button><button type="button" id="gdl">⬇ Save as .funscript</button></div>
+          <div class="hint" id="ginfo">The same settings always make the same script. Variation changes the details.</div>
+          <div id="loadedbox" class="panel sub" hidden>
+            <div class="hint" id="loadedinfo"></div>
+            <div class="row"><input type="text" id="loadname" maxlength="60" aria-label="Name to save it as" autocomplete="off"><button type="button" id="loadsave" class="go">💾 Save</button><button type="button" id="loadclear" class="stop x" title="Clear it (not saved)" aria-label="Clear the loaded script">✕</button></div>
+          </div>
+        </div>
+      </div>
       <div class="toast" id="toast" role="status"></div>
     </div></ha-card>`;
       const $ = (id) => this.shadowRoot.getElementById(id);
@@ -11240,6 +11452,21 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         }
       });
       $("scren").addEventListener("click", () => this._rename());
+      $("codego").addEventListener("click", () => this._loadCode());
+      $("codefile").addEventListener("change", () => this._loadFile());
+      $("loadsave").addEventListener("click", () => this._saveLoaded());
+      $("loadclear").addEventListener("click", () => {
+        setLoadedScript(null);
+        this._toast("Cleared the loaded script.");
+      });
+      for (const id of ["gint", "gbpm"]) $(id).addEventListener("input", () => {
+        $(`${id}v`).textContent = $(id).value;
+        this._genInfo();
+      });
+      $("gseed").addEventListener("input", () => this._genInfo());
+      $("gmake").addEventListener("click", () => this._genMake());
+      $("gdl").addEventListener("click", () => this._genDownload());
+      this._showLoaded();
       $("scan").addEventListener("click", () => this._search());
       $("lockb").addEventListener("click", () => lockAll());
       $("rec").addEventListener("click", () => this._recToggle());
@@ -11359,18 +11586,20 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       this._showLevels();
       const names = this._names();
       const sc = $("scsel");
-      const html = names.length ? names.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join("") : '<option value="">No saved scripts yet</option>';
+      const loaded = loadedScript();
+      const values = [...loaded ? [LOADED_SRC] : [], ...names];
+      const html = (loaded ? `<option value="${LOADED_SRC}">📄 ${esc(loaded.name)} · not saved</option>` : "") + (names.length ? names.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join("") : loaded ? "" : '<option value="">No saved scripts yet</option>');
       if (sc.dataset.h !== html) {
-        const v = this._wantScript && names.includes(this._wantScript) ? this._wantScript : sc.value;
+        const v = this._wantScript && values.includes(this._wantScript) ? this._wantScript : sc.value;
         sc.innerHTML = html;
         sc.dataset.h = html;
-        if (names.includes(v)) {
+        if (values.includes(v)) {
           sc.value = v;
           if (v === this._wantScript) this._wantScript = null;
         }
         this._scLoad();
       }
-      this._$("scren").disabled = !names.length;
+      this._$("scren").disabled = !values.length;
       if (this._queueCard) this._queueCard.externalTargets = this._targets().map((d) => d.stop);
       const key = JSON.stringify([this._channels().map.map((x) => [x.d.stop, x.ch]), this._strokers().map((d) => d.stop)]);
       if (key !== this._chKey) {
@@ -11568,6 +11797,12 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
     }
     // The chosen script (cached by name), for its shape and to play.
     async _scGet(name) {
+      if (name === LOADED_SRC) {
+        const l = loadedScript();
+        if (!l) throw new Error("the loaded script was cleared");
+        if (!this._scCache || this._scCache.name !== name || this._scCache.script !== l.script) this._scCache = { name, script: l.script };
+        return l.script;
+      }
       if (this._scCache && this._scCache.name === name) return this._scCache.script;
       const res = await this._hass.callWS({ type: "call_service", domain: "ogg", service: "studio_get_script", service_data: { name }, return_response: true });
       this._scCache = { name, script: res.response.script };
@@ -11607,7 +11842,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         }
       }
       const len = c ? duration(c.script) : 0;
-      const p = this._playing && this._playing.kind === "script" && c && this._playing.label === c.name ? this._playing : null;
+      const p = this._playing && this._playing.kind === "script" && c && (this._playing.src || this._playing.label) === c.name ? this._playing : null;
       let at = this._scFrom || 0;
       if (p) {
         at = performance.now() - p.t0;
@@ -11631,7 +11866,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         const v = isStroke(s) ? runScript(s, "speed") : s;
         const at = Math.max(0, from ?? this._scFrom ?? 0);
         this._scFrom = 0;
-        this._start({ kind: "script", tracks: { a: v.actions, b: v.channels && v.channels.V1 && v.channels.V1.actions || v.actions, stroke: isStroke(s) ? s.actions : null }, loop: this._$("scloop").checked, label: name }, at);
+        this._start({ kind: "script", tracks: { a: v.actions, b: v.channels && v.channels.V1 && v.channels.V1.actions || v.actions, stroke: isStroke(s) ? s.actions : null }, loop: this._$("scloop").checked, src: name, label: name === LOADED_SRC ? (loadedScript() || {}).name || "the loaded script" : name }, at);
         this._scShow(true);
       } catch (e) {
         this._toast(`Could not load the script: ${e.message || e}`);
@@ -11789,12 +12024,143 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         this._toast("There are no saved scripts yet.");
         return;
       }
+      if (name === LOADED_SRC) {
+        const l = loadedScript();
+        const next2 = l && (window.prompt("New name for the loaded script:", l.name) || "").trim();
+        if (next2 && next2 !== l.name) setLoadedScript({ ...l, name: next2 });
+        return;
+      }
       const next = (window.prompt("New name for this script:", name) || "").trim();
       if (!next || next === name) return;
       try {
         await this._hass.callService("ogg", "studio_rename", { name, new_name: next });
         this._wantScript = next;
         this._toast(`Renamed to "${next}".`);
+      } catch (e) {
+        this._toast(e.message || String(e));
+      }
+    }
+    // ------------------------------------------------------------ a loaded or made script
+    // Shown under Manual's Script (and the video's script list) until saved.
+    async _loadCode() {
+      const text = this._$("codein").value;
+      if (!text.trim()) {
+        this._toast("Paste a code first.");
+        return;
+      }
+      try {
+        this._useLoaded(await readScript(text));
+        this._$("codein").value = "";
+      } catch (e) {
+        this._toast("Could not read the code: " + (e.message || e));
+      }
+    }
+    async _loadFile() {
+      const input = this._$("codefile");
+      const f = input.files && input.files[0];
+      if (!f) return;
+      try {
+        this._useLoaded(await readScript(await f.text(), f.name));
+      } catch (e) {
+        this._toast(`Could not read ${f.name}: ${e.message || e}`);
+      }
+      input.value = "";
+    }
+    _useLoaded(l, how = "Loaded") {
+      setLoadedScript(l);
+      this._wantScript = LOADED_SRC;
+      this._scFrom = 0;
+      this._refresh();
+      this._$("loadname").value = l.name;
+      this._toast(`${how} "${l.name}": play it from Manual → Script, or with a video below. Save it to keep it.`);
+    }
+    _showLoaded() {
+      const $ = this._$;
+      if (!$) return;
+      const l = loadedScript();
+      $("loadedbox").hidden = !l;
+      if (!l) {
+        this._loadedFor = null;
+        return;
+      }
+      const kind = isStroke(l.script) ? "stroke" : l.script.channels ? "two motors" : "vibration";
+      $("loadedinfo").textContent = `📄 ${l.name} · ${clock(duration(l.script))} · ${kind} · not saved. It is under Manual → Script and in the video's script list.`;
+      if (this._loadedFor !== l.script) {
+        this._loadedFor = l.script;
+        if (this.shadowRoot.activeElement !== $("loadname")) $("loadname").value = l.name;
+      }
+    }
+    async _saveLoaded() {
+      const l = loadedScript();
+      if (!l) return;
+      const name = (this._$("loadname").value || l.name).trim().slice(0, 60);
+      if (!name) {
+        this._toast("Give it a name first.");
+        return;
+      }
+      const over = this._names().includes(name);
+      if (over && !window.confirm(`There is already a script called "${name}". Save over it?`)) return;
+      try {
+        await this._hass.callService("ogg", "studio_save", { name, script: l.script });
+        const wasPicked = this._$("scsel").value === LOADED_SRC;
+        setLoadedScript(null);
+        if (wasPicked) this._wantScript = name;
+        this._scCache = null;
+        this._toast(`${over ? "Saved over" : "Saved"} "${name}": it is under Script, and on the Queue card.`);
+      } catch (e) {
+        this._toast(e.message || String(e));
+      }
+    }
+    // Make a script: relax / tease / edge, 60 minutes (lib/generate.js).
+    _genSettings() {
+      const $ = this._$;
+      const seed = Math.floor(Number($("gseed").value));
+      return { intensity: Number($("gint").value) || 6, maxBpm: Number($("gbpm").value) || 130, seed: Number.isFinite(seed) && seed >= 0 ? seed % 4294967296 : 7 };
+    }
+    _genBuild() {
+      const g = this._genSettings();
+      const key = `${g.seed}|${g.intensity}|${g.maxBpm}`;
+      if (!this._gen || this._gen.key !== key) {
+        const raw = generateRelaxTeaseEdge(g.seed, g.intensity, g.maxBpm);
+        const bad = checkScript(raw);
+        if (bad) throw new Error(`the made script is wrong (${bad})`);
+        this._gen = { key, g, raw, peak: peakSpeed(raw.actions) };
+      }
+      return this._gen;
+    }
+    // The fastest move against a stroker's top speed (Ogg's speed limit uses the same figure).
+    _genInfo() {
+      const $ = this._$;
+      let gen;
+      try {
+        gen = this._genBuild();
+      } catch (e) {
+        $("ginfo").textContent = e.message || String(e);
+        return;
+      }
+      const fast = gen.peak > LIMIT_FULL_SPEED;
+      $("ginfo").className = `hint${fast ? " warn" : ""}`;
+      $("ginfo").textContent = `${clock(gen.raw.actions[gen.raw.actions.length - 1].at)} · ${gen.raw.actions.length} points · fastest move ${Math.round(gen.peak)} units/s.` + (fast ? ` A stroker tops out at about ${LIMIT_FULL_SPEED}, so the fastest strokes come out shorter: lower Max bpm or Intensity to stay inside it.` : " Inside a stroker's top speed.");
+    }
+    _genMake() {
+      try {
+        const { g, raw } = this._genBuild();
+        const script = normalise({ ...raw, metadata: { type: "stroke", title: `Relax tease edge 60 min i${g.intensity}` } }, "stroke", false);
+        this._useLoaded({ name: `Relax tease edge i${g.intensity} v${g.seed}${g.maxBpm !== 130 ? ` ${g.maxBpm}bpm` : ""}`, script }, "Made");
+        this._genInfo();
+      } catch (e) {
+        this._toast(e.message || String(e));
+      }
+    }
+    _genDownload() {
+      try {
+        const { g, raw } = this._genBuild();
+        const url = URL.createObjectURL(new Blob([JSON.stringify(raw)], { type: "application/json" }));
+        const a = Object.assign(document.createElement("a"), { href: url, download: relaxTeaseEdgeFile(g.intensity) });
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1e4);
       } catch (e) {
         this._toast(e.message || String(e));
       }

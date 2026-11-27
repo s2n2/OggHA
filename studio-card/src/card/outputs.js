@@ -2,6 +2,7 @@
 import { FOLLOW_AI } from '../lib/ai.js';
 import { RUN_MODES, RUN_MODE_DEFAULT, fileKind, fileTitle, isStroke, normalise } from '../lib/convert.js';
 import { SAMPLE_MS, SPEEDS, TAKE_SRC, VIDEO_QUEUE, decodeText, duration, encodeCode, esc, fmt } from '../lib/core.js';
+import { LOADED_SRC, loadedScript } from '../lib/loaded.js';
 import { limitLevels, limitMove } from '../lib/limits.js';
 import { FOLLOW_STROKER, OUT_KEY, matchVideoScript, outLevels, parseTarget, videoKey } from '../lib/outputs.js';
 import { STROKE_TOP } from '../lib/stroke.js';
@@ -698,6 +699,9 @@ export class OutputsPart {
     const savedState = this._studio && this._studio.saved && this._hass.states[this._studio.saved];
     const names = ((savedState && savedState.attributes.options) || []).filter((n) => n && !/^\(.*\)$/.test(n));
     const take = this._take ? `Current take (${isStroke(this._take) ? 'stroke' : 'vibration'}, ${fmt(duration(this._take))})` : null;
+    // A script loaded or made on the Easy card (not saved yet).
+    const loadedS = loadedScript();
+    const loaded = loadedS ? `📄 ${loadedS.name} · not saved` : null;
     // His and hers queues and the played list (the Queue card's), as there.
     const queues = (savedState && savedState.attributes.queues) || {};
     const people = (savedState && savedState.attributes.settings && savedState.attributes.settings.people) || {};
@@ -714,16 +718,17 @@ export class OutputsPart {
     }).filter(Boolean);
     const lib = names.length ? Object.assign(document.createElement('optgroup'), { label: 'Saved scripts' }) : null;
     if (lib) lib.append(...names.map((n) => new Option(n, n)));
-    const key = JSON.stringify([names, take, rows.map(([id, r]) => [id, r.name, r.for, Boolean(r.played)]), people]);
+    const key = JSON.stringify([names, take, loaded, rows.map(([id, r]) => [id, r.name, r.for, Boolean(r.played)]), people]);
     if (sel.dataset.key === key) return;
     const current = sel.value;
-    sel.replaceChildren(new Option('From a file on this device…', ''), ...(take ? [new Option(take, TAKE_SRC)] : []), ...groups, ...(lib ? [lib] : []));
+    sel.replaceChildren(new Option('From a file on this device…', ''), ...(take ? [new Option(take, TAKE_SRC)] : []), ...(loaded ? [new Option(loaded, LOADED_SRC)] : []), ...groups, ...(lib ? [lib] : []));
     sel.dataset.key = key;
     if ([...sel.options].some((o) => o.value === current)) sel.value = current;
-    else if (current === TAKE_SRC) { sel.value = ''; this._loadVideoScript(); }   // the take went (saved or discarded)
+    else if (current === TAKE_SRC || current === LOADED_SRC) { sel.value = ''; this._loadVideoScript(); }   // the take or loaded script went (saved or discarded)
     this._el('vfilebox').hidden = sel.value !== '';
     // A new take while "Current take" is chosen: play the new one.
     if (sel.value === TAKE_SRC && this._vraw !== this._take) this._loadVideoScript();
+    if (sel.value === LOADED_SRC && loadedS && this._vraw !== loadedS.script) this._loadVideoScript();
   }
 
   // Streamed live levels: never call while the device is offline, never let

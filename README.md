@@ -107,6 +107,21 @@ type: custom:ogg-easy-card
 Connect now, pick your toys, then Play now (sliders, patterns, moods, scripts,
 record and save), Queue & replay, or Other (video and sound).
 
+**Other: load or make a script (3.22).** Paste a code (`ogg1:…`) or a
+funscript, or choose a `.funscript` file, and it loads straight away: it shows
+as "📄 name · not saved" under Manual → Script and in the video's script list,
+ready to play. Save it (with a name) to keep it in your scripts, or clear it.
+It stays in this browser only until then, never in Home Assistant.
+
+**Make a script** builds a 60-minute relax / tease / edge stroke script:
+warm-up, waves, teasing and four edges that build to a peak and stop dead.
+Intensity (1 gentle to 10 intense, 6 the standard) sets the tempo, stroke
+length and how long each stop lasts; Max bpm caps the tempo; Variation is a
+number, and the same settings always make the same script. It loads as above,
+or downloads as `relax_tease_edge_60min_i<intensity>.funscript`. The card
+shows the fastest move: above about 320 units/s (a stroker's top speed) the
+fastest strokes come out shorter, so lower Max bpm or Intensity to keep inside it.
+
 ### Ogg Control Deck: bundled dashboard card (v0.1.9+)
 
 The gear beside **HA Server** opens IntiHA in Devices & services, and the gear beside **Ogg** opens Ogg in Devices & services. These links are separate from the on/off switches.

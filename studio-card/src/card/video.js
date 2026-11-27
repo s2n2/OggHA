@@ -1,6 +1,7 @@
 // Part of the OggStudio card. Built into custom_components/ogg/frontend/oggstudio-card.js (npm run build).
 import { FOLLOW_AI } from '../lib/ai.js';
 import { RUN_MODE_DEFAULT, fileKind, isStroke, liveIntensity, normalise } from '../lib/convert.js';
+import { LOADED_SRC, loadedScript } from '../lib/loaded.js';
 import { DEVICE_KEY, LIB_FILE, LIB_LOADED, LIB_TAKE, LIVE_MS, NO_DEVICE, SPEEDS, TAKE_SRC, VIDEO_QUEUE, VIDEO_OFFSET_KEY, VIDEO_TICK_MS, capture, decodeText, duration, fmt } from '../lib/core.js';
 import { FOLLOW_STROKER, mergePasses, parseTarget, sampleAt, videoKey } from '../lib/outputs.js';
 import { defaultName } from '../lib/compose.js';
@@ -99,6 +100,11 @@ export class VideoPart {
         if (parsed[1]) first.channels = { V1: { actions: parsed[1].actions || [] } };
         this._vraw = normalise(first, fileKind(files[0].name, 'auto'), Boolean(first.inverted));
         this._vscriptName = files[0].name;
+      } else if ($('vsrc').value === LOADED_SRC) {
+        const l = loadedScript();
+        if (!l) { this._vscript = null; this._videoStatus(); return; }
+        this._vraw = l.script;
+        this._vscriptName = l.name;
       } else if ($('vsrc').value === TAKE_SRC) {
         if (!this._take) { this._vscript = null; this._videoStatus(); return; }
         this._vraw = this._take;
@@ -115,7 +121,7 @@ export class VideoPart {
       }
       this._vscript = this._vraw;      // mapped per device as it plays
       this._vconvs = {};
-      if (!fromFile && $('vsrc').value !== TAKE_SRC && !$('vsrc').value.startsWith(VIDEO_QUEUE)) this._useRemembered($('vsrc').value, this._vraw);
+      if (!fromFile && $('vsrc').value !== TAKE_SRC && $('vsrc').value !== LOADED_SRC && !$('vsrc').value.startsWith(VIDEO_QUEUE)) this._useRemembered($('vsrc').value, this._vraw);
       this._outRender();
       this._videoSend(true);
     } catch (e) {
