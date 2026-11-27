@@ -113,12 +113,13 @@ as "📄 name · not saved" under Manual → Script and in the video's script li
 ready to play. Save it (with a name) to keep it in your scripts, or clear it.
 It stays in this browser only until then, never in Home Assistant.
 
-**Make a script** builds a 60-minute relax / tease / edge stroke script:
-warm-up, waves, teasing and four edges that build to a peak and stop dead.
+**Make a script** builds a relax / tease / edge stroke script, 1 to 90
+minutes long (60 by default): warm-up, waves, teasing and four edges that
+build to a peak and stop dead. Every section scales with the length.
 Intensity (1 gentle to 10 intense, 6 the standard) sets the tempo, stroke
 length and how long each stop lasts; Max bpm caps the tempo; Variation is a
 number, and the same settings always make the same script. It loads as above,
-or downloads as `relax_tease_edge_60min_i<intensity>.funscript`. The card
+or downloads as `relax_tease_edge_<minutes>min_i<intensity>.funscript`. The card
 shows the fastest move: above about 320 units/s (a stroker's top speed) the
 fastest strokes come out shorter, so lower Max bpm or Intensity to keep inside it.
 

@@ -14,9 +14,13 @@ export function mulberry32(seed) {
   };
 }
 
-// Relax / tease / edge, 60 minutes. intensity 1-10 (6 = the original),
-// maxBpm a hard cap, seed the variation.
-export function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130) {
+// Relax / tease / edge. intensity 1-10 (6 = the original), maxBpm a hard
+// cap, seed the variation, minutes the length (1-90): every section scales
+// with it, so 60 is the original exactly; the cool-down fills to the end.
+export function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130, minutes = 60) {
+  minutes = Math.max(1, Math.min(90, Math.round(minutes)));
+  const total = minutes * 60000, f = minutes / 60;
+  const D = (sec) => sec * f;                                 // a section's length at this length
   intensity = Math.max(1, Math.min(10, Math.round(intensity)));
   const k = intensity - 1;
   const tempoMult = 0.6 + 0.08 * k;
@@ -36,15 +40,15 @@ export function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130) {
   function strokes(dur, b0, b1, lo, hi, j = 4) {
     [lo, hi] = R(lo, hi); b0 = B(b0); b1 = B(b1);
     const st = t, e = t + dur * 1000;
-    while (t < e) {
-      const f = (t - st) / (e - st), h = 60000 / (b0 + (b1 - b0) * f) / 2;
+    while (t < e && t < total) {
+      const g = (t - st) / (e - st), h = 60000 / (b0 + (b1 - b0) * g) / 2;
       add(hi - U(0, j)); t += h; add(lo + U(0, j)); t += h;
     }
   }
   // Steady tempo; stroke length swells and fades like breathing.
   function waves(dur, b, w = 40) {
     const st = t, e = t + dur * 1000, h = 60000 / B(b) / 2;
-    while (t < e) {
+    while (t < e && t < total) {
       const d = 55 + 40 * Math.sin(2 * Math.PI * (t - st) / (w * 1000));
       add(95); t += h; add(95 - d); t += h;
     }
@@ -52,7 +56,7 @@ export function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130) {
   // Quick shallow flicks near the top, with an occasional slow full stroke.
   function tease(dur, b = 80, de = [6, 10]) {
     const e = t + dur * 1000, h = 60000 / B(b) / 2; let n = 0, nd = RI(...de);
-    while (t < e) {
+    while (t < e && t < total) {
       n++;
       if (n >= nd) { add(100); t += 1200; add(5); t += 1500; n = 0; nd = RI(...de); }
       else { add(U(90, 100)); t += h; add(U(65, 78)); t += h; }
@@ -62,26 +66,26 @@ export function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130) {
   function hold(dur, p) { add(p); t += dur * holdMult * 1000; add(p); t += 500; }
   // Build to peak, sustain, then a hard stop at the top (raw bpm: strokes() scales and caps).
   function edge(buildS, pb, peakS, holdS) {
-    strokes(buildS, 45, pb, 0, 100); strokes(peakS, pb, pb, 0, 100); hold(holdS, 100);
+    strokes(D(buildS), 45, pb, 0, 100); strokes(D(peakS), pb, pb, 0, 100); if (t < total) hold(D(holdS), 100);
   }
 
-  // ---- the 60-minute programme ----
-  strokes(300, 18, 32, 35, 75);        // 0:00 gentle warm-up
-  waves(420, 40);                      // 5:00 relaxing waves
-  tease(360, 75);                      // 12:00 tease
+  // ---- the programme (times at 60 minutes; D() scales them) ----
+  strokes(D(300), 18, 32, 35, 75);     // 0:00 gentle warm-up
+  waves(D(420), 40);                   // 5:00 relaxing waves
+  tease(D(360), 75);                   // 12:00 tease
   edge(150, 100, 20, 30);              // edge 1 + stop
-  strokes(120, 22, 28, 30, 80);        // recovery
-  tease(300, 85);
-  waves(240, 50);
+  strokes(D(120), 22, 28, 30, 80);     // recovery
+  tease(D(300), 85);
+  waves(D(240), 50);
   edge(180, 110, 30, 40);              // edge 2 + stop
-  strokes(150, 20, 30, 40, 85);        // recovery
-  tease(300, 90, [4, 7]);              // tease with more deep strokes
+  strokes(D(150), 20, 30, 40, 85);     // recovery
+  tease(D(300), 90, [4, 7]);           // tease with more deep strokes
   edge(150, 115, 20, 30);              // edge 3 + stop
-  strokes(90, 25, 30, 30, 80);         // recovery
-  tease(180, 95);
+  strokes(D(90), 25, 30, 30, 80);      // recovery
+  tease(D(180), 95);
   edge(200, 120, 40, 45);              // the final, longest edge + stop
-  // Cool-down to 60:00, gentle at any intensity (its bpm is before scaling).
-  strokes(Math.max(0, (3600000 - t) / 1000), 30 / tempoMult, 12 / tempoMult, 40, 70);
+  // Cool-down to the end, gentle at any intensity (its bpm is before scaling).
+  strokes(Math.max(0, (total - t) / 1000), 30 / tempoMult, 12 / tempoMult, 40, 70);
   add(50);
 
   return { version: '1.0', inverted: false, range: 100, actions: A };
@@ -107,4 +111,4 @@ export function checkScript(script) {
   return '';
 }
 
-export const relaxTeaseEdgeFile = (intensity) => `relax_tease_edge_60min_i${Math.max(1, Math.min(10, Math.round(intensity)))}.funscript`;
+export const relaxTeaseEdgeFile = (intensity, minutes = 60) => `relax_tease_edge_${Math.max(1, Math.min(90, Math.round(minutes)))}min_i${Math.max(1, Math.min(10, Math.round(intensity)))}.funscript`;

@@ -262,6 +262,17 @@ console.log('slow finger following passed');
   assert.ok(p10 > 400 && p10 < 470, `peak at 10: ${p10}`);
   assert.ok(p1 < p6 / 2, `gentle at 1: ${p1}`);
   assert.strictEqual(relaxTeaseEdgeFile(8), 'relax_tease_edge_60min_i8.funscript');
+  assert.strictEqual(relaxTeaseEdgeFile(8, 25), 'relax_tease_edge_25min_i8.funscript');
+  assert.deepStrictEqual(generateRelaxTeaseEdge(7, 6, 130, 60), original(7, 120));         // 60 min: the original
+  for (const min of [1, 2, 5, 15, 30, 45, 61, 75, 90]) {
+    for (const i of [1, 6, 10]) {
+      const g = generateRelaxTeaseEdge(7, i, 130, min);
+      assert.strictEqual(checkScript(g), '', `${min} min intensity ${i}`);
+      const end = g.actions[g.actions.length - 1].at;
+      assert.ok(end >= min * 60000 && end - min * 60000 < 6000, `${min} min intensity ${i} ends at ${end}`);
+    }
+  }
+  assert.ok(peakSpeed(generateRelaxTeaseEdge(7, 6, 130, 20).actions) > 370, 'a short one still reaches its edges');
   console.log(`make a script passed (peaks: i1 ${Math.round(p1)}, i6 ${Math.round(p6)}, i10 ${Math.round(p10)} units/s)`);
 }
 

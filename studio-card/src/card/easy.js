@@ -357,7 +357,8 @@ export class OggEasyCard extends HTMLElement {
           <div class="sthead">📥 Load a code or script</div>
           <textarea id="codein" placeholder="Paste a code (ogg1:…) or a funscript" spellcheck="false" autocomplete="off"></textarea>
           <div class="row"><button type="button" id="codego">Load it</button><button type="button" class="lfile" id="codefilebtn">📂 From a file<input type="file" id="codefile" accept=".funscript,.json,application/json" aria-label="Load a script from a file on this device"></button></div>
-          <div class="sthead sub">✨ Make a script <span>Relax, tease, edge · 60 min · for a stroker</span></div>
+          <div class="sthead sub">✨ Make a script <span>Relax, tease, edge · for a stroker</span></div>
+          <label class="sl"><span>Length</span><input type="range" id="glen" min="1" max="90" step="1" value="60"><b id="glenv">60 min</b></label>
           <label class="sl"><span>Intensity</span><input type="range" id="gint" min="1" max="10" step="1" value="6"><b id="gintv">6</b></label>
           <div class="ends"><span>Gentle</span><span>Intense</span></div>
           <label class="sl"><span>Max bpm</span><input type="range" id="gbpm" min="80" max="150" step="5" value="130"><b id="gbpmv">130</b></label>
@@ -411,7 +412,7 @@ export class OggEasyCard extends HTMLElement {
     $('codefile').addEventListener('change', () => this._loadFile());
     $('loadsave').addEventListener('click', () => this._saveLoaded());
     $('loadclear').addEventListener('click', () => { setLoadedScript(null); this._toast('Cleared the loaded script.'); });
-    for (const id of ['gint', 'gbpm']) $(id).addEventListener('input', () => { $(`${id}v`).textContent = $(id).value; this._genInfo(); });
+    for (const id of ['glen', 'gint', 'gbpm']) $(id).addEventListener('input', () => { $(`${id}v`).textContent = `${$(id).value}${id === 'glen' ? ' min' : ''}`; this._genInfo(); });
     $('gseed').addEventListener('input', () => this._genInfo());
     $('gmake').addEventListener('click', () => this._genMake());
     $('gdl').addEventListener('click', () => this._genDownload());
@@ -982,14 +983,14 @@ export class OggEasyCard extends HTMLElement {
   _genSettings() {
     const $ = this._$;
     const seed = Math.floor(Number($('gseed').value));
-    return { intensity: Number($('gint').value) || 6, maxBpm: Number($('gbpm').value) || 130, seed: Number.isFinite(seed) && seed >= 0 ? seed % 4294967296 : 7 };
+    return { minutes: Number($('glen').value) || 60, intensity: Number($('gint').value) || 6, maxBpm: Number($('gbpm').value) || 130, seed: Number.isFinite(seed) && seed >= 0 ? seed % 4294967296 : 7 };
   }
 
   _genBuild() {
     const g = this._genSettings();
-    const key = `${g.seed}|${g.intensity}|${g.maxBpm}`;
+    const key = `${g.seed}|${g.intensity}|${g.maxBpm}|${g.minutes}`;
     if (!this._gen || this._gen.key !== key) {
-      const raw = generateRelaxTeaseEdge(g.seed, g.intensity, g.maxBpm);
+      const raw = generateRelaxTeaseEdge(g.seed, g.intensity, g.maxBpm, g.minutes);
       const bad = checkScript(raw);
       if (bad) throw new Error(`the made script is wrong (${bad})`);
       this._gen = { key, g, raw, peak: peakSpeed(raw.actions) };
@@ -1011,8 +1012,8 @@ export class OggEasyCard extends HTMLElement {
   _genMake() {
     try {
       const { g, raw } = this._genBuild();
-      const script = normalise({ ...raw, metadata: { type: 'stroke', title: `Relax tease edge 60 min i${g.intensity}` } }, 'stroke', false);
-      this._useLoaded({ name: `Relax tease edge i${g.intensity} v${g.seed}${g.maxBpm !== 130 ? ` ${g.maxBpm}bpm` : ''}`, script }, 'Made');
+      const script = normalise({ ...raw, metadata: { type: 'stroke', title: `Relax tease edge ${g.minutes} min i${g.intensity}` } }, 'stroke', false);
+      this._useLoaded({ name: `Relax tease edge ${g.minutes}m i${g.intensity} v${g.seed}${g.maxBpm !== 130 ? ` ${g.maxBpm}bpm` : ''}`, script }, 'Made');
       this._genInfo();
     } catch (e) { this._toast(e.message || String(e)); }
   }
@@ -1021,7 +1022,7 @@ export class OggEasyCard extends HTMLElement {
     try {
       const { g, raw } = this._genBuild();
       const url = URL.createObjectURL(new Blob([JSON.stringify(raw)], { type: 'application/json' }));
-      const a = Object.assign(document.createElement('a'), { href: url, download: relaxTeaseEdgeFile(g.intensity) });
+      const a = Object.assign(document.createElement('a'), { href: url, download: relaxTeaseEdgeFile(g.intensity, g.minutes) });
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (e) { this._toast(e.message || String(e)); }

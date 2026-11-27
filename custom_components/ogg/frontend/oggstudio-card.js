@@ -10872,7 +10872,10 @@ ha-card.embedded .head{display:none}
       return ((x ^ x >>> 14) >>> 0) / 4294967296;
     };
   }
-  function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130) {
+  function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130, minutes = 60) {
+    minutes = Math.max(1, Math.min(90, Math.round(minutes)));
+    const total = minutes * 6e4, f = minutes / 60;
+    const D = (sec) => sec * f;
     intensity = Math.max(1, Math.min(10, Math.round(intensity)));
     const k = intensity - 1;
     const tempoMult = 0.6 + 0.08 * k;
@@ -10894,8 +10897,8 @@ ha-card.embedded .head{display:none}
       b0 = B(b0);
       b1 = B(b1);
       const st = t, e = t + dur * 1e3;
-      while (t < e) {
-        const f = (t - st) / (e - st), h = 6e4 / (b0 + (b1 - b0) * f) / 2;
+      while (t < e && t < total) {
+        const g = (t - st) / (e - st), h = 6e4 / (b0 + (b1 - b0) * g) / 2;
         add(hi - U(0, j));
         t += h;
         add(lo + U(0, j));
@@ -10904,7 +10907,7 @@ ha-card.embedded .head{display:none}
     }
     function waves(dur, b, w = 40) {
       const st = t, e = t + dur * 1e3, h = 6e4 / B(b) / 2;
-      while (t < e) {
+      while (t < e && t < total) {
         const d = 55 + 40 * Math.sin(2 * Math.PI * (t - st) / (w * 1e3));
         add(95);
         t += h;
@@ -10915,7 +10918,7 @@ ha-card.embedded .head{display:none}
     function tease(dur, b = 80, de = [6, 10]) {
       const e = t + dur * 1e3, h = 6e4 / B(b) / 2;
       let n = 0, nd = RI(...de);
-      while (t < e) {
+      while (t < e && t < total) {
         n++;
         if (n >= nd) {
           add(100);
@@ -10939,25 +10942,25 @@ ha-card.embedded .head{display:none}
       t += 500;
     }
     function edge(buildS, pb, peakS, holdS) {
-      strokes(buildS, 45, pb, 0, 100);
-      strokes(peakS, pb, pb, 0, 100);
-      hold(holdS, 100);
+      strokes(D(buildS), 45, pb, 0, 100);
+      strokes(D(peakS), pb, pb, 0, 100);
+      if (t < total) hold(D(holdS), 100);
     }
-    strokes(300, 18, 32, 35, 75);
-    waves(420, 40);
-    tease(360, 75);
+    strokes(D(300), 18, 32, 35, 75);
+    waves(D(420), 40);
+    tease(D(360), 75);
     edge(150, 100, 20, 30);
-    strokes(120, 22, 28, 30, 80);
-    tease(300, 85);
-    waves(240, 50);
+    strokes(D(120), 22, 28, 30, 80);
+    tease(D(300), 85);
+    waves(D(240), 50);
     edge(180, 110, 30, 40);
-    strokes(150, 20, 30, 40, 85);
-    tease(300, 90, [4, 7]);
+    strokes(D(150), 20, 30, 40, 85);
+    tease(D(300), 90, [4, 7]);
     edge(150, 115, 20, 30);
-    strokes(90, 25, 30, 30, 80);
-    tease(180, 95);
+    strokes(D(90), 25, 30, 30, 80);
+    tease(D(180), 95);
     edge(200, 120, 40, 45);
-    strokes(Math.max(0, (36e5 - t) / 1e3), 30 / tempoMult, 12 / tempoMult, 40, 70);
+    strokes(Math.max(0, (total - t) / 1e3), 30 / tempoMult, 12 / tempoMult, 40, 70);
     add(50);
     return { version: "1.0", inverted: false, range: 100, actions: A };
   }
@@ -10977,7 +10980,7 @@ ha-card.embedded .head{display:none}
     }
     return "";
   }
-  var relaxTeaseEdgeFile = (intensity) => `relax_tease_edge_60min_i${Math.max(1, Math.min(10, Math.round(intensity)))}.funscript`;
+  var relaxTeaseEdgeFile = (intensity, minutes = 60) => `relax_tease_edge_${Math.max(1, Math.min(90, Math.round(minutes)))}min_i${Math.max(1, Math.min(10, Math.round(intensity)))}.funscript`;
 
   // studio-card/src/card/easy.js
   var STROKES = /* @__PURE__ */ new WeakMap();
@@ -11367,7 +11370,8 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
           <div class="sthead">📥 Load a code or script</div>
           <textarea id="codein" placeholder="Paste a code (ogg1:…) or a funscript" spellcheck="false" autocomplete="off"></textarea>
           <div class="row"><button type="button" id="codego">Load it</button><button type="button" class="lfile" id="codefilebtn">📂 From a file<input type="file" id="codefile" accept=".funscript,.json,application/json" aria-label="Load a script from a file on this device"></button></div>
-          <div class="sthead sub">✨ Make a script <span>Relax, tease, edge · 60 min · for a stroker</span></div>
+          <div class="sthead sub">✨ Make a script <span>Relax, tease, edge · for a stroker</span></div>
+          <label class="sl"><span>Length</span><input type="range" id="glen" min="1" max="90" step="1" value="60"><b id="glenv">60 min</b></label>
           <label class="sl"><span>Intensity</span><input type="range" id="gint" min="1" max="10" step="1" value="6"><b id="gintv">6</b></label>
           <div class="ends"><span>Gentle</span><span>Intense</span></div>
           <label class="sl"><span>Max bpm</span><input type="range" id="gbpm" min="80" max="150" step="5" value="130"><b id="gbpmv">130</b></label>
@@ -11459,8 +11463,8 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         setLoadedScript(null);
         this._toast("Cleared the loaded script.");
       });
-      for (const id of ["gint", "gbpm"]) $(id).addEventListener("input", () => {
-        $(`${id}v`).textContent = $(id).value;
+      for (const id of ["glen", "gint", "gbpm"]) $(id).addEventListener("input", () => {
+        $(`${id}v`).textContent = `${$(id).value}${id === "glen" ? " min" : ""}`;
         this._genInfo();
       });
       $("gseed").addEventListener("input", () => this._genInfo());
@@ -12115,13 +12119,13 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
     _genSettings() {
       const $ = this._$;
       const seed = Math.floor(Number($("gseed").value));
-      return { intensity: Number($("gint").value) || 6, maxBpm: Number($("gbpm").value) || 130, seed: Number.isFinite(seed) && seed >= 0 ? seed % 4294967296 : 7 };
+      return { minutes: Number($("glen").value) || 60, intensity: Number($("gint").value) || 6, maxBpm: Number($("gbpm").value) || 130, seed: Number.isFinite(seed) && seed >= 0 ? seed % 4294967296 : 7 };
     }
     _genBuild() {
       const g = this._genSettings();
-      const key = `${g.seed}|${g.intensity}|${g.maxBpm}`;
+      const key = `${g.seed}|${g.intensity}|${g.maxBpm}|${g.minutes}`;
       if (!this._gen || this._gen.key !== key) {
-        const raw = generateRelaxTeaseEdge(g.seed, g.intensity, g.maxBpm);
+        const raw = generateRelaxTeaseEdge(g.seed, g.intensity, g.maxBpm, g.minutes);
         const bad = checkScript(raw);
         if (bad) throw new Error(`the made script is wrong (${bad})`);
         this._gen = { key, g, raw, peak: peakSpeed(raw.actions) };
@@ -12145,8 +12149,8 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
     _genMake() {
       try {
         const { g, raw } = this._genBuild();
-        const script = normalise({ ...raw, metadata: { type: "stroke", title: `Relax tease edge 60 min i${g.intensity}` } }, "stroke", false);
-        this._useLoaded({ name: `Relax tease edge i${g.intensity} v${g.seed}${g.maxBpm !== 130 ? ` ${g.maxBpm}bpm` : ""}`, script }, "Made");
+        const script = normalise({ ...raw, metadata: { type: "stroke", title: `Relax tease edge ${g.minutes} min i${g.intensity}` } }, "stroke", false);
+        this._useLoaded({ name: `Relax tease edge ${g.minutes}m i${g.intensity} v${g.seed}${g.maxBpm !== 130 ? ` ${g.maxBpm}bpm` : ""}`, script }, "Made");
         this._genInfo();
       } catch (e) {
         this._toast(e.message || String(e));
@@ -12156,7 +12160,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       try {
         const { g, raw } = this._genBuild();
         const url = URL.createObjectURL(new Blob([JSON.stringify(raw)], { type: "application/json" }));
-        const a = Object.assign(document.createElement("a"), { href: url, download: relaxTeaseEdgeFile(g.intensity) });
+        const a = Object.assign(document.createElement("a"), { href: url, download: relaxTeaseEdgeFile(g.intensity, g.minutes) });
         document.body.appendChild(a);
         a.click();
         a.remove();

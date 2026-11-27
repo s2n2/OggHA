@@ -1,3 +1,7 @@
+## 3.22.1 - Script length
+
+- **Make a script has a Length slider, 1 to 90 minutes** (60 by default, the same script as before). Every section, including the stops, scales with it, and the cool-down still fills to the end. The download is named for its length, e.g. relax_tease_edge_25min_i8.funscript.
+
 ## 3.22.0 - Load or make a script
 
 - **Load a code or file in Other** (Easy card): paste a code (ogg1:…) or a funscript, or choose a .funscript file. It shows straight away as "📄 name · not saved" first in Manual → Script and in the video's script list, ready to play, before it is saved. Save it under a name (saving over a script asks first), or clear it. Until then it stays in this browser only.
