@@ -1,5 +1,6 @@
-## 3.22.1 - Script length
+## 3.22.1 - Script length, preview, Load it
 
+- **Make it shows a preview first:** the whole script's shape (position over time, coloured by speed: blue slow, red at the fastest edges), with its length, points and fastest move. Once made, the preview follows the settings as they change. **Load it** (beside Make it) puts it in the player, under Manual → Script and in the video's script list, ready to play or save.
 - **Make a script has a Length slider, 1 to 90 minutes** (60 by default, the same script as before). Every section, including the stops, scales with it, and the cool-down still fills to the end. The download is named for its length, e.g. relax_tease_edge_25min_i8.funscript.
 
 ## 3.22.0 - Load or make a script

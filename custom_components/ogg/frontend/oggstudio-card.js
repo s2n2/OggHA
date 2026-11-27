@@ -11091,10 +11091,15 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
 .loadbox .lfile{position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .loadbox .lfile input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .loadbox .x{flex:0 0 48px}
+#loadedbox .row input{flex:2 1 0}
 .loadbox .sub{border-top:1px solid var(--line);padding-top:10px;margin-top:4px}
-.loadbox .ends{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin:-6px 0 0 76px;padding-right:50px}
+.loadbox .ends{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin:-6px 0 0 76px;padding-right:66px}
 .loadbox .sl span{flex:0 0 66px}
+.loadbox .sl b{flex:0 0 56px;white-space:nowrap}
 .loadbox .warn{color:#ffcf8a}
+.gprev{display:flex;flex-direction:column;gap:2px}
+.gprev canvas{display:block;width:100%;height:72px;border-radius:12px;background:#121a2e;border:1px solid var(--line)}
+.gaxis{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 [hidden]{display:none!important}
 `;
   var keepGet2 = () => {
@@ -11376,7 +11381,9 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
           <div class="ends"><span>Gentle</span><span>Intense</span></div>
           <label class="sl"><span>Max bpm</span><input type="range" id="gbpm" min="80" max="150" step="5" value="130"><b id="gbpmv">130</b></label>
           <label class="sl"><span>Variation</span><input type="number" id="gseed" min="0" max="4294967295" step="1" value="7" inputmode="numeric" aria-label="Variation (the same number always makes the same script)"></label>
-          <div class="row"><button type="button" id="gmake">✨ Make it</button><button type="button" id="gdl">⬇ Save as .funscript</button></div>
+          <div class="gprev" id="gprev" hidden><canvas id="gcan" aria-label="Preview: position over time, coloured by speed"></canvas><div class="gaxis"><span>0:00</span><span id="gmid"></span><span id="gend"></span></div></div>
+          <div class="row"><button type="button" id="gmake">✨ Make it</button><button type="button" id="gload" class="go" disabled>📥 Load it</button></div>
+          <button type="button" id="gdl">⬇ Save as .funscript</button>
           <div class="hint" id="ginfo">The same settings always make the same script. Variation changes the details.</div>
           <div id="loadedbox" class="panel sub" hidden>
             <div class="hint" id="loadedinfo"></div>
@@ -11465,10 +11472,11 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       });
       for (const id of ["glen", "gint", "gbpm"]) $(id).addEventListener("input", () => {
         $(`${id}v`).textContent = `${$(id).value}${id === "glen" ? " min" : ""}`;
-        this._genInfo();
+        this._genChanged();
       });
-      $("gseed").addEventListener("input", () => this._genInfo());
+      $("gseed").addEventListener("input", () => this._genChanged());
       $("gmake").addEventListener("click", () => this._genMake());
+      $("gload").addEventListener("click", () => this._genLoad());
       $("gdl").addEventListener("click", () => this._genDownload());
       this._showLoaded();
       $("scan").addEventListener("click", () => this._search());
@@ -12128,7 +12136,8 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         const raw = generateRelaxTeaseEdge(g.seed, g.intensity, g.maxBpm, g.minutes);
         const bad = checkScript(raw);
         if (bad) throw new Error(`the made script is wrong (${bad})`);
-        this._gen = { key, g, raw, peak: peakSpeed(raw.actions) };
+        const script = normalise({ ...raw, metadata: { type: "stroke", title: `Relax tease edge ${g.minutes} min i${g.intensity}` } }, "stroke", false);
+        this._gen = { key, g, raw, script, peak: peakSpeed(raw.actions) };
       }
       return this._gen;
     }
@@ -12146,11 +12155,74 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       $("ginfo").className = `hint${fast ? " warn" : ""}`;
       $("ginfo").textContent = `${clock(gen.raw.actions[gen.raw.actions.length - 1].at)} · ${gen.raw.actions.length} points · fastest move ${Math.round(gen.peak)} units/s.` + (fast ? ` A stroker tops out at about ${LIMIT_FULL_SPEED}, so the fastest strokes come out shorter: lower Max bpm or Intensity to stay inside it.` : " Inside a stroker's top speed.");
     }
+    // Settings changed: once made, the preview follows them.
+    _genChanged() {
+      this._genInfo();
+      if (!this._genShown) return;
+      clearTimeout(this._genT);
+      this._genT = setTimeout(() => this._genPreview(), 150);
+    }
+    // Make it: the script's shape (position over time, coloured by speed) to look at first.
     _genMake() {
       try {
-        const { g, raw } = this._genBuild();
-        const script = normalise({ ...raw, metadata: { type: "stroke", title: `Relax tease edge ${g.minutes} min i${g.intensity}` } }, "stroke", false);
-        this._useLoaded({ name: `Relax tease edge ${g.minutes}m i${g.intensity} v${g.seed}${g.maxBpm !== 130 ? ` ${g.maxBpm}bpm` : ""}`, script }, "Made");
+        this._genShown = true;
+        this._genPreview();
+        this._$("gload").disabled = false;
+      } catch (e) {
+        this._toast(e.message || String(e));
+      }
+    }
+    _genPreview() {
+      const $ = this._$;
+      let gen;
+      try {
+        gen = this._genBuild();
+      } catch (e) {
+        this._toast(e.message || String(e));
+        return;
+      }
+      $("gprev").hidden = false;
+      this._genInfo();
+      const a = gen.raw.actions, len = a[a.length - 1].at;
+      $("gmid").textContent = clock(len / 2);
+      $("gend").textContent = clock(len);
+      const c = $("gcan");
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.max(160, Math.round((c.clientWidth || 320) * dpr)), h = Math.round(72 * dpr);
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext && c.getContext("2d");
+      if (!ctx) return;
+      ctx.clearRect(0, 0, w, h);
+      const pad = 4 * dpr, y = (pos) => pad + (100 - pos) / 100 * (h - 2 * pad);
+      let i = 0;
+      const at = (t) => {
+        while (i < a.length - 1 && a[i + 1].at <= t) i++;
+        const p = a[i], q = a[Math.min(a.length - 1, i + 1)];
+        return q.at > p.at && t > p.at ? p.pos + (q.pos - p.pos) * Math.min(1, (t - p.at) / (q.at - p.at)) : p.pos;
+      };
+      for (let x = 0; x < w; x++) {
+        const t0 = len * x / w, t1 = len * (x + 1) / w;
+        let lo = at(t0), hi = lo;
+        const speed = (j) => j > 0 && j < a.length && a[j].at > a[j - 1].at ? Math.abs(a[j].pos - a[j - 1].pos) / (a[j].at - a[j - 1].at) * 1e3 : 0;
+        let fast = speed(i + 1);
+        for (let j = i + 1; j < a.length && a[j].at < t1; j++) {
+          lo = Math.min(lo, a[j].pos);
+          hi = Math.max(hi, a[j].pos);
+          fast = Math.max(fast, speed(j), speed(j + 1));
+        }
+        const end = at(t1);
+        lo = Math.min(lo, end);
+        hi = Math.max(hi, end);
+        ctx.fillStyle = heatColor(fast / 430);
+        ctx.fillRect(x, y(hi), 1, Math.max(dpr, y(lo) - y(hi)));
+      }
+    }
+    // Load it: into the player, as a loaded script (not saved yet).
+    _genLoad() {
+      try {
+        const { g, script } = this._genBuild();
+        this._useLoaded({ name: `Relax tease edge ${g.minutes}m i${g.intensity} v${g.seed}${g.maxBpm !== 130 ? ` ${g.maxBpm}bpm` : ""}`, script }, "Loaded");
         this._genInfo();
       } catch (e) {
         this._toast(e.message || String(e));
