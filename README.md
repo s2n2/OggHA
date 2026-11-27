@@ -117,11 +117,13 @@ It stays in this browser only until then, never in Home Assistant.
 minutes long (60 by default): warm-up, waves, teasing and four edges that
 build to a peak and stop dead. Every section scales with the length.
 Intensity (1 gentle to 10 intense, 6 the standard) sets the tempo, stroke
-length and how long each stop lasts; Max bpm caps the tempo; Variation is a
-number, and the same settings always make the same script. **Make it** shows
+length and how long each stop lasts; Max bpm caps the tempo; Variation (1 to
+100) picks the plan: the warm-up, how many edges (2 to 5), how each builds
+and where it stops, and the sections between them (waves, teasing, slow deep
+strokes, one zone, pulses). The same settings always make the same script. **Make it** shows
 a preview of the whole script (position over time, coloured by speed);
 **Load it** loads it as above,
-or downloads as `relax_tease_edge_<minutes>min_i<intensity>.funscript`. The card
+or downloads as `relax_tease_edge_<minutes>min_i<intensity>_v<variation>.funscript`. The card
 shows the fastest move: above about 320 units/s (a stroker's top speed) the
 fastest strokes come out shorter, so lower Max bpm or Intensity to keep inside it.
 

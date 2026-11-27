@@ -1,3 +1,8 @@
+## 3.22.2 - Variations that differ
+
+- **Each Variation is its own plan now, 1 to 100 on a slider:** it picks the warm-up (strokes, waves or slow deep strokes), how many edges (2 to 5), how each builds (a ramp or tempo steps), how hard it peaks and where it stops, and the sections between them, chosen from waves, teasing, slow deep strokes, strokes in one zone and fast/slow pulses, each with its own tempo, depth and timing. Before, variations only changed small details and looked alike. The same settings still always make the same script, but a variation number makes a different script than in 3.22.1.
+- The download name includes the variation, e.g. relax_tease_edge_60min_i6_v42.funscript.
+
 ## 3.22.1 - Script length, preview, Load it
 
 - **Make it shows a preview first:** the whole script's shape (position over time, coloured by speed: blue slow, red at the fastest edges), with its length, points and fastest move. Once made, the preview follows the settings as they change. **Load it** (beside Make it) puts it in the player, under Manual → Script and in the video's script list, ready to play or save.

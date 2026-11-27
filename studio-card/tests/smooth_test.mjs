@@ -215,64 +215,54 @@ console.log('slow finger following passed');
   console.log('video script by file passed');
 }
 
-// Make a script: relax / tease / edge. Intensity 6 is the original
-// generator exactly; every intensity ends at 60:00 with clean points.
+// Make a script: relax / tease / edge. Each Variation (1-100) is its own
+// plan; every one ends on time with clean points; the same settings repeat.
 {
   const { generateRelaxTeaseEdge, checkScript, peakSpeed, relaxTeaseEdgeFile, mulberry32 } = await import('../src/lib/generate.js');
-  function original(seed = 7, peakBpm = 120) {
-    let s = seed >>> 0;
-    const rnd = () => { s = (s + 0x6D2B79F5) >>> 0; let x = s;
-      x = Math.imul(x ^ x >>> 15, x | 1); x ^= x + Math.imul(x ^ x >>> 7, x | 61);
-      return ((x ^ x >>> 14) >>> 0) / 4294967296; };
-    const U = (a, b) => a + (b - a) * rnd();
-    const RI = (a, b) => Math.floor(U(a, b + 1));
-    const A = []; let t = 0;
-    const add = (p) => A.push({ at: Math.round(t), pos: Math.max(0, Math.min(100, Math.round(p))) });
-    const scale = (b) => b * peakBpm / 120;
-    function strokes(dur, b0, b1, lo, hi, j = 4) { const st = t, e = t + dur * 1000;
-      while (t < e) { const f = (t - st) / (e - st), h = 60000 / (b0 + (b1 - b0) * f) / 2; add(hi - U(0, j)); t += h; add(lo + U(0, j)); t += h; } }
-    function waves(dur, b, w = 40) { const st = t, e = t + dur * 1000, h = 60000 / b / 2;
-      while (t < e) { const d = 55 + 40 * Math.sin(2 * Math.PI * (t - st) / (w * 1000)); add(95); t += h; add(95 - d); t += h; } }
-    function tease(dur, b = 80, de = [6, 10]) { const e = t + dur * 1000, h = 60000 / b / 2; let n = 0, nd = RI(...de);
-      while (t < e) { n++; if (n >= nd) { add(100); t += 1200; add(5); t += 1500; n = 0; nd = RI(...de); } else { add(U(90, 100)); t += h; add(U(65, 78)); t += h; } } }
-    function hold(dur, p) { add(p); t += dur * 1000; add(p); t += 500; }
-    function edge(buildS, pb, peakS, holdS) { pb = scale(pb); strokes(buildS, 45, pb, 0, 100); strokes(peakS, pb, pb, 0, 100); hold(holdS, 100); }
-    strokes(300, 18, 32, 35, 75); waves(420, 40); tease(360, 75); edge(150, 100, 20, 30); strokes(120, 22, 28, 30, 80);
-    tease(300, 85); waves(240, 50); edge(180, 110, 30, 40); strokes(150, 20, 30, 40, 85); tease(300, 90, [4, 7]);
-    edge(150, 115, 20, 30); strokes(90, 25, 30, 30, 80); tease(180, 95); edge(200, 120, 40, 45);
-    strokes(Math.max(0, (3600000 - t) / 1000), 30, 12, 40, 70); add(50);
-    return { version: '1.0', inverted: false, range: 100, actions: A };
-  }
-  assert.deepStrictEqual(generateRelaxTeaseEdge(7, 6, 130), original(7, 120));
-  assert.deepStrictEqual(generateRelaxTeaseEdge(42, 6, 130), original(42, 120));
-  assert.deepStrictEqual(generateRelaxTeaseEdge(7, 8), generateRelaxTeaseEdge(7, 8));      // same seed, same script
-  assert.notDeepStrictEqual(generateRelaxTeaseEdge(8, 8), generateRelaxTeaseEdge(7, 8));
   const r = mulberry32(7); assert.strictEqual(r(), mulberry32(7)());
-  for (const i of [1, 6, 10]) {
-    for (const max of [80, 130, 150]) {
-      const g = generateRelaxTeaseEdge(7, i, max);
-      assert.deepStrictEqual(Object.keys(g), ['version', 'inverted', 'range', 'actions']);
-      assert.strictEqual(checkScript(g), '', `intensity ${i} max ${max}`);
-      const end = g.actions[g.actions.length - 1].at;
-      assert.ok(end >= 3600000 && end - 3600000 < 6000, `intensity ${i} max ${max} ends at ${end}`);
-    }
+  assert.deepStrictEqual(generateRelaxTeaseEdge(7, 8), generateRelaxTeaseEdge(7, 8));      // same settings, same script
+  const g0 = generateRelaxTeaseEdge(7);
+  assert.deepStrictEqual(Object.keys(g0), ['version', 'inverted', 'range', 'actions']);
+  // Its stops (flat 3 s or more) and its shape (mean position per minute).
+  const stops = (a) => a.filter((x, i) => i && x.pos === a[i - 1].pos && x.at - a[i - 1].at >= 3000).length;
+  const shape = (a, n = 60) => { const len = a[a.length - 1].at, sum = new Array(n).fill(0), cnt = new Array(n).fill(0);
+    for (const x of a) { const b = Math.min(n - 1, Math.floor(x.at / len * n)); sum[b] += x.pos; cnt[b]++; }
+    return sum.map((v, i) => (cnt[i] ? v / cnt[i] : 50)); };
+  const rate = (a, n = 60) => { const len = a[a.length - 1].at, c = new Array(n).fill(0); for (const x of a) c[Math.min(n - 1, Math.floor(x.at / len * n))]++; return c; };
+  const diff = (x, y) => x.reduce((n, v, i) => n + Math.abs(v - y[i]), 0) / x.length;
+  const stopCounts = new Set(), shapes = [], rates = [];
+  for (let seed = 1; seed <= 100; seed++) {
+    const g = generateRelaxTeaseEdge(seed, 6, 130, 60);
+    assert.strictEqual(checkScript(g), '', `variation ${seed}`);
+    const end = g.actions[g.actions.length - 1].at;
+    assert.ok(end >= 3600000 && end - 3600000 < 6000, `variation ${seed} ends at ${end}`);
+    const n = stops(g.actions);
+    assert.ok(n >= 2 && n <= 5, `variation ${seed}: ${n} stops`);
+    assert.ok(peakSpeed(g.actions) < 470, `variation ${seed} peak ${peakSpeed(g.actions)}`);
+    stopCounts.add(n); shapes.push(shape(g.actions)); rates.push(rate(g.actions));
   }
-  const p6 = peakSpeed(generateRelaxTeaseEdge(7, 6, 130).actions), p10 = peakSpeed(generateRelaxTeaseEdge(7, 10, 130).actions), p1 = peakSpeed(generateRelaxTeaseEdge(7, 1, 130).actions);
-  assert.ok(p6 > 370 && p6 < 430, `peak at 6: ${p6}`);
-  assert.ok(p10 > 400 && p10 < 470, `peak at 10: ${p10}`);
-  assert.ok(p1 < p6 / 2, `gentle at 1: ${p1}`);
-  assert.strictEqual(relaxTeaseEdgeFile(8), 'relax_tease_edge_60min_i8.funscript');
-  assert.strictEqual(relaxTeaseEdgeFile(8, 25), 'relax_tease_edge_25min_i8.funscript');
-  assert.deepStrictEqual(generateRelaxTeaseEdge(7, 6, 130, 60), original(7, 120));         // 60 min: the original
+  assert.ok(stopCounts.size >= 4, `edges vary: ${[...stopCounts]}`);
+  // Neighbouring variations are not near-copies: their pace minute by minute differs.
+  let close = 0, total = 0;
+  for (let i = 0; i < 99; i++) { const d = diff(rates[i], rates[i + 1]) / (rates[i].reduce((a, b) => a + b) / 60); total += d; if (d < 0.15) close++; }
+  assert.ok(close <= 3, `${close} neighbouring variations look alike`);
+  console.log(`  variations: ${[...stopCounts].sort().join('/')} edges, pace differs ${Math.round(total / 99 * 100)}% minute by minute on average`);
   for (const min of [1, 2, 5, 15, 30, 45, 61, 75, 90]) {
     for (const i of [1, 6, 10]) {
-      const g = generateRelaxTeaseEdge(7, i, 130, min);
-      assert.strictEqual(checkScript(g), '', `${min} min intensity ${i}`);
-      const end = g.actions[g.actions.length - 1].at;
-      assert.ok(end >= min * 60000 && end - min * 60000 < 6000, `${min} min intensity ${i} ends at ${end}`);
+      for (const seed of [1, 7, 50, 100]) {
+        const g = generateRelaxTeaseEdge(seed, i, 130, min);
+        assert.strictEqual(checkScript(g), '', `${min} min intensity ${i} variation ${seed}`);
+        const end = g.actions[g.actions.length - 1].at;
+        assert.ok(end >= min * 60000 && end - min * 60000 < 6000, `${min} min intensity ${i} variation ${seed} ends at ${end}`);
+      }
     }
   }
-  assert.ok(peakSpeed(generateRelaxTeaseEdge(7, 6, 130, 20).actions) > 370, 'a short one still reaches its edges');
+  for (const max of [80, 150]) assert.strictEqual(checkScript(generateRelaxTeaseEdge(7, 10, max)), '');
+  const p6 = peakSpeed(generateRelaxTeaseEdge(7, 6, 130).actions), p10 = peakSpeed(generateRelaxTeaseEdge(7, 10, 130).actions), p1 = peakSpeed(generateRelaxTeaseEdge(7, 1, 130).actions);
+  assert.ok(p1 < p6 && p6 <= p10, `intensity raises the pace: ${p1} ${p6} ${p10}`);
+  assert.ok(peakSpeed(generateRelaxTeaseEdge(7, 10, 80).actions) < p10, 'Max bpm caps it');
+  assert.strictEqual(relaxTeaseEdgeFile(8), 'relax_tease_edge_60min_i8.funscript');
+  assert.strictEqual(relaxTeaseEdgeFile(8, 25, 42), 'relax_tease_edge_25min_i8_v42.funscript');
   console.log(`make a script passed (peaks: i1 ${Math.round(p1)}, i6 ${Math.round(p6)}, i10 ${Math.round(p10)} units/s)`);
 }
 

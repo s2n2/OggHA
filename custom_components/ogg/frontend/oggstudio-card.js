@@ -10874,16 +10874,16 @@ ha-card.embedded .head{display:none}
   }
   function generateRelaxTeaseEdge(seed = 7, intensity = 6, maxBpm = 130, minutes = 60) {
     minutes = Math.max(1, Math.min(90, Math.round(minutes)));
-    const total = minutes * 6e4, f = minutes / 60;
-    const D = (sec) => sec * f;
     intensity = Math.max(1, Math.min(10, Math.round(intensity)));
+    const total = minutes * 6e4;
     const k = intensity - 1;
     const tempoMult = 0.6 + 0.08 * k;
     const rangeScale = Math.min(1, 0.5 + 0.1 * k);
     const holdMult = 0.5 + 0.1 * k;
-    const rnd = mulberry32(seed);
+    const rnd = mulberry32(Math.imul((seed >>> 0) + 1, 2654435761));
     const U = (a, b) => a + (b - a) * rnd();
     const RI = (a, b) => Math.floor(U(a, b + 1));
+    const pick = (list) => list[Math.floor(rnd() * list.length)];
     const A = [];
     let t = 0;
     const add = (p) => A.push({ at: Math.round(t), pos: Math.max(0, Math.min(100, Math.round(p))) });
@@ -10892,12 +10892,13 @@ ha-card.embedded .head{display:none}
       const c = (lo + hi) / 2, h = (hi - lo) / 2 * rangeScale;
       return [c - h, c + h];
     };
+    const live = (e) => t < e && t < total;
     function strokes(dur, b0, b1, lo, hi, j = 4) {
       [lo, hi] = R(lo, hi);
       b0 = B(b0);
       b1 = B(b1);
       const st = t, e = t + dur * 1e3;
-      while (t < e && t < total) {
+      while (live(e)) {
         const g = (t - st) / (e - st), h = 6e4 / (b0 + (b1 - b0) * g) / 2;
         add(hi - U(0, j));
         t += h;
@@ -10905,61 +10906,149 @@ ha-card.embedded .head{display:none}
         t += h;
       }
     }
-    function waves(dur, b, w = 40) {
-      const st = t, e = t + dur * 1e3, h = 6e4 / B(b) / 2;
-      while (t < e && t < total) {
-        const d = 55 + 40 * Math.sin(2 * Math.PI * (t - st) / (w * 1e3));
-        add(95);
+    function stairs(dur, b0, b1, steps, lo, hi) {
+      for (let i = 0; i < steps; i++) {
+        const b = b0 + (b1 - b0) * (steps > 1 ? i / (steps - 1) : 1);
+        strokes(dur / steps, b, b, lo, hi);
+      }
+    }
+    function waves(dur, b, w, top, depth, swing) {
+      const st = t, e = t + dur * 1e3, h = 6e4 / B(b) / 2, ph = U(0, 2 * Math.PI);
+      while (live(e)) {
+        const d = depth + swing * Math.sin(ph + 2 * Math.PI * (t - st) / (w * 1e3));
+        add(top);
         t += h;
-        add(95 - d);
+        add(top - d);
         t += h;
       }
     }
-    function tease(dur, b = 80, de = [6, 10]) {
+    function tease(dur, b, de, hiBand, loBand) {
       const e = t + dur * 1e3, h = 6e4 / B(b) / 2;
       let n = 0, nd = RI(...de);
-      while (t < e && t < total) {
+      while (live(e)) {
         n++;
         if (n >= nd) {
           add(100);
-          t += 1200;
-          add(5);
-          t += 1500;
+          t += U(900, 1600);
+          add(U(0, 10));
+          t += U(1100, 2e3);
           n = 0;
           nd = RI(...de);
         } else {
-          add(U(90, 100));
+          add(U(...hiBand));
           t += h;
-          add(U(65, 78));
+          add(U(...loBand));
           t += h;
         }
       }
     }
+    function slowDeep(dur, b, hang) {
+      const [lo, hi] = R(0, 100), e = t + dur * 1e3, h = 6e4 / B(b) / 2;
+      while (live(e)) {
+        add(hi);
+        t += hang;
+        add(hi);
+        t += h;
+        add(lo);
+        t += hang;
+        add(lo);
+        t += h;
+      }
+    }
+    function pulse(dur, bFast, bSlow, lo, hi) {
+      [lo, hi] = R(lo, hi);
+      const e = t + dur * 1e3, hf = 6e4 / B(bFast) / 2, hs = 6e4 / B(bSlow) / 2, mid = (lo + hi) / 2;
+      let fast = rnd() < 0.5, until = t + U(3e3, 9e3);
+      while (live(e)) {
+        if (t >= until) {
+          fast = !fast;
+          until = t + U(3e3, 9e3);
+        }
+        const half = (hi - lo) / 2 * (fast ? 0.45 : 1), h = fast ? hf : hs, c = fast ? hi - half : mid;
+        add(c + half - U(0, 3));
+        t += h;
+        add(c - half + U(0, 3));
+        t += h;
+      }
+    }
     function hold(dur, p) {
+      if (t >= total) return;
       add(p);
       t += dur * holdMult * 1e3;
       add(p);
       t += 500;
     }
-    function edge(buildS, pb, peakS, holdS) {
-      strokes(D(buildS), 45, pb, 0, 100);
-      strokes(D(peakS), pb, pb, 0, 100);
-      if (t < total) hold(D(holdS), 100);
+    const plan = [];
+    const warm = pick(["ramp", "waves", "slow"]);
+    if (warm === "ramp") {
+      const a = U(15, 22), b = U(26, 36), lo = U(28, 42), hi = U(68, 82);
+      plan.push([U(200, 380), (d) => strokes(d, a, b, lo, hi)]);
+    } else if (warm === "waves") {
+      const b = U(25, 38), w = U(25, 60);
+      plan.push([U(200, 380), (d) => waves(d, b, w, 85, 30, 20)]);
+    } else {
+      const b = U(14, 22), hang = U(400, 1200);
+      plan.push([U(200, 380), (d) => slowDeep(d, b, hang)]);
     }
-    strokes(D(300), 18, 32, 35, 75);
-    waves(D(420), 40);
-    tease(D(360), 75);
-    edge(150, 100, 20, 30);
-    strokes(D(120), 22, 28, 30, 80);
-    tease(D(300), 85);
-    waves(D(240), 50);
-    edge(180, 110, 30, 40);
-    strokes(D(150), 20, 30, 40, 85);
-    tease(D(300), 90, [4, 7]);
-    edge(150, 115, 20, 30);
-    strokes(D(90), 25, 30, 30, 80);
-    tease(D(180), 95);
-    edge(200, 120, 40, 45);
+    const middle = {
+      waves: () => {
+        const b = U(32, 60), w = U(18, 70), top = pick([95, 90, 75]), depth = U(28, Math.min(55, top - 25)), swing = U(12, Math.min(40, top - depth - 5));
+        return (d) => waves(d, b, w, top, depth, swing);
+      },
+      tease: () => {
+        const b = U(68, 100), de = pick([[3, 5], [4, 7], [6, 10], [9, 15]]), hiB = pick([[90, 100], [82, 96], [70, 88]]), lo = hiB[0] - U(14, 30);
+        return (d) => tease(d, b, de, hiB, [lo - 6, lo + 6]);
+      },
+      slow: () => {
+        const b = U(16, 30), hang = U(250, 1100);
+        return (d) => slowDeep(d, b, hang);
+      },
+      zone: () => {
+        const z = pick([[50, 100], [0, 50], [25, 75], [60, 100], [0, 40]]), a = U(28, 55), b = a + U(-10, 18);
+        return (d) => strokes(d, a, b, z[0], z[1], 3);
+      },
+      pulse: () => {
+        const f = U(85, 120), s = U(20, 35), z = pick([[0, 100], [20, 100], [0, 80]]);
+        return (d) => pulse(d, f, s, z[0], z[1]);
+      },
+      strokes: () => {
+        const a = U(20, 34), b = U(24, 40), lo = U(20, 45), hi = U(70, 90);
+        return (d) => strokes(d, a, b, lo, hi);
+      }
+    };
+    const kinds = Object.keys(middle);
+    const edges = RI(2, 5);
+    const peak0 = U(90, 106), peak1 = U(114, 128);
+    let last = "";
+    for (let i = 0; i < edges; i++) {
+      const gaps = i === 0 ? RI(1, 3) : RI(1, 2);
+      for (let g = 0; g < gaps; g++) {
+        let kind = pick(kinds);
+        while (kind === last) kind = pick(kinds);
+        last = kind;
+        plan.push([U(140, 380) * (5 / (edges + 3)), middle[kind]()]);
+      }
+      const pb = peak0 + (peak1 - peak0) * (edges > 1 ? i / (edges - 1) : 1) + U(-4, 4);
+      const final = i === edges - 1;
+      const build = pick(["ramp", "ramp", "stairs"]), from = U(38, 58), steps = RI(3, 5);
+      const peakLo = pick([0, 0, 0, 15, 25]);
+      const stopAt = pick([100, 100, 100, 90, 50, 0]);
+      const buildS = U(110, 200) * (final ? 1.3 : 1), peakS = U(15, 35) * (final ? 1.4 : 1), holdS = U(18, 45) * (final ? 1.25 : 1);
+      plan.push([buildS, (d) => build === "stairs" ? stairs(d, from, pb, steps, 0, 100) : strokes(d, from, pb, 0, 100)]);
+      plan.push([peakS, (d) => strokes(d, pb, pb, peakLo, 100)]);
+      plan.push([holdS, (d) => hold(d, stopAt), true]);
+      if (!final && rnd() < 0.6) {
+        const a = U(18, 26), b = U(24, 32);
+        plan.push([U(60, 150), (d) => strokes(d, a, b, 30, 80)]);
+      }
+    }
+    const cool = U(110, 290);
+    const sum = plan.reduce((n, [s]) => n + s, 0);
+    const scale = (3600 - cool) / sum * (minutes / 60);
+    for (const [s, run] of plan) {
+      if (t >= total) break;
+      run(s * scale);
+    }
     strokes(Math.max(0, (total - t) / 1e3), 30 / tempoMult, 12 / tempoMult, 40, 70);
     add(50);
     return { version: "1.0", inverted: false, range: 100, actions: A };
@@ -10980,7 +11069,7 @@ ha-card.embedded .head{display:none}
     }
     return "";
   }
-  var relaxTeaseEdgeFile = (intensity, minutes = 60) => `relax_tease_edge_${Math.max(1, Math.min(90, Math.round(minutes)))}min_i${Math.max(1, Math.min(10, Math.round(intensity)))}.funscript`;
+  var relaxTeaseEdgeFile = (intensity, minutes = 60, seed) => `relax_tease_edge_${Math.max(1, Math.min(90, Math.round(minutes)))}min_i${Math.max(1, Math.min(10, Math.round(intensity)))}${seed ? `_v${seed}` : ""}.funscript`;
 
   // studio-card/src/card/easy.js
   var STROKES = /* @__PURE__ */ new WeakMap();
@@ -11380,11 +11469,11 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
           <label class="sl"><span>Intensity</span><input type="range" id="gint" min="1" max="10" step="1" value="6"><b id="gintv">6</b></label>
           <div class="ends"><span>Gentle</span><span>Intense</span></div>
           <label class="sl"><span>Max bpm</span><input type="range" id="gbpm" min="80" max="150" step="5" value="130"><b id="gbpmv">130</b></label>
-          <label class="sl"><span>Variation</span><input type="number" id="gseed" min="0" max="4294967295" step="1" value="7" inputmode="numeric" aria-label="Variation (the same number always makes the same script)"></label>
+          <label class="sl"><span>Variation</span><input type="range" id="gseed" min="1" max="100" step="1" value="7" aria-label="Variation (the same number always makes the same script)"><b id="gseedv">7</b></label>
           <div class="gprev" id="gprev" hidden><canvas id="gcan" aria-label="Preview: position over time, coloured by speed"></canvas><div class="gaxis"><span>0:00</span><span id="gmid"></span><span id="gend"></span></div></div>
           <div class="row"><button type="button" id="gmake">✨ Make it</button><button type="button" id="gload" class="go" disabled>📥 Load it</button></div>
           <button type="button" id="gdl">⬇ Save as .funscript</button>
-          <div class="hint" id="ginfo">The same settings always make the same script. Variation changes the details.</div>
+          <div class="hint" id="ginfo">Each Variation is a different plan: how many edges, how they build, what comes between. The same settings always make the same script.</div>
           <div id="loadedbox" class="panel sub" hidden>
             <div class="hint" id="loadedinfo"></div>
             <div class="row"><input type="text" id="loadname" maxlength="60" aria-label="Name to save it as" autocomplete="off"><button type="button" id="loadsave" class="go">💾 Save</button><button type="button" id="loadclear" class="stop x" title="Clear it (not saved)" aria-label="Clear the loaded script">✕</button></div>
@@ -11470,11 +11559,10 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
         setLoadedScript(null);
         this._toast("Cleared the loaded script.");
       });
-      for (const id of ["glen", "gint", "gbpm"]) $(id).addEventListener("input", () => {
+      for (const id of ["glen", "gint", "gbpm", "gseed"]) $(id).addEventListener("input", () => {
         $(`${id}v`).textContent = `${$(id).value}${id === "glen" ? " min" : ""}`;
         this._genChanged();
       });
-      $("gseed").addEventListener("input", () => this._genChanged());
       $("gmake").addEventListener("click", () => this._genMake());
       $("gload").addEventListener("click", () => this._genLoad());
       $("gdl").addEventListener("click", () => this._genDownload());
@@ -12127,7 +12215,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
     _genSettings() {
       const $ = this._$;
       const seed = Math.floor(Number($("gseed").value));
-      return { minutes: Number($("glen").value) || 60, intensity: Number($("gint").value) || 6, maxBpm: Number($("gbpm").value) || 130, seed: Number.isFinite(seed) && seed >= 0 ? seed % 4294967296 : 7 };
+      return { minutes: Number($("glen").value) || 60, intensity: Number($("gint").value) || 6, maxBpm: Number($("gbpm").value) || 130, seed: Number.isFinite(seed) ? Math.max(1, Math.min(100, seed)) : 7 };
     }
     _genBuild() {
       const g = this._genSettings();
@@ -12232,7 +12320,7 @@ input[type=range]{flex:1;accent-color:#67e0c8;height:30px;margin:0}
       try {
         const { g, raw } = this._genBuild();
         const url = URL.createObjectURL(new Blob([JSON.stringify(raw)], { type: "application/json" }));
-        const a = Object.assign(document.createElement("a"), { href: url, download: relaxTeaseEdgeFile(g.intensity, g.minutes) });
+        const a = Object.assign(document.createElement("a"), { href: url, download: relaxTeaseEdgeFile(g.intensity, g.minutes, g.seed) });
         document.body.appendChild(a);
         a.click();
         a.remove();

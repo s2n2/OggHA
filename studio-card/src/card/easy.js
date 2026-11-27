@@ -367,11 +367,11 @@ export class OggEasyCard extends HTMLElement {
           <label class="sl"><span>Intensity</span><input type="range" id="gint" min="1" max="10" step="1" value="6"><b id="gintv">6</b></label>
           <div class="ends"><span>Gentle</span><span>Intense</span></div>
           <label class="sl"><span>Max bpm</span><input type="range" id="gbpm" min="80" max="150" step="5" value="130"><b id="gbpmv">130</b></label>
-          <label class="sl"><span>Variation</span><input type="number" id="gseed" min="0" max="4294967295" step="1" value="7" inputmode="numeric" aria-label="Variation (the same number always makes the same script)"></label>
+          <label class="sl"><span>Variation</span><input type="range" id="gseed" min="1" max="100" step="1" value="7" aria-label="Variation (the same number always makes the same script)"><b id="gseedv">7</b></label>
           <div class="gprev" id="gprev" hidden><canvas id="gcan" aria-label="Preview: position over time, coloured by speed"></canvas><div class="gaxis"><span>0:00</span><span id="gmid"></span><span id="gend"></span></div></div>
           <div class="row"><button type="button" id="gmake">✨ Make it</button><button type="button" id="gload" class="go" disabled>📥 Load it</button></div>
           <button type="button" id="gdl">⬇ Save as .funscript</button>
-          <div class="hint" id="ginfo">The same settings always make the same script. Variation changes the details.</div>
+          <div class="hint" id="ginfo">Each Variation is a different plan: how many edges, how they build, what comes between. The same settings always make the same script.</div>
           <div id="loadedbox" class="panel sub" hidden>
             <div class="hint" id="loadedinfo"></div>
             <div class="row"><input type="text" id="loadname" maxlength="60" aria-label="Name to save it as" autocomplete="off"><button type="button" id="loadsave" class="go">💾 Save</button><button type="button" id="loadclear" class="stop x" title="Clear it (not saved)" aria-label="Clear the loaded script">✕</button></div>
@@ -419,8 +419,7 @@ export class OggEasyCard extends HTMLElement {
     $('codefile').addEventListener('change', () => this._loadFile());
     $('loadsave').addEventListener('click', () => this._saveLoaded());
     $('loadclear').addEventListener('click', () => { setLoadedScript(null); this._toast('Cleared the loaded script.'); });
-    for (const id of ['glen', 'gint', 'gbpm']) $(id).addEventListener('input', () => { $(`${id}v`).textContent = `${$(id).value}${id === 'glen' ? ' min' : ''}`; this._genChanged(); });
-    $('gseed').addEventListener('input', () => this._genChanged());
+    for (const id of ['glen', 'gint', 'gbpm', 'gseed']) $(id).addEventListener('input', () => { $(`${id}v`).textContent = `${$(id).value}${id === 'glen' ? ' min' : ''}`; this._genChanged(); });
     $('gmake').addEventListener('click', () => this._genMake());
     $('gload').addEventListener('click', () => this._genLoad());
     $('gdl').addEventListener('click', () => this._genDownload());
@@ -991,7 +990,7 @@ export class OggEasyCard extends HTMLElement {
   _genSettings() {
     const $ = this._$;
     const seed = Math.floor(Number($('gseed').value));
-    return { minutes: Number($('glen').value) || 60, intensity: Number($('gint').value) || 6, maxBpm: Number($('gbpm').value) || 130, seed: Number.isFinite(seed) && seed >= 0 ? seed % 4294967296 : 7 };
+    return { minutes: Number($('glen').value) || 60, intensity: Number($('gint').value) || 6, maxBpm: Number($('gbpm').value) || 130, seed: Number.isFinite(seed) ? Math.max(1, Math.min(100, seed)) : 7 };
   }
 
   _genBuild() {
@@ -1084,7 +1083,7 @@ export class OggEasyCard extends HTMLElement {
     try {
       const { g, raw } = this._genBuild();
       const url = URL.createObjectURL(new Blob([JSON.stringify(raw)], { type: 'application/json' }));
-      const a = Object.assign(document.createElement('a'), { href: url, download: relaxTeaseEdgeFile(g.intensity, g.minutes) });
+      const a = Object.assign(document.createElement('a'), { href: url, download: relaxTeaseEdgeFile(g.intensity, g.minutes, g.seed) });
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (e) { this._toast(e.message || String(e)); }
